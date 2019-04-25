@@ -34,10 +34,15 @@ resolver: lts-13.18
 #  - wai
 packages:
 - .
+- location:
+    git: https://github.com/adjoint-io/datetime.git
+    commit: 7f7a0d3c20a35dc71d530fd04a2e4959923d7d1e
+  extra-dep: true
 # Dependency packages to be pulled from upstream that are not in the resolver
 # using the same syntax as the packages field.
 # (e.g., acme-missiles-0.3)
-# extra-deps: []
+extra-deps:
+- base58-bytestring-0.1.0
 
 # Override default flag values for local packages and extra-deps
 # flags: {}

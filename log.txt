@@ -1,0 +1,2 @@
+ZMQError { errno = 88, source = "receive", message = "Socket operation on non-socket" }
+GHCi finished, exiting
