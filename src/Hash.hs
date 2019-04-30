@@ -4,13 +4,13 @@ Hashing for bytestrings and data structures.
 
 -}
 
-{-# LANGUAGE StrictData #-}
-{-# LANGUAGE TypeOperators #-}
-{-# LANGUAGE DeriveGeneric #-}
-{-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE DefaultSignatures #-}
+{-# LANGUAGE DefaultSignatures          #-}
+{-# LANGUAGE DeriveGeneric              #-}
+{-# LANGUAGE FlexibleContexts           #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE ScopedTypeVariables        #-}
+{-# LANGUAGE StrictData                 #-}
+{-# LANGUAGE TypeOperators              #-}
 
 module Hash (
   -- ** Types
@@ -41,26 +41,25 @@ module Hash (
   ripemd160Raw,
 ) where
 
-import Protolude hiding (show, Hashable, hash)
-import Prelude (Show(..), Read(..))
-import Unsafe (unsafeFromJust)
+import           Prelude                 (Read (..), Show (..))
+import           Protolude               hiding (Hashable, hash, show)
+import           Unsafe                  (unsafeFromJust)
 
-import GHC.Generics ((:+:)(..), (:*:)(..))
-import Crypto.Hash (Digest, SHA3_256, RIPEMD160, hash, digestFromByteString)
-import Control.Monad (fail)
+import           Control.Monad           (fail)
+import           Crypto.Hash             (Digest, RIPEMD160, SHA3_256,
+                                          digestFromByteString, hash)
+import           GHC.Generics            ((:*:) (..), (:+:) (..))
 
-import Data.Aeson (ToJSON(..), FromJSON(..))
-import Data.Aeson.Types (Parser, typeMismatch)
-import qualified Data.Map as Map
-import qualified Data.Set as Set
-import qualified Data.List.NonEmpty as NE
-import qualified Data.ByteArray as B
-import qualified Data.Binary as B
-import qualified Data.Serialize as S
-import qualified Data.ByteString as BS
+import           Data.Aeson              (FromJSON (..), ToJSON (..))
+import           Data.Aeson.Types        (Parser, typeMismatch)
+import qualified Data.Binary             as B
+import qualified Data.ByteArray          as B
 import qualified Data.ByteArray.Encoding as B
-import Database.PostgreSQL.Simple.ToField   (ToField(..))
-import Database.PostgreSQL.Simple.FromField (FromField(..))
+import qualified Data.ByteString         as BS
+import qualified Data.List.NonEmpty      as NE
+import qualified Data.Map                as Map
+import qualified Data.Serialize          as S
+import qualified Data.Set                as Set
 
 import qualified Encoding
 
@@ -102,7 +101,7 @@ instance (B.Binary a, S.Serialize a, Encoding.ByteStringEncoding a) => B.Binary 
   get = do
     bs <- B.get
     case S.decode bs of
-      (Right h) -> return h
+      (Right h)  -> return h
       (Left err) -> fail err
 
 instance (Encoding.ByteStringEncoding a) => ToJSON (Hash a) where
@@ -191,10 +190,10 @@ instance Hashable () where
 
 instance Hashable a => Hashable (Maybe a) where
   toHash (Just x) = toHash x
-  toHash Nothing = emptyHash
+  toHash Nothing  = emptyHash
 
 instance (Hashable a, Hashable b) => Hashable (Either a b) where
-  toHash (Left x) = toHash x
+  toHash (Left x)  = toHash x
   toHash (Right x) = toHash x
 
 instance (Hashable a, Hashable b) => Hashable (a,b)
@@ -304,7 +303,7 @@ parseRawHash
   => ByteString -> Either Text (Hash.Hash a)
 parseRawHash bs =
   case Encoding.parseEncodedBS bs of
-    Left err    -> Left (toS $ show err)
+    Left err           -> Left (toS $ show err)
     Right (encBS :: a) -> parseHash encBS
 
 -------------------------------------------------------------------------------
@@ -339,29 +338,3 @@ ripemd160 x = B.convertToBase B.Base16 (hash x :: Digest RIPEMD160)
 
 ripemd160Raw :: ByteString -> ByteString
 ripemd160Raw x = B.convert (hash x :: Digest RIPEMD160)
-
--------------------------------------------------------------------------------
--- PostgreSQL
--------------------------------------------------------------------------------
-
-instance ToField (Hash Encoding.Base16ByteString) where
-  toField = toField . getHash
-
-instance FromField (Hash Encoding.Base16ByteString) where
-  fromField f mdata = do
-    b16bs :: Encoding.Base16ByteString <- fromField f mdata
-    let unencBS = Encoding.decodeBase b16bs
-    case digestFromByteString unencBS of
-      Nothing -> fail "Failed to decode base16 encoded Hash Digest"
-      Just d  -> pure $ Hash d
-
-instance ToField (Hash Encoding.Base58ByteString) where
-  toField = toField . getHash
-
-instance FromField (Hash Encoding.Base58ByteString) where
-  fromField f mdata = do
-    b16bs :: Encoding.Base58ByteString <- fromField f mdata
-    let unencBS = Encoding.decodeBase b16bs
-    case digestFromByteString unencBS of
-      Nothing -> fail "Failed to decode base58 encoded Hash Digest"
-      Just d  -> pure $ Hash d

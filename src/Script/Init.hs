@@ -16,6 +16,7 @@ import qualified Contract
 import qualified SafeString
 import           Time           (Timestamp)
 -- import qualified Transaction as TX
+import qualified Key
 import           Ledger         (Addressable, World)
 import qualified Script.Compile as Compile
 import qualified Script.Eval    as Eval
@@ -51,7 +52,7 @@ import qualified Script.Storage as Storage
 
 -- | Create a contract with a supplied evaluation context
 createContractWithEvalCtx
-  :: (Ord as, Ord ac, Ord c, Show as, Show ac, Show c, Ledger.Addressable asset, Ledger.Addressable account)
+  :: (Ord as, Ord ac, Ord c, Show as, Show ac, Show c, Ledger.Addressable asset, Ledger.Addressable account, Key.Key sk)
   => Eval.EvalCtx as ac c sk -- ^ Context to evaluate the top-level definitions in
   -> World as ac c asset account      -- ^ Initial world
   -> Script as ac c     -- ^ Raw FCL code

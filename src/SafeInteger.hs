@@ -4,8 +4,8 @@ GMP integer types with serializers that consume finite, bounded data.
 
 -}
 
-{-# LANGUAGE Strict #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE Strict                     #-}
 
 {-# OPTIONS_GHC -fwarn-name-shadowing #-}
 
@@ -26,28 +26,22 @@ module SafeInteger (
   unroll
 ) where
 
-import qualified Prelude (show)
-import Protolude hiding (put, get)
+import qualified Prelude             (show)
+import           Protolude           hiding (get, put)
 
-import Control.Exception (Exception, throw)
+import           Control.Exception   (Exception, throw)
 
-import Crypto.Number.Basic (numBits)
+import           Crypto.Number.Basic (numBits)
 
-import Data.Aeson as A
-import Data.Aeson.Types as A
-import Data.Serialize as S
-  (Serialize(..), runPut
-  , getWord8, putWord8
-  , getWord16be, putWord16be
-  , encode, decode
-  )
-import Data.Text.Read (signed, decimal)
+import           Data.Aeson          as A
+import           Data.Aeson.Types    as A
+import           Data.Serialize      as S (Serialize (..), decode, encode,
+                                           getWord16be, getWord8, putWord16be,
+                                           putWord8, runPut)
+import           Data.Text.Read      (decimal, signed)
 
-import Script.Pretty
 import qualified Hash
-
-import Database.PostgreSQL.Simple.ToField
-import Database.PostgreSQL.Simple.FromField
+import           Script.Pretty
 
 maxBits :: Int
 maxBits = 4096
@@ -86,23 +80,6 @@ instance Show SafeInteger where
 
 instance Pretty SafeInteger where
   ppr (SafeInteger x) = ppr x
-
-instance ToField SafeInteger where
-  toField (SafeInteger si) = toField si
-
-instance FromField SafeInteger where
-  fromField f mdata = SafeInteger <$> fromField f mdata
-
-instance ToField (SafeInteger, SafeInteger) where
-  toField = EscapeByteA . S.encode
-
-instance FromField (SafeInteger, SafeInteger) where
-  fromField f mdata = do
-    bs <- fromField f mdata
-    case S.decode <$> bs of
-      Nothing             -> returnError UnexpectedNull f ""
-      Just (Left err)     -> returnError ConversionFailed f (toS err)
-      Just (Right twoSIs) -> return twoSIs
 
 -- | Must encode as String because JSON/Javascript only supports up to 64 bit
 -- integers.

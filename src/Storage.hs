@@ -35,36 +35,29 @@ module Storage (
 
 ) where
 
-import           Protolude                            hiding (Type)
+import           Protolude               hiding (Type)
 
-import           Script                               (DateTime (..),
-                                                       Value (..))
-import qualified Script.Parser                        as Parser
-import           Script.Pretty                        (Pretty (..), prettyPrint)
+import           Script                  (DateTime (..), Value (..))
+import qualified Script.Parser           as Parser
+import           Script.Pretty           (Pretty (..), prettyPrint)
 
-import           Control.Monad                        (fail)
-import           Crypto.Number.Serialize              (os2ip)
+import           Control.Monad           (fail)
+import           Crypto.Number.Serialize (os2ip)
 
 import qualified Encoding
 import qualified Hash
 
 import           Datetime.Types
 
-import           Data.Aeson                           (FromJSON (..),
-                                                       FromJSONKey (..),
-                                                       ToJSON (..),
-                                                       ToJSONKey (..), object,
-                                                       (.:), (.=))
-import qualified Data.Aeson                           as A
-import           Data.Aeson.Types                     (toJSONKeyText,
-                                                       typeMismatch)
-import qualified Data.Map                             as Map
+import           Data.Aeson              (FromJSON (..), FromJSONKey (..),
+                                          ToJSON (..), ToJSONKey (..), object,
+                                          (.:), (.=))
+import qualified Data.Aeson              as A
+import           Data.Aeson.Types        (toJSONKeyText, typeMismatch)
+import qualified Data.Map                as Map
 import           Data.Scientific
-import           Data.Serialize                       as S (Serialize, decode,
-                                                            encode, get, put)
-
-import           Database.PostgreSQL.Simple.FromField
-import           Database.PostgreSQL.Simple.ToField
+import           Data.Serialize          as S (Serialize, decode, encode, get,
+                                               put)
 
 -------------------------------------------------------------------------------
 -- Types
@@ -233,18 +226,6 @@ instance FromJSON Key where
 
 instance (Ord as, Ord ac, Ord c, FromJSON as, FromJSON ac, FromJSON c) => FromJSONKey (Value as ac c) where
 
--------------------------------------------------------------------------------
-
-instance ToField Key where
-  toField = toField . unKey
-
-instance FromField Key where
-  fromField f mdata = do
-    bs <- fromField f mdata
-    case bs of
-      Nothing          -> returnError UnexpectedNull f ""
-      Just (Left err)  -> returnError ConversionFailed f err
-      Just (Right key) -> pure $ Key key
 
 -------------------------------------------------------------------------------
 -- Hashing

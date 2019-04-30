@@ -14,6 +14,7 @@ module Script.Storage (
 import Protolude hiding ((<>))
 
 import Ledger (World, Addressable)
+import qualified Key
 import Script
 import Storage
 import Script.Pretty
@@ -38,7 +39,7 @@ initGlobalStorage (Script _ defns _ _ _)
 
 initStorage
   :: forall as ac c asset account sk.
-  (Ord as, Ord ac, Ord c, Show as, Show ac, Show c, Ledger.Addressable asset, Ledger.Addressable account)
+  (Ord as, Ord ac, Ord c, Show as, Show ac, Show c, Ledger.Addressable asset, Ledger.Addressable account, Key.Key sk)
   => EvalCtx as ac c sk    -- ^ Context to evaluate the top-level definitions in
   -> World as ac c asset account      -- ^ World to evaluate the top-level definitions in
   -> Script as ac c     -- ^ Script

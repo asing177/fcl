@@ -53,6 +53,7 @@ import qualified Delta
 import qualified Contract
 import qualified Hash
 import Asset
+import qualified Key
 import qualified Ledger
 import qualified Script.Pretty as Pretty
 import qualified Script.Prim as Prim
@@ -318,7 +319,7 @@ handleArithError m = do
 evalLExpr
   :: forall as ac c asset account sk.
   (Eq as, Eq ac, Eq c, Ord as, Ord ac, Ord c, Show as, Show ac, Show c
-  ,Ledger.Addressable asset, Ledger.Addressable account)
+  ,Ledger.Addressable asset, Ledger.Addressable account, Key.Key sk)
   => LExpr as ac c
   -> (EvalM as ac c asset account sk) (Value as ac c)
 evalLExpr (Located loc e) = case e of
@@ -547,7 +548,7 @@ evalBinOpF bop c a b = panicInvalidBinOp bop (c a) (c b)
 
 evalPrim
   :: forall as ac c asset account sk.
-  (Show as, Show ac, Show c, Ord as, Ord ac, Ord c, Ledger.Addressable asset, Ledger.Addressable account)
+  (Show as, Show ac, Show c, Ord as, Ord ac, Ord c, Ledger.Addressable asset, Ledger.Addressable account, Key.Key sk)
   => Loc
   -> PrimOp
   -> [LExpr as ac c]
@@ -564,7 +565,17 @@ evalPrim loc ex args = case ex of
     pure $ VDateTime $ DateTime createdDatetime
   Address           -> VContract . currentAddress <$> ask
   Validator         -> VAccount . currentValidator <$> ask
+  Verify         -> do
+    notImplemented
+   --  let [accExpr,sigExpr,msgExpr] = args
+   --  (VSig safeSig) <- evalLExpr sigExpr
+   --  (VText msg) <- evalLExpr msgExpr
+   --  ledgerState <- gets worldState
 
+   --  acc <- getAccount accExpr
+   --  let sig = bimap fromSafeInteger fromSafeInteger safeSig
+   --  return $ VBool $
+   --    Key.verify (publicKey acc) (Key.mkSignatureRS sig) $ SS.toBytes msg
   Fixed1ToFloat  -> do
     let [eFixed] = args
     p <- evalLExpr eFixed
@@ -666,8 +677,7 @@ evalPrim loc ex args = case ex of
     case p of
       VText msg -> do
         privKey <- currentPrivKey <$> ask -- XXX               V gen Random value?
-        sig <- notImplemented
-        -- Key.getSignatureRS <$> Key.sign privKey (SS.toBytes msg)
+        sig <- Key.sign privKey (SS.toBytes msg)
         case bimap toSafeInteger toSafeInteger sig of
           (Right safeR, Right safeS) -> return $ VSig (safeR,safeS)
           otherwise -> throwError $
@@ -787,7 +797,7 @@ evalPrim loc ex args = case ex of
 evalAssetPrim
   :: forall as ac c asset account sk.
   (Ord as, Ord ac, Ord c, Show as, Show ac, Show c
-  ,Ledger.Addressable asset, Ledger.Addressable account)
+  ,Ledger.Addressable asset, Ledger.Addressable account, Key.Key sk)
   => Loc
   -> Prim.AssetPrimOp
   -> [LExpr as ac c]
@@ -961,7 +971,7 @@ evalAssetPrim loc assetPrimOp args =
 evalMapPrim
   :: forall as ac c asset account sk.
   (Ord as, Ord ac, Ord c, Show as, Show ac, Show c
-  ,Ledger.Addressable asset, Ledger.Addressable account)
+  ,Ledger.Addressable asset, Ledger.Addressable account, Key.Key sk)
   => Prim.MapPrimOp
   -> [LExpr as ac c]
   -> (EvalM as ac c asset account sk) (Value as ac c)
@@ -993,7 +1003,7 @@ evalMapPrim mapPrimOp args =
 
 evalSetPrim
   :: (Ord as, Ord ac, Ord c, Show as, Show ac, Show c
-     ,Ledger.Addressable asset, Ledger.Addressable account)
+     ,Ledger.Addressable asset, Ledger.Addressable account, Key.Key sk)
   => Prim.SetPrimOp -> [LExpr as ac c] -> (EvalM as ac c asset account sk) (Value as ac c)
 evalSetPrim setPrimOp args =
   case setPrimOp of
@@ -1007,7 +1017,7 @@ evalSetPrim setPrimOp args =
 evalCollPrim
   :: forall as ac c asset account sk.
   (Ord as, Ord ac, Ord c, Show as, Show ac, Show c
-  ,Ledger.Addressable asset, Ledger.Addressable account)
+  ,Ledger.Addressable asset, Ledger.Addressable account, Key.Key sk)
   => Prim.CollPrimOp -> [LExpr as ac c] -> (EvalM as ac c asset account sk) (Value as ac c)
 evalCollPrim collPrimOp args =
   case collPrimOp of
@@ -1104,7 +1114,7 @@ checkGraph = do
 -- this is done by 'Contract.callableMethods'
 evalMethod
   :: (Ord as, Ord ac, Ord c, Show as, Show ac, Show c
-     ,Ledger.Addressable asset, Ledger.Addressable account)
+     ,Ledger.Addressable asset, Ledger.Addressable account, Key.Key sk)
   => Method as ac c -> [Value as ac c] -> (EvalM as ac c asset account sk) (Value as ac c)
 evalMethod meth@(Method _ _ nm argTyps body) args = do
     setCurrentMethod meth
@@ -1125,7 +1135,7 @@ evalMethod meth@(Method _ _ nm argTyps body) args = do
 -- contract, call `evalMethod`.
 eval
   :: (Eq as, Eq ac, Eq c, Ord as, Ord ac, Ord c, Show as, Show ac, Show c
-     ,Ledger.Addressable asset, Ledger.Addressable account)
+     ,Ledger.Addressable asset, Ledger.Addressable account, Key.Key sk)
   => Contract.Contract as ac c
   -> Name
   -> [Value as ac c]
@@ -1136,7 +1146,7 @@ eval c nm args =
     Left err -> throwError (InvalidMethodName err)
 
 evalFloatToFixed :: (Ord as, Ord ac, Ord c, Show as, Show ac, Show c
-                    ,Ledger.Addressable asset, Ledger.Addressable account) => PrecN -> [LExpr as ac c] -> (EvalM as ac c asset account sk) (Value as ac c)
+                    ,Ledger.Addressable asset, Ledger.Addressable account, Key.Key sk) => PrecN -> [LExpr as ac c] -> (EvalM as ac c asset account sk) (Value as ac c)
 evalFloatToFixed prec args = do
     let [eFloat] = args
     VFloat float <- evalLExpr eFloat
@@ -1182,7 +1192,7 @@ data PreconditionsV ac = PreconditionsV
 -- NB: We assume that we are given a type checked AST
 evalPreconditions
   :: forall as ac c asset account sk.
-  (Ord as, Ord ac, Ord c, Show as, Show ac, Show c, Ledger.Addressable asset, Ledger.Addressable account)
+  (Ord as, Ord ac, Ord c, Show as, Show ac, Show c, Ledger.Addressable asset, Ledger.Addressable account, Key.Key sk)
   => Method as ac c
   -> (EvalM as ac c asset account sk) (PreconditionsV ac)
 evalPreconditions m = do
@@ -1209,7 +1219,7 @@ evalPreconditions m = do
       pure accounts
 
 checkPreconditions
-  :: (Ord as, Ord ac, Ord c, Show as, Show ac, Show c, Ledger.Addressable asset, Ledger.Addressable account)
+  :: (Ord as, Ord ac, Ord c, Show as, Show ac, Show c, Ledger.Addressable asset, Ledger.Addressable account, Key.Key sk)
   => Method as ac c -> (EvalM as ac c asset account sk) ()
 checkPreconditions m = do
   PreconditionsV afterV beforeV roleV <- evalPreconditions m
@@ -1238,7 +1248,7 @@ checkPreconditions m = do
         (throwError $ PrecNotSatCaller m accounts issuer)
 
 evalCallableMethods
-  :: (Ord as, Ord ac, Ord c, Show as, Show ac, Show c, Ledger.Addressable asset, Ledger.Addressable account)
+  :: (Ord as, Ord ac, Ord c, Show as, Show ac, Show c, Ledger.Addressable asset, Ledger.Addressable account, Key.Key sk)
   => Contract.Contract as ac c -> (EvalM as ac c asset account sk) (Contract.CallableMethods ac)
 evalCallableMethods contract =
     foldM insertCallableMethod mempty (Contract.callableMethods contract)
@@ -1275,11 +1285,11 @@ hashValue = \case
   VFixed n       -> pure (show n)
   VBool n        -> pure (show n)
   VState n       -> pure (show n)
-  VAccount a     -> notImplemented
+  VAccount a     -> pure (show a)
     -- TODO: pure (rawAddr a)
-  VContract a    -> notImplemented
+  VContract a    -> pure (show a)
     -- TODO: -> pure (rawAddr a)
-  VAsset a       -> notImplemented
+  VAsset a       -> pure (show a)
     -- TODO: -> pure (rawAddr a)
   VVoid          -> pure ""
   VDateTime dt   -> pure $ S.encode dt

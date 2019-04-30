@@ -1,5 +1,5 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE ScopedTypeVariables        #-}
 
 {-|
 
@@ -27,19 +27,17 @@ module Encoding (
   encodeBase64P
 ) where
 
-import Protolude hiding (Show, show)
-import Prelude (Show(..))
-import Control.Monad (fail)
-import Data.Aeson
-import qualified Data.Binary as B
-import qualified Data.ByteArray as B
+import           Control.Monad           (fail)
+import           Data.Aeson
+import qualified Data.Binary             as B
+import qualified Data.ByteArray          as B
 import qualified Data.ByteArray.Encoding as B
-import qualified Data.ByteString.Base58 as B58
-import Data.Serialize as S
-import Database.PostgreSQL.Simple.ToField   (ToField(..))
-import Database.PostgreSQL.Simple.FromField (FromField(..), ResultError(..), returnError)
+import qualified Data.ByteString.Base58  as B58
+import           Data.Serialize          as S
+import           Prelude                 (Show (..))
+import           Protolude               hiding (Show, show)
 
-import Script.Pretty (Pretty(..))
+import           Script.Pretty           (Pretty (..))
 
 data EncodingError a
   = BadEncoding a
@@ -80,20 +78,12 @@ decodeBase58M = B58.decodeBase58 B58.bitcoinAlphabet . unbase58
 encodeBase58 :: ByteString -> Base58ByteString
 encodeBase58 = encodeBase
 
-instance ToField Base58ByteString where
-  toField = toField . unbase58
-
-instance FromField Base58ByteString where
-  fromField f mdata = case mdata of
-    Nothing -> returnError UnexpectedNull f ""
-    Just bs -> return $ Base58ByteString bs
-
 instance FromJSON Base58ByteString where
   parseJSON v = do
     t :: Text <- parseJSON v
     let bs = encodeUtf8 t
     case parseEncodedBS bs of
-      Left err -> fail (show err)
+      Left err     -> fail (show err)
       Right baseBS -> pure baseBS
 
 instance ToJSON Base58ByteString where
@@ -108,7 +98,7 @@ instance FromJSONKey Base58ByteString where
 
 newtype Base16ByteString = Base16ByteString
   { unbase16 :: ByteString
-  } deriving (Show, B.ByteArrayAccess, S.Serialize, Eq, Ord, Semigroup, Monoid, NFData, Read, B.Binary, ToField, FromField)
+  } deriving (Show, B.ByteArrayAccess, S.Serialize, Eq, Ord, Semigroup, Monoid, NFData, Read, B.Binary)
 
 instance ByteStringEncoding Base16ByteString where
   encodeBase = Base16ByteString . B.convertToBase B.Base16
@@ -119,8 +109,8 @@ instance ByteStringEncoding Base16ByteString where
   parseEncodedBS bs = do
     let b16bs = Base16ByteString bs
     case decodeBase16E b16bs of
-      Left _ -> Left $ BadEncoding b16bs
-      Right _  -> Right b16bs
+      Left _  -> Left $ BadEncoding b16bs
+      Right _ -> Right b16bs
 
 
 decodeBase16E :: Base16ByteString -> Either [Char] ByteString
@@ -134,7 +124,7 @@ instance FromJSON Base16ByteString where
     t :: Text <- parseJSON v
     let bs = encodeUtf8 t
     case parseEncodedBS bs of
-      Left err -> fail (show err)
+      Left err     -> fail (show err)
       Right baseBS -> pure baseBS
 
 instance ToJSON Base16ByteString where
@@ -145,7 +135,7 @@ instance ToJSON Base16ByteString where
 
 newtype Base64ByteString = Base64ByteString
  { unbase64 :: ByteString
- } deriving (Show, B.ByteArrayAccess, S.Serialize, Eq, Ord, Semigroup, Monoid, NFData, Read, B.Binary, ToField, FromField)
+ } deriving (Show, B.ByteArrayAccess, S.Serialize, Eq, Ord, Semigroup, Monoid, NFData, Read, B.Binary)
 
 instance ByteStringEncoding Base64ByteString where
   encodeBase = Base64ByteString . B.convertToBase B.Base64URLUnpadded
@@ -156,8 +146,8 @@ instance ByteStringEncoding Base64ByteString where
   parseEncodedBS bs = do
     let b64bs = Base64ByteString bs
     case decodeBase64E b64bs of
-      Left _ -> Left $ BadEncoding b64bs
-      Right _  -> Right b64bs
+      Left _  -> Left $ BadEncoding b64bs
+      Right _ -> Right b64bs
 
 
 decodeBase64E :: Base64ByteString -> Either [Char] ByteString
@@ -171,7 +161,7 @@ instance FromJSON Base64ByteString where
     t :: Text <- parseJSON v
     let bs = encodeUtf8 t
     case parseEncodedBS bs of
-      Left err -> fail (show err)
+      Left err     -> fail (show err)
       Right baseBS -> pure baseBS
 
 instance ToJSON Base64ByteString where
@@ -184,7 +174,7 @@ instance ToJSON Base64ByteString where
 -- | Base 64 hash (padded)
 newtype Base64PByteString = Base64PByteString
   { unbase64P :: ByteString
-  } deriving (Show, B.ByteArrayAccess, S.Serialize, Eq, Ord, Semigroup, Monoid, NFData, Read, B.Binary, ToField, FromField)
+  } deriving (Show, B.ByteArrayAccess, S.Serialize, Eq, Ord, Semigroup, Monoid, NFData, Read, B.Binary)
 
 instance ByteStringEncoding Base64PByteString where
   encodeBase = Base64PByteString . B.convertToBase B.Base64
@@ -195,8 +185,8 @@ instance ByteStringEncoding Base64PByteString where
   parseEncodedBS bs = do
     let b64Pbs = Base64PByteString bs
     case decodeBase64PE b64Pbs of
-      Left _ -> Left $ BadEncoding b64Pbs
-      Right _  -> Right b64Pbs
+      Left _  -> Left $ BadEncoding b64Pbs
+      Right _ -> Right b64Pbs
 
 
 decodeBase64PE :: Base64PByteString -> Either [Char] ByteString
@@ -212,7 +202,7 @@ instance FromJSON Base64PByteString where
     t :: Text <- parseJSON v
     let bs = encodeUtf8 t
     case parseEncodedBS bs of
-      Left err -> fail $ show err
+      Left err     -> fail $ show err
       Right baseBS -> pure baseBS
 
 instance ToJSON Base64PByteString where

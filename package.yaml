@@ -73,9 +73,6 @@ dependencies:
   - hashable
   - unordered-containers
 
-  # Persistence
-  - postgresql-simple
-
   # Cryptography
   - cryptonite
 
