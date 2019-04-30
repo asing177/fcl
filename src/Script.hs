@@ -155,8 +155,8 @@ instance Ord a => Ord (Located a) where
   compare l1 l2 = locVal l1 `compare` locVal l2
 
 -- | Attach location information to a type
-type LExpr ac as c = Located (Expr ac as c)
-type LLit ac as c = Located (Lit ac as c)
+type LExpr as ac c = Located (Expr as ac c)
+type LLit as ac c = Located (Lit as ac c)
 type LType = Located Type
 type LName = Located Name
 type LBinOp = Located BinOp
@@ -195,29 +195,29 @@ data Pattern
   = PatLit EnumConstr
   deriving (Eq, Ord, Show, Generic, Hash.Hashable, NFData, FromJSON, ToJSON, Serialize)
 
-data Match ac as c
+data Match as ac c
   = Match { matchPat  :: LPattern
-          , matchBody :: LExpr ac as c
+          , matchBody :: LExpr as ac c
           }
   deriving (Eq, Ord, Show, Generic, Hash.Hashable, NFData, FromJSON, ToJSON, Serialize)
 
-data Expr ac as c
-  = ESeq     (LExpr ac as c) (LExpr ac as c)           -- ^ Sequencing
-  | ELit     (LLit ac as c)                  -- ^ Literal
+data Expr as ac c
+  = ESeq     (LExpr as ac c) (LExpr as ac c)           -- ^ Sequencing
+  | ELit     (LLit as ac c)                  -- ^ Literal
   | EVar     LName                 -- ^ Variable reference
   | EHole
-  | EBinOp   LBinOp (LExpr ac as c) (LExpr ac as c)    -- ^ Basic Binary ops on Integers
-  | EUnOp    LUnOp  (LExpr ac as c)          -- ^ Basic unary ops
-  | EIf      (LExpr ac as c) (LExpr ac as c) (LExpr ac as c)     -- ^ Conditional
-  | EBefore  (LExpr ac as c) (LExpr ac as c)           -- ^ Time guard
-  | EAfter   (LExpr ac as c) (LExpr ac as c)           -- ^ Time guard
-  | EBetween (LExpr ac as c) (LExpr ac as c) (LExpr ac as c)     -- ^ Time guard
-  | ECase    (LExpr ac as c) [Match ac as c]         -- ^ Case statement
-  | EAssign  Name  (LExpr ac as c)           -- ^ Variable update
-  | ECall    (Either PrimOp LName) [LExpr ac as c] -- ^ Function call
+  | EBinOp   LBinOp (LExpr as ac c) (LExpr as ac c)    -- ^ Basic Binary ops on Integers
+  | EUnOp    LUnOp  (LExpr as ac c)          -- ^ Basic unary ops
+  | EIf      (LExpr as ac c) (LExpr as ac c) (LExpr as ac c)     -- ^ Conditional
+  | EBefore  (LExpr as ac c) (LExpr as ac c)           -- ^ Time guard
+  | EAfter   (LExpr as ac c) (LExpr as ac c)           -- ^ Time guard
+  | EBetween (LExpr as ac c) (LExpr as ac c) (LExpr as ac c)     -- ^ Time guard
+  | ECase    (LExpr as ac c) [Match as ac c]         -- ^ Case statement
+  | EAssign  Name  (LExpr as ac c)           -- ^ Variable update
+  | ECall    (Either PrimOp LName) [LExpr as ac c] -- ^ Function call
   | ENoOp                          -- ^ Empty method body
-  | EMap     (Map (LExpr ac as c) (LExpr ac as c))     -- ^ Map k v
-  | ESet     (Set (LExpr ac as c))           -- ^ Set v
+  | EMap     (Map (LExpr as ac c) (LExpr as ac c))     -- ^ Map k v
+  | ESet     (Set (LExpr as ac c))           -- ^ Set v
   deriving (Eq, Ord, Show, Generic, Hash.Hashable, NFData, FromJSON, ToJSON, Serialize)
 
 data BinOp
@@ -239,7 +239,7 @@ data UnOp = Not -- ^ Logical negation
   deriving (Eq, Ord, Show, Generic, Hash.Hashable, NFData, FromJSON, ToJSON, Serialize)
 
 -- | Literal representing Value
-data Lit ac as c
+data Lit as ac c
   = LInt       Int64
   | LFloat     Double
   | LFixed     FixedN
@@ -257,7 +257,7 @@ data Lit ac as c
   deriving (Eq, Ord, Show, Generic, Hash.Hashable, NFData, FromJSON, ToJSON, Serialize)
 
 -- | Values in which literals are evaluated to
-data Value ac as c
+data Value as ac c
   = VInt Int64                     -- ^ Integral types
   | VFloat Double                  -- ^ Floating types
   | VFixed FixedN                  -- ^ Fixed point types
@@ -273,10 +273,10 @@ data Value ac as c
   | VEnum EnumConstr               -- ^ Constructor of the given enum type
   | VState WorkflowState           -- ^ Named state label
   | VMap (Map
-          (Value ac as c)
-          (Value ac as c)
+          (Value as ac c)
+          (Value as ac c)
          )                         -- ^ Map of values to values
-  | VSet (Set (Value ac as c))               -- ^ Set of values
+  | VSet (Set (Value as ac c))               -- ^ Set of values
   | VUndefined                     -- ^ Undefined
   deriving (Eq, Ord, Show, Generic, NFData, Serialize, Hash.Hashable)
 
@@ -338,18 +338,18 @@ instance Pretty Precondition where
     PrecBefore -> "before"
     PrecRoles  -> "roles"
 
-newtype Preconditions ac as c = Preconditions
-  { unPreconditions :: [(Precondition, LExpr ac as c)] }
+newtype Preconditions as ac c = Preconditions
+  { unPreconditions :: [(Precondition, LExpr as ac c)] }
   deriving (Eq, Ord, Show, Generic, NFData, Hash.Hashable, Serialize, FromJSON, ToJSON)
 
-instance Semigroup (Preconditions ac as c) where
+instance Semigroup (Preconditions as ac c) where
   Preconditions ps1 <> Preconditions ps2 = Preconditions $ ps1 <> ps2
 
-instance Monoid (Preconditions ac as c) where
+instance Monoid (Preconditions as ac c) where
   mempty = Preconditions []
 
 instance (Eq ac, Ord ac, Eq as, Eq c, Pretty ac, Pretty as, Pretty c) =>
-  Pretty (Preconditions ac as c) where
+  Pretty (Preconditions as ac c) where
   ppr (Preconditions ps)
     = case map prettyPrec ps of
         [] -> ""
@@ -361,19 +361,19 @@ instance (Eq ac, Ord ac, Eq as, Eq c, Pretty ac, Pretty as, Pretty c) =>
         (p, e) -> ppr p <> ":" <+> ppr e
 
 -- | Method
-data Method ac as c = Method
+data Method as ac c = Method
   { methodInputPlaces   :: WorkflowState
-  , methodPreconditions :: Preconditions ac as c
+  , methodPreconditions :: Preconditions as ac c
   , methodName          :: LName
   , methodArgs          :: [Arg]
-  , methodBody          :: LExpr ac as c
+  , methodBody          :: LExpr as ac c
   } deriving (Eq, Ord, Show, Generic, NFData, Hash.Hashable, FromJSON, ToJSON, Serialize)
 
 -- | "Pure" Helper functions
-data Helper ac as c = Helper
+data Helper as ac c = Helper
   { helperName :: LName
   , helperArgs :: [Arg]
-  , helperBody :: LExpr ac as c
+  , helperBody :: LExpr as ac c
   } deriving (Eq, Ord, Show, Generic, NFData, Hash.Hashable, FromJSON, ToJSON, Serialize)
 
 -- | Enumeration
@@ -383,15 +383,15 @@ data EnumDef = EnumDef
   } deriving (Eq, Ord, Show, Generic, NFData, Hash.Hashable, ToJSON, FromJSON, Serialize)
 
 -- | Definition
-data Def ac as c
-  = GlobalDef Type (Preconditions ac as c) Name (LExpr ac as c)
-  | GlobalDefNull Type (Preconditions ac as c) LName
+data Def as ac c
+  = GlobalDef Type (Preconditions as ac c) Name (LExpr as ac c)
+  | GlobalDefNull Type (Preconditions as ac c) LName
   deriving (Eq, Ord, Show, Generic, NFData, Hash.Hashable, FromJSON, ToJSON, Serialize)
 
-defnName :: Def ac as c -> Name
+defnName :: Def as ac c -> Name
 defnName = locVal . defnLName
 
-defnLName :: Def ac as c -> LName
+defnLName :: Def as ac c -> LName
 defnLName = \case
   GlobalDef _ _ nm _    -> Located NoLoc nm
   GlobalDefNull _ _ lnm -> lnm
@@ -402,12 +402,12 @@ defnPreconditions = \case
     GlobalDefNull _ p _ -> Just p
 
 -- | Script
-data Script ac as c = Script
+data Script as ac c = Script
   { scriptEnums       :: [EnumDef]
-  , scriptDefs        :: [Def ac as c]
+  , scriptDefs        :: [Def as ac c]
   , scriptTransitions :: [Transition]
-  , scriptMethods     :: [Method ac as c]
-  , scriptHelpers     :: [Helper ac as c]
+  , scriptMethods     :: [Method as ac c]
+  , scriptHelpers     :: [Helper as ac c]
   } deriving (Eq, Ord, Show, Generic, NFData, Hash.Hashable, ToJSON, FromJSON, Serialize)
 
 emptyScript :: Script as ac c
@@ -531,7 +531,7 @@ createEnumInfo enums = EnumInfo constrEnum enumConstrs
 -------------------------------------------------------------------------------
 
 instance (Ord ac, Ord as, Ord c, Serialize ac, Serialize as, Serialize c) =>
-  Serialize (NonEmpty (LExpr ac as c)) where
+  Serialize (NonEmpty (LExpr as ac c)) where
   put = put . NE.toList
   get = NE.fromList <$> get
 
@@ -587,7 +587,7 @@ instance Pretty Name where
 instance Pretty EnumConstr where
   ppr (EnumConstr ec) = ppr ec
 
-instance (Eq ac, Eq as, Eq c, Pretty ac, Pretty as, Pretty c) => Pretty (Expr ac as c) where
+instance (Eq ac, Eq as, Eq c, Pretty ac, Pretty as, Pretty c) => Pretty (Expr as ac c) where
   ppr = \case
     ENoOp            -> mempty
     ESeq e e'        -> vsep [ppr' e, ppr e']
@@ -640,7 +640,7 @@ instance (Eq ac, Eq as, Eq c, Pretty ac, Pretty as, Pretty c) => Pretty (Expr ac
     ESet s -> setOf s
 
 instance (Eq ac, Eq as, Eq c, Pretty ac, Pretty as, Pretty c) =>
-  Pretty (Match ac as c) where
+  Pretty (Match as ac c) where
   ppr (Match (Located _ (PatLit p)) expr)
     = notImplemented
     -- ppr (LConstr p) <+> token Token.rarrow <+> maybeBrace expr
@@ -652,7 +652,7 @@ instance (Eq ac, Eq as, Eq c, Pretty ac, Pretty as, Pretty c) =>
     --         ESeq _ _ -> lbrace <+> semify (ppr e) <+> rbrace
     --         _        -> ppr e
 
-instance (Pretty ac, Pretty as, Pretty c) => Pretty (Lit ac as c) where
+instance (Pretty ac, Pretty as, Pretty c) => Pretty (Lit as ac c) where
   ppr = \case
     LInt int64     -> ppr int64
     LFloat dbl     -> ppr dbl
@@ -712,7 +712,7 @@ instance Pretty TCollection where
     TMap tk tv -> token Token.map <> angles (ppr tk <> "," <+> ppr tv)
     TSet ts    -> token Token.set <> angles (ppr ts)
 
-instance (Pretty ac, Pretty as, Pretty c) => Pretty (Script.Value ac as c) where
+instance (Pretty ac, Pretty as, Pretty c) => Pretty (Script.Value as ac c) where
   ppr = \case
     VInt n       -> ppr n
     VFloat n     -> ppr n
@@ -753,7 +753,7 @@ instance Pretty BinOp where
 instance Pretty UnOp where
   ppr Not = token Token.not
 
-instance (Eq as, Eq c, Ord ac, Pretty ac, Pretty as, Pretty c) => Pretty (Method ac as c) where
+instance (Eq as, Eq c, Ord ac, Pretty ac, Pretty as, Pretty c) => Pretty (Method as ac c) where
   ppr (Method inputPs precs name args (Located _ body)) =
     token Token.at <> ppr inputPs <+> ppr precs
       <$$> ppr name <> tupleOf (map ppr args) <+>
@@ -764,7 +764,7 @@ instance (Eq as, Eq c, Ord ac, Pretty ac, Pretty as, Pretty c) => Pretty (Method
           <$$> rbrace
         other -> lbrace <$$> indent 2 (semify (ppr other)) <$$> rbrace
 
-instance (Eq ac, Eq as, Eq c, Pretty ac, Pretty as, Pretty c) => Pretty (Helper ac as c) where
+instance (Eq ac, Eq as, Eq c, Pretty ac, Pretty as, Pretty c) => Pretty (Helper as ac c) where
   ppr (Helper name args (Located _ body)) =
     ppr name <> tupleOf (map ppr args) <+>
       case body of
@@ -781,7 +781,7 @@ instance Pretty EnumDef where
       <$$> rbrace <> token Token.semi
 
 instance (Eq ac, Eq as, Eq c, Ord ac, Pretty ac, Pretty as, Pretty c) =>
-  Pretty (Def ac as c) where
+  Pretty (Def as ac c) where
   ppr = \case
     GlobalDefNull typ precs (Located _ name)
       -> hsep [token Token.global, ppr typ, ppr precs, ppr name] <> token Token.semi
@@ -789,7 +789,7 @@ instance (Eq ac, Eq as, Eq c, Ord ac, Pretty ac, Pretty as, Pretty c) =>
       -> hsep [token Token.global, ppr typ, ppr precs, ppr name `assign` ppr expr]
 
 instance (Eq as, Ord ac, Eq c, Pretty ac, Pretty as, Pretty c) =>
-  Pretty (Script ac as c) where
+  Pretty (Script as ac c) where
   ppr (Script enums defns transitions methods functions) = vsep
     [ vsep (map ppr enums)
     , vsep (map ppr defns)
@@ -802,7 +802,7 @@ instance (Eq as, Ord ac, Eq c, Pretty ac, Pretty as, Pretty c) =>
     ]
 
 ppScript
-  :: (Ord as, Eq ac, Eq c, Pretty ac, Pretty as, Pretty c)
+  :: (Ord ac, Eq as, Eq c, Pretty ac, Pretty as, Pretty c)
   => Script as ac c -> LText
 ppScript = render . ppr
 

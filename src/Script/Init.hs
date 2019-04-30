@@ -1,62 +1,61 @@
 {-# LANGUAGE TupleSections #-}
 
 module Script.Init (
-  createContract,
+  -- createContract,
   createContractWithEvalCtx,
 
   createFauxContract,
 ) where
 
-import Protolude
+import           Protolude
 
-import Script
-import Address (Address, AAccount, AContract)
-import Contract (Contract)
+import           Contract       (Contract)
+import           Script
 
-import Key (PrivateKey)
-import Time (Timestamp)
 import qualified Contract
 import qualified SafeString
-import qualified Transaction as TX
-import qualified Script.Storage as Storage
+import           Time           (Timestamp)
+-- import qualified Transaction as TX
+import           Ledger         (Addressable, World)
 import qualified Script.Compile as Compile
-import Ledger (World)
-import qualified Script.Eval as Eval
+import qualified Script.Eval    as Eval
+import qualified Script.Storage as Storage
 
--- | Create a contract
-createContract
-  :: Address AContract                    -- ^ Contract Address
-  -> Address AAccount                     -- ^ Address of Evaluating node
-  -> Maybe Eval.TransactionCtx            -- ^ Maybe info relating to the transaction of the method call
-  -> PrivateKey                           -- ^ Node private key for signing
-  -> Timestamp                            -- ^ Contract timestamp
-  -> Address AAccount                     -- ^ Contract owner
-  -> World                                -- ^ Initial world
-  -> Text                                 -- ^ Raw FCL code
-  -> IO (Either Text Contract)
-createContract contractAddr nodeAddr mtxCtx privKey cTimestamp cOwner world body = do
-  case Compile.compilePrettyErr body of
-    Left err -> pure (Left err)
-    Right Compile.CheckedScript{Compile.checkedScript = script} -> do
-      let helpers = scriptHelpers script
-      createContractWithEvalCtx (mkEvalCtx helpers) world script
-  where
-    mkEvalCtx helpers = Eval.EvalCtx
-      { currentValidator = nodeAddr
-      , currentTxCtx = mtxCtx
-      , currentCreated = cTimestamp
-      , currentDeployer = cOwner
-      , currentAddress = contractAddr
-      , currentPrivKey = privKey
-      , currentHelpers = helpers
-      }
+-- -- | Create a contract
+-- createContract
+--   :: c                    -- ^ Contract Address
+--   -> ac                     -- ^ Address of Evaluating node
+--   -> Maybe (Eval.TransactionCtx ac)            -- ^ Maybe info relating to the transaction of the method call
+--   -> sk                           -- ^ Node private key for signing
+--   -> Timestamp                            -- ^ Contract timestamp
+--   -> ac                     -- ^ Contract owner
+--   -> World as ac c asset account                                -- ^ Initial world
+--   -> Text                                 -- ^ Raw FCL code
+--   -> IO (Either Text (Contract as ac c))
+-- createContract contractAddr nodeAddr mtxCtx privKey cTimestamp cOwner world body = do
+--   case Compile.compilePrettyErr body of
+--     Left err -> pure (Left err)
+--     Right Compile.CheckedScript{Compile.checkedScript = script} -> do
+--       let helpers = scriptHelpers script
+--       createContractWithEvalCtx (mkEvalCtx helpers) world script
+--   where
+--     mkEvalCtx helpers = Eval.EvalCtx
+--       { currentValidator = nodeAddr
+--       , currentTxCtx = mtxCtx
+--       , currentCreated = cTimestamp
+--       , currentDeployer = cOwner
+--       , currentAddress = contractAddr
+--       , currentPrivKey = privKey
+--       , currentHelpers = helpers
+--       }
 
 -- | Create a contract with a supplied evaluation context
 createContractWithEvalCtx
-  :: Eval.EvalCtx -- ^ Context to evaluate the top-level definitions in
-  -> World      -- ^ Initial world
-  -> Script     -- ^ Raw FCL code
-  -> IO (Either Text Contract)
+  :: (Ord as, Ord ac, Ord c, Show as, Show ac, Show c, Ledger.Addressable asset, Ledger.Addressable account)
+  => Eval.EvalCtx as ac c sk -- ^ Context to evaluate the top-level definitions in
+  -> World as ac c asset account      -- ^ Initial world
+  -> Script as ac c     -- ^ Raw FCL code
+  -> IO (Either Text (Contract as ac c))
 createContractWithEvalCtx evalCtx world ast = do
   gs <- Storage.initStorage evalCtx world ast
   case Eval.transactionBlockTs <$> Eval.currentTxCtx evalCtx of
@@ -78,15 +77,17 @@ createContractWithEvalCtx evalCtx world ast = do
 -- uniqueness verification. This is to be used in places like the REPL and the
 -- Simulation process.
 createFauxContract
-  :: Address AAccount                     -- ^ Address of Evaluating node
-  -> Maybe Eval.TransactionCtx            -- ^ Maybe some transaction context
-  -> PrivateKey                           -- ^ Node private key for signing
+  :: ac                     -- ^ Address of Evaluating node
+  -> Maybe (Eval.TransactionCtx ac)            -- ^ Maybe some transaction context
+  -> sk                           -- ^ Node private key for signing
   -> Timestamp                            -- ^ Contract timestamp
-  -> Address AAccount                     -- ^ Contract owner
-  -> World                                -- ^ Initial world
+  -> ac                     -- ^ Contract owner
+  -> World as ac c asset account                                -- ^ Initial world
   -> Text                                 -- ^ Raw FCL code
-  -> IO (Either Text Contract)
-createFauxContract nodeAddr mtxCtx privKey cTimestamp cOwner world body = do
-  let contractHdr = TX.TxContract $ TX.CreateContract (SafeString.fromBytes' $ toS body)
-  contractAddr <- TX.transactionToAddress <$> TX.newTransaction nodeAddr privKey contractHdr
-  createContract contractAddr nodeAddr mtxCtx privKey cTimestamp cOwner world body
+  -> IO (Either Text (Contract as ac c))
+createFauxContract nodeAddr mtxCtx privKey cTimestamp cOwner world body =
+  notImplemented
+  -- do
+  -- let contractHdr = TX.TxContract $ TX.CreateContract (SafeString.fromBytes' $ toS body)
+  -- contractAddr <- TX.transactionToAddress <$> TX.newTransaction nodeAddr privKey contractHdr
+  -- createContract contractAddr nodeAddr mtxCtx privKey cTimestamp cOwner world body

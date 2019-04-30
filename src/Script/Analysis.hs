@@ -42,7 +42,7 @@ instance Pretty TransitionErrors where
 -- | Infer a Script's transitions and if any transitions are declared expicitly,
 -- check that they are equal, otherwise just return the script with the inferred
 -- transitions.
-checkInferTransitions :: Script -> Either TransitionErrors (Script, [Transition])
+checkInferTransitions :: forall as ac c. Script as ac c -> Either TransitionErrors (Script as ac c, [Transition])
 -- Empty transitions case: just return the script with the inferred transitions
 checkInferTransitions ast@(Script _ _ [] _ _)
   = Right (ast{ scriptTransitions = ts }, ts)
@@ -55,7 +55,7 @@ checkInferTransitions ast@(Script _ _ trans methods _)
 
   where
 
-    actual :: [(Method, Transition)]
+    actual :: [(Method as ac c, Transition)]
     actual = actualTransitions methods
 
     errors, undeclaredErrs, unusedErrs :: [TransitionError]
@@ -72,7 +72,7 @@ checkInferTransitions ast@(Script _ _ trans methods _)
           | transition `elem` trans = acc
           | otherwise = UndeclaredTransition (locVal $ methodName method) transition : acc
 
-inferTransitions :: Script -> [Transition]
+inferTransitions :: Script as ac c -> [Transition]
 inferTransitions
     = Set.toList
     . Set.fromList
@@ -80,7 +80,7 @@ inferTransitions
     . actualTransitions
     . scriptMethods
 
-actualTransitions :: [Method] -> [(Method, Transition)]
+actualTransitions :: forall as ac c. [Method as ac c] -> [(Method as ac c, Transition)]
 actualTransitions methods = do
     (method, dsts) <- branches methods
     dst <- Set.toList dsts
@@ -89,19 +89,19 @@ actualTransitions methods = do
     -- Fish out the actual transitions, as we get them from methods and
     -- their "transitionTo" statements, grouped by method name and source
     -- state.
-    branches :: [Method] -> [(Method, Set.Set Script.WorkflowState)]
+    branches :: [Method as ac c] -> [(Method as ac c, Set.Set Script.WorkflowState)]
     branches = fmap extractBranch
       where
-        extractBranch :: Method -> (Method, Set Script.WorkflowState)
+        extractBranch :: Method as ac c -> (Method as ac c, Set Script.WorkflowState)
         extractBranch bm@Method{..}
           = ( bm
             , branchesMethod bm
             )
 
-        branchesMethod :: Method -> Set Script.WorkflowState
+        branchesMethod :: Method as ac c -> Set Script.WorkflowState
         branchesMethod method = Set.unions . fmap getWFState . Script.unseq . methodBody $ method
           where
-            getWFState :: Script.LExpr -> Set Script.WorkflowState
+            getWFState :: Script.LExpr as ac c -> Set Script.WorkflowState
             getWFState (Script.Located _ (Script.ECall (Left Prim.TransitionTo) args))
               = Set.fromList . fmap unwrap . Script.argLits . fmap Script.unLoc $ args
             getWFState (Script.Located _ (Script.ECall (Left Prim.Terminate) args))
@@ -111,7 +111,7 @@ actualTransitions methods = do
             getWFState _ = mempty
 
             -- Safe only if run on typechecked programs.
-            unwrap :: Script.LLit -> Script.WorkflowState
+            unwrap :: Script.LLit as ac c -> Script.WorkflowState
             unwrap (Script.Located _ (Script.LState st)) = st
             unwrap _ = panic "Malformed program."
 

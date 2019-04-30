@@ -1,6 +1,6 @@
 module Main where
 
-import Protolude
+import           Protolude
 
 main :: IO ()
-main = putText "Hello FCL"
+main = putText $ toS "Hello FCL"

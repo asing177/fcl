@@ -31,6 +31,7 @@ module Script.Parser (
   expr,
   callExpr,
   datetimeParser,
+  AddrParsers(..),
 
   -- ** Parser Errors
   ParseError,
@@ -71,7 +72,7 @@ import qualified Data.Text as T
 
 import Fixed
 import Script hiding (mapType)
-import Address
+-- import Address
 import Script.Lexer as Lexer
 import Script.Pretty hiding (parens)
 import Script.Prim (lookupPrim)
@@ -84,37 +85,43 @@ import qualified Datetime.Types as DT
 -------------------------------------------------------------------------------
 
 -- | Parse an expression.
-parseExpr :: T.Text -> Either ParseErrInfo LExpr
-parseExpr input = first (mkParseErrInfo input)
-  $ parse (contents expr) "<stdin>" input
+parseExpr :: (Ord as, Ord ac, Ord c) => AddrParsers as ac c -> T.Text -> Either ParseErrInfo (LExpr as ac c)
+parseExpr addrParsers input = first (mkParseErrInfo input)
+  $ parse (contents $ expr addrParsers) "<stdin>" input
 
 -- | Parse file contents into a script.
-parseScript :: T.Text -> Either ParseErrInfo Script
-parseScript input = first (mkParseErrInfo input)
-  $ parse (contents script <* eof) "<stdin>" input
+parseScript
+  :: (Ord as, Ord ac, Ord c)
+  => AddrParsers as ac c -> Text -> Either ParseErrInfo (Script as ac c)
+parseScript addrParsers input = first (mkParseErrInfo input)
+  $ parse (contents (script addrParsers) <* eof) "<stdin>" input
 
 -- | Parse text not expecting eof
-parseText :: Text -> Either ParseErrInfo Script
-parseText input = first (mkParseErrInfo input)
-  $ parse (contents script) mempty input
+parseText
+  :: (Ord as, Ord ac, Ord c)
+  => AddrParsers as ac c -> Text -> Either ParseErrInfo (Script as ac c)
+parseText addrParsers input = first (mkParseErrInfo input)
+  $ parse (contents (script addrParsers)) mempty input
 
 -- | Parse a file into a script.
-parseFile :: FilePath -> IO Script
-parseFile path = do
-  eScript <- parseScript <$> readFile path
+parseFile
+  :: (Ord as, Ord ac, Ord c)
+  => AddrParsers as ac c -> FilePath -> IO (Script as ac c)
+parseFile addrParsers path = do
+  eScript <- parseScript addrParsers <$> readFile path
   either panicppr pure eScript
 
-parseDefn :: Text -> Either ParseErrInfo Def
-parseDefn input = first (mkParseErrInfo input)
-  $ parse (contents def) "definition" input
+parseDefn :: (Ord as, Ord ac, Ord c) => AddrParsers as ac c -> Text -> Either ParseErrInfo (Def as ac c)
+parseDefn addrParsers input = first (mkParseErrInfo input)
+  $ parse (contents $ def addrParsers) "definition" input
 
-parseMethod :: Text -> Either ParseErrInfo Method
-parseMethod input = first (mkParseErrInfo input)
-  $ parse (contents method) "method" input
+parseMethod :: (Ord as, Ord ac, Ord c) => AddrParsers as ac c -> Text -> Either ParseErrInfo (Method as ac c)
+parseMethod addrParsers input = first (mkParseErrInfo input)
+  $ parse (contents (method addrParsers)) "method" input
 
-parseLit :: Text -> Either ParseErrInfo Lit
-parseLit input = first (mkParseErrInfo input)
-  $ parse (contents lit) "literal" input
+parseLit :: AddrParsers as ac c -> Text -> Either ParseErrInfo (Lit as ac c)
+parseLit addrParsers input = first (mkParseErrInfo input)
+  $ parse (contents $ lit addrParsers) "literal" input
 
 parseType :: Text -> Either ParseErrInfo Type
 parseType input = first (mkParseErrInfo input)
@@ -136,15 +143,18 @@ parseWorkflowState :: Text -> Either ParseErrInfo WorkflowState
 parseWorkflowState input = first (mkParseErrInfo input)
   $ parse workflowPlaces "workflowPlaces" input
 
-parseBlock :: T.Text -> Either ParseErrInfo LExpr
-parseBlock input = first (mkParseErrInfo input)
-  $ parse (contents block) "block" input
+parseBlock
+  :: (Ord as, Ord ac, Ord c)
+  => AddrParsers as ac c -> Text -> Either ParseErrInfo (LExpr as ac c)
+parseBlock addrParsers input = first (mkParseErrInfo input)
+  $ parse (contents (block addrParsers)) "block" input
 
 contents :: Parser a -> Parser a
 contents p = whiteSpace *> p
 
 testParse :: T.Text -> IO ()
-testParse = parseTest (contents script)
+testParse = notImplemented
+  -- parseTest (contents (script @as @ac @c))
 
 
 -------------------------------------------------------------------------------
@@ -152,13 +162,15 @@ testParse = parseTest (contents script)
 -------------------------------------------------------------------------------
 
 
-lit :: Parser Lit
-lit =  fixedLit
+lit
+  :: AddrParsers as ac c
+  -> Parser (Lit as ac c)
+lit addrParsers = fixedLit
    <|> floatLit
    <|> timedeltaLit
    <|> int64Lit
    <|> boolLit
-   <|> addressLit
+   <|> addressLit addrParsers
    <|> stateLit
    <|> datetimeLit
    <|> textLit
@@ -166,8 +178,10 @@ lit =  fixedLit
    <|> enumConstrLit
    <?> "literal"
 
-locLit :: Parser LLit
-locLit = mkLocated lit
+locLit
+  :: AddrParsers as ac c
+  -> Parser (LLit as ac c)
+locLit = mkLocated . lit
 
 maxi64 :: Integer
 maxi64 = fromIntegral (maxBound :: Int64)
@@ -175,7 +189,7 @@ maxi64 = fromIntegral (maxBound :: Int64)
 mini64 :: Integer
 mini64 = fromIntegral (minBound :: Int64)
 
-int64Lit :: Parser Lit
+int64Lit :: Parser (Lit as ac c)
 int64Lit = do
   n <- Tok.integer lexer
   if n > maxi64
@@ -184,7 +198,7 @@ int64Lit = do
       then parserFail "Integer underflows int64"
       else pure (LInt (fromIntegral n))
 
-floatLit :: Parser Lit
+floatLit :: Parser (Lit as ac c)
 floatLit = try $ do
   mNeg <- optionMaybe $ char '-'
   LFloat <$> case mNeg of
@@ -219,25 +233,34 @@ fixedN =  fixedNLit Prec6
       <|> fixedNLit Prec1
       <?> "fixed point number with 1-6 decimal places, ending in an 'f'"
 
-fixedLit :: Parser Lit
+fixedLit :: Parser (Lit as ac c)
 fixedLit = LFixed <$> fixedN
 
-boolLit :: Parser Lit
+boolLit :: Parser (Lit as ac c)
 boolLit = (fmap LBool
   $  False <$ try (reserved Token.false)
  <|> True  <$ try (reserved Token.true))
  <?> "boolean literal"
 
-rawAddress :: Parser (Address a)
-rawAddress
-  = Address.fromBS . BS8.pack <$> between (symbol "\'") (symbol "\'") (many1 alphaNum)
+-- rawAddress :: Parser (Address a)
+-- rawAddress
+--   = Address.fromBS . BS8.pack <$> between (symbol "\'") (symbol "\'") (many1 alphaNum)
 
-addressLit :: Parser Lit
-addressLit = try $ do
+data AddrParsers as ac c
+  = AddrParsers
+  { pAs :: Parser as
+  , pAc :: Parser ac
+  , pC :: Parser c
+  }
+
+addressLit
+  :: AddrParsers as ac c
+  -> Parser (Lit as ac c)
+addressLit AddrParsers{..} = try $ do
   type_ <- char 'c' <|> char 'a' <|> char 'u'
-  if | type_ == 'c' -> LContract <$> rawAddress
-     | type_ == 'a' -> LAsset <$> rawAddress
-     | type_ == 'u' -> LAccount <$> rawAddress
+  if | type_ == 'c' -> LContract <$> pC
+     | type_ == 'a' -> LAsset <$> pAs
+     | type_ == 'u' -> LAccount <$> pAc
      | otherwise    -> parserFail "Cannot parse address literal"
 
 datetimeParser :: Parser DateTime
@@ -249,7 +272,7 @@ datetimeParser = try $ do
       Left err -> parserFail "Invalid datetime specified"
       Right _ -> pure $ DateTime datetime
 
-datetimeLit :: Parser Lit
+datetimeLit :: Parser (Lit as ac c)
 datetimeLit = LDateTime <$> datetimeParser
 
 timedeltaParser :: Parser TimeDelta
@@ -276,14 +299,14 @@ timedeltaParser = do
     parseMin   = parseNat "m"
     parseSec   = parseNat "s"
 
-timedeltaLit :: Parser Lit
+timedeltaLit :: Parser (Lit as ac c)
 timedeltaLit = LTimeDelta <$> timedeltaParser
 
-textLit :: Parser Lit
+textLit :: Parser (Lit as ac c)
 textLit = LText . SS.fromBytes' . BS8.pack <$> rawTextLit
  <?> "text"
 
-stateLit :: Parser Lit
+stateLit :: Parser (Lit as ac c)
 stateLit = do
   char '@' <|> char ':'
   LState <$> workflowPlaces
@@ -301,11 +324,11 @@ rawTextLit = do
     ascii = alphaNum
          <|> (oneOf $ "!@#$%^&*()-=_+[]{};:',<.>/?\\| ")
 
-voidLit :: Parser Lit
+voidLit :: Parser (Lit as ac c)
 voidLit = LVoid <$ try (reserved Token.void)
  <?> "void literal"
 
-enumConstrLit :: Parser Lit
+enumConstrLit :: Parser (Lit as ac c)
 enumConstrLit = LConstr <$> try (symbol "`" *> Lexer.enumConstr)
 
 -------------------------------------------------------------------------------
@@ -419,27 +442,29 @@ setType = do
 -- Definitions
 -------------------------------------------------------------------------------
 
-def :: Parser Def
-def = try globalDef
-  <|> globalDefNull
+def :: (Ord as, Ord ac, Ord c) => AddrParsers as ac c -> Parser (Def as ac c)
+def addrParsers = try (globalDef addrParsers)
+  <|> globalDefNull addrParsers
   <?> "definition"
 
-globalDef :: Parser Def
-globalDef = do
+globalDef :: forall as ac c. (Ord as, Ord ac, Ord c) => AddrParsers as ac c -> Parser (Def as ac c)
+globalDef addrParsers = do
   optional (reserved Token.global <|> reserved Token.local)
   typ <- type_
-  precs <- preconditions <|> pure (mempty @Preconditions)
+  precs <- preconditions addrParsers <|> pure (mempty @(Preconditions as ac c))
   id <- name
   reservedOp Token.assign
-  lexpr <- expr
+  lexpr <- expr addrParsers
   return $ GlobalDef typ precs id lexpr
  <?> "global definition"
 
-globalDefNull :: Parser Def
-globalDefNull = do
+globalDefNull
+  :: forall as ac c. (Ord as, Ord ac, Ord c)
+  => AddrParsers as ac c -> Parser (Def as ac c)
+globalDefNull addrParsers = do
   optional (reserved Token.global <|> reserved Token.local)
   typ <- type_
-  precs <- preconditions <|> pure (mempty @Preconditions)
+  precs <- preconditions addrParsers <|> pure (mempty @(Preconditions as ac c))
   Located loc id <- locName
   return $ GlobalDefNull typ precs (Located loc id)
  <?> "global definition"
@@ -452,23 +477,27 @@ arg :: Parser Arg
 arg = Arg <$> type_ <*> locName
    <?> "argument"
 
-method :: Parser Method
-method = do
+method
+  :: forall as ac c. (Ord as, Ord ac, Ord c)
+  => AddrParsers as ac c -> Parser (Method as ac c)
+method addrParsers  = do
   LState (inputPlaces) <- stateLit
-  precs <- preconditions <|> pure (mempty @Preconditions)
+  precs <- preconditions addrParsers <|> pure (mempty @(Preconditions as ac c))
   loc <- location
   nm <- name
   args <- parens $ commaSep arg
-  body <- block
+  body <- block addrParsers
   return $ Method inputPlaces precs (Located loc nm) args body
  <?> "method"
 
-preconditions :: Parser Preconditions
-preconditions = Preconditions <$> (brackets . commaSep $ do
+preconditions
+  :: (Ord as, Ord ac, Ord c)
+  => AddrParsers as ac c -> Parser (Preconditions as ac c)
+preconditions addrParsers = Preconditions <$> (brackets . commaSep $ do
   p <- precondition
   char ':'
   whiteSpace
-  e <- expr
+  e <- expr addrParsers
   return (p,e))
 
 precondition :: Parser Precondition
@@ -478,47 +507,47 @@ precondition
   <|> (reserved "role"   *> pure PrecRoles)
   <|> (reserved "roles"  *> pure PrecRoles)
 
-helper :: Parser Helper
-helper =  Helper
+helper :: (Ord as, Ord ac, Ord c) => AddrParsers as ac c -> Parser (Helper as ac c)
+helper addrParsers =  Helper
       <$> Lexer.locName
       <*> parens (commaSep arg)
-      <*> block
+      <*> block addrParsers
 
 -------------------------------------------------------------------------------
 -- Exprs
 -------------------------------------------------------------------------------
 
-binOp :: BinOp -> Expr.Assoc -> Operator Text () Identity LExpr
+binOp :: BinOp -> Expr.Assoc -> Operator Text () Identity (LExpr as ac c)
 binOp nm = Expr.Infix (locBinOp nm)
 
-locBinOp :: BinOp -> Parser (LExpr -> LExpr -> LExpr)
+locBinOp :: BinOp -> Parser (LExpr as ac c -> LExpr as ac c -> LExpr as ac c)
 locBinOp nm = do
   loc <- location
   opName <- mkLocated $ op nm
   return $ \le1 le2 ->
     Located loc $ EBinOp opName le1 le2
 
-binOpTry :: BinOp -> BinOp -> Expr.Assoc -> Operator Text () Identity LExpr
+binOpTry :: BinOp -> BinOp -> Expr.Assoc -> Operator Text () Identity (LExpr as ac c)
 binOpTry nm nm2 = Expr.Infix (locBinOpTry nm nm2)
 
-locBinOpTry :: BinOp -> BinOp -> Parser (LExpr -> LExpr -> LExpr)
+locBinOpTry :: BinOp -> BinOp -> Parser (LExpr as ac c -> LExpr as ac c -> LExpr as ac c)
 locBinOpTry nm nm2 = do
   loc <- location
   opName <- mkLocated $ try (op nm) <|> op nm2
   return $ \le1 le2 ->
     Located loc $ EBinOp opName le1 le2
 
-unOpExpr :: UnOp -> Operator Text () Identity LExpr
+unOpExpr :: UnOp -> Operator Text () Identity (LExpr as ac c)
 unOpExpr nm = Expr.Prefix (locUnOp nm)
 
-locUnOp :: UnOp -> Parser (LExpr -> LExpr)
+locUnOp :: UnOp -> Parser (LExpr as ac c -> LExpr as ac c)
 locUnOp nm = do
   loc <- location
   opName <- mkLocated $ unOp nm
   return $ \le ->
     Located loc $ EUnOp opName le
 
-opTable :: OperatorTable Text () Identity LExpr
+opTable :: OperatorTable Text () Identity (LExpr as ac c)
 opTable =
   [ [ binOp Mul Expr.AssocLeft ]
   , [ binOp Add Expr.AssocLeft
@@ -546,111 +575,116 @@ unOp :: UnOp -> Parser UnOp
 unOp oper = symbol (Lexer.unOpToken oper) >> pure oper
   <?> "unary operator"
 
-expr :: Parser LExpr
-expr = buildExpressionParser opTable locExpr
+expr
+  :: forall as ac c. (Ord as, Ord ac, Ord c)
+  => AddrParsers as ac c
+  -> Parser (LExpr as ac c)
+expr addrParsers = buildExpressionParser opTable locExpr
   where
     -- Expressions without locations and binary and unary ops.
-    nonLocExpr :: Parser Expr
-    nonLocExpr =  assignExpr
-              <|> beforeExpr
-              <|> afterExpr
-              <|> betweenExpr
-              <|> ifElseExpr
-              <|> caseExpr
-              <|> callExpr
-              <|> litExpr
+    nonLocExpr :: Parser (Expr as ac c)
+    nonLocExpr =  assignExpr addrParsers
+              <|> beforeExpr addrParsers
+              <|> afterExpr addrParsers
+              <|> betweenExpr addrParsers
+              <|> ifElseExpr addrParsers
+              <|> caseExpr addrParsers
+              <|> callExpr addrParsers
+              <|> litExpr addrParsers
               <|> varExpr
-              <|> try mapExpr -- backtrack on failure and try parsing as set
-              <|> setExpr
+              <|> try (mapExpr addrParsers) -- backtrack on failure and try parsing as set
+              <|> setExpr addrParsers
               <|> holeExpr
 
     -- Expressions without binary/unary operations or expressions with
     -- parentheses.
-    locExpr :: Parser LExpr
+    locExpr :: Parser (LExpr as ac c)
     locExpr =  mkLocated nonLocExpr
-           <|> parensLExpr
+           <|> parensLExpr addrParsers
 
-parensLExpr :: Parser LExpr
-parensLExpr = parens expr
+parensLExpr :: (Ord as, Ord ac, Ord c) => AddrParsers as ac c -> Parser (LExpr as ac c)
+parensLExpr addrParsers = parens (expr addrParsers)
 
-litExpr :: Parser Expr
-litExpr = ELit <$> locLit
+litExpr :: AddrParsers as ac c -> Parser (Expr as ac c)
+litExpr addrParsers = ELit <$> locLit addrParsers
  <?> "literal"
 
-varExpr :: Parser Expr
+varExpr :: Parser (Expr as ac c)
 varExpr = EVar <$> locName
  <?> "variable"
 
-assignExpr :: Parser Expr
-assignExpr = do
+assignExpr :: (Ord as, Ord ac, Ord c) => AddrParsers as ac c -> Parser (Expr as ac c)
+assignExpr addrParsers = do
   var <- try $ name <* reservedOp Token.assign
-  lexpr <- expr
+  lexpr <- expr addrParsers
   return $ EAssign var lexpr
  <?> "assign statement"
 
-callExpr :: Parser Expr
-callExpr = do
+callExpr :: (Ord as, Ord ac, Ord c) => AddrParsers as ac c -> Parser (Expr as ac c)
+callExpr addrParsers = do
   lnm@(Located _ nm) <-
     try $ Lexer.locName <* symbol Token.lparen
   let fname = case lookupPrim nm of
         Nothing  -> Right lnm
         Just pop -> Left pop
-  args <- commaSep expr <* symbol Token.rparen
+  args <- commaSep (expr addrParsers) <* symbol Token.rparen
   return $ ECall fname args
  <?> "call statement"
 
-ifElseExpr :: Parser Expr
-ifElseExpr = do
+ifElseExpr
+  :: forall as ac c. (Ord as, Ord ac, Ord c)
+  => AddrParsers as ac c -> Parser (Expr as ac c)
+ifElseExpr addrParsers = do
   try $ reserved Token.if_
-  cond <- parensLExpr
-  e1 <- block
+  cond <- parensLExpr addrParsers
+  e1 <- block addrParsers
   e2 <- elseBranch
   return $ EIf cond e1 e2
  <?> "if statement"
   where
     -- Parse either an else block, or a noop expr
-    elseBranch :: Parser LExpr
+    elseBranch :: Parser (LExpr as ac c)
     elseBranch = do
       loc <- location
       Text.Parsec.option
         (Located loc $ ENoOp)
-        (try (reserved Token.else_) *> block
+        (try (reserved Token.else_) *> block addrParsers
           <?> "else statement")
 
-beforeExpr :: Parser Expr
-beforeExpr = do
+beforeExpr :: (Ord as, Ord ac, Ord c) => AddrParsers as ac c -> Parser (Expr as ac c)
+beforeExpr addrParsers = do
   try $ reserved Token.before
-  dt <- parensLExpr
-  e <- block
+  dt <- parensLExpr addrParsers
+  e <- block addrParsers
   return $ EBefore dt e
  <?> "before guard statement"
 
-afterExpr :: Parser Expr
-afterExpr = do
+afterExpr :: (Ord as, Ord ac, Ord c) => AddrParsers as ac c -> Parser (Expr as ac c)
+afterExpr addrParsers = do
   try $ reserved Token.after
-  dt <- parensLExpr
-  e <- block
+  dt <- parensLExpr addrParsers
+  e <- block addrParsers
   return $ EAfter dt e
  <?> "after guard statement"
 
-betweenExpr :: Parser Expr
-betweenExpr = do
+betweenExpr :: (Ord as, Ord ac, Ord c) => AddrParsers as ac c -> Parser (Expr as ac c)
+betweenExpr addrParsers = do
   try $ reserved Token.between
-  start <- symbol Token.lparen *> expr
+  start <- symbol Token.lparen *> expr addrParsers
   lexeme comma
-  end <- expr <* symbol Token.rparen
-  e <- block
+  end <- expr addrParsers <* symbol Token.rparen
+  e <- block addrParsers
   return $ EBetween start end e
  <?> "between guard statement"
 
-caseExpr :: Parser Expr
-caseExpr = do
+caseExpr :: (Ord as, Ord ac, Ord c) => AddrParsers as ac c -> Parser (Expr as ac c)
+caseExpr addrParsers = do
     try $ reserved Token.case_
-    scrutinee <- parensLExpr
+    scrutinee <- parensLExpr addrParsers
     symbol Token.lbrace
     matches <- many1 (Match <$> pattern_
                             <* reserved Token.rarrow
-                            <*> (block <|> expr)
+                            <*> (block addrParsers <|> expr addrParsers)
                             <* semi)
     symbol Token.rbrace
     return $ ECase scrutinee matches
@@ -660,29 +694,32 @@ caseExpr = do
       loc <- location
       Located loc . PatLit <$> try (symbol "`" *> Lexer.enumConstr)
 
-mapExpr :: Parser Expr
-mapExpr =
+mapExpr
+  :: (Ord as, Ord ac, Ord c)
+  => AddrParsers as ac c
+  -> Parser (Expr as ac c)
+mapExpr addrParsers =
   EMap . Map.fromList <$>
     parens (commaSep parseMapItem <* optional newline)
   where
     parseMapItem = do
-      ek <- expr
+      ek <- expr addrParsers
       lexeme (symbol ":")
-      ev <- expr
+      ev <- expr addrParsers
       optional newline
       pure (ek, ev)
 
-setExpr :: Parser Expr
-setExpr = ESet . Set.fromList <$> braces (commaSep expr <* optional newline)
+setExpr :: (Ord as, Ord ac, Ord c) => AddrParsers as ac c -> Parser (Expr as ac c)
+setExpr addrParsers = ESet . Set.fromList <$> braces (commaSep (expr addrParsers) <* optional newline)
 
-holeExpr :: Parser Expr
+holeExpr :: Parser (Expr as ac c)
 holeExpr = EHole <$ reserved Token.hole
 
 -- | Parses 0 or more expressions delimited by ';'
-block :: Parser LExpr
-block = (braces $ do
+block :: (Ord as, Ord ac, Ord c) => AddrParsers as ac c -> Parser (LExpr as ac c)
+block addrParsers = (braces $ do
   loc <- location
-  eseq loc <$> (expr `sepEndBy` semi))
+  eseq loc <$> (expr addrParsers `sepEndBy` semi))
  <?> "expression block"
 
 -------------------------------------------------------------------------------
@@ -721,13 +758,13 @@ enumDef = do
 -- Script
 -------------------------------------------------------------------------------
 
-script :: Parser Script
-script = do
+script :: (Ord as, Ord ac, Ord c) => AddrParsers as ac c -> Parser (Script as ac c)
+script addrParsers = do
   enums <- endBy enumDef semi
-  defns <- endBy def semi
+  defns <- endBy (def addrParsers) semi
   graph <- endBy transition semi
-  methods <- many method
-  helpers <- many helper
+  methods <- many (method addrParsers)
+  helpers <- many (helper addrParsers)
   return $ Script enums defns graph methods helpers
  <?> "script"
 

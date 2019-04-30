@@ -4,25 +4,26 @@ Script evaluation errors.
 
 --}
 
-{-# LANGUAGE DeriveGeneric #-}
-{-# LANGUAGE DeriveAnyClass #-}
+{-# LANGUAGE DeriveAnyClass     #-}
 {-# LANGUAGE DeriveDataTypeable #-}
+{-# LANGUAGE DeriveGeneric      #-}
+{-# LANGUAGE TypeApplications   #-}
 
 module Script.Error (
   EvalFail(..),
 ) where
 
-import Protolude hiding (Overflow, Underflow, DivideByZero)
+import           Protolude      hiding (DivideByZero, Overflow, Underflow)
 
-import Data.Serialize (Serialize)
+import           Data.Serialize (Serialize)
 
-import Address
-import Script.Pretty hiding ((<>))
-import Contract (InvalidMethodName)
-import Script
+import           Contract       (InvalidMethodName)
+import           Hash
+import           Script
+import           Script.Pretty  hiding ((<>))
 
 -- | Scripts either run to completion or fail with a named error.
-data EvalFail
+data EvalFail as ac c
   = AssetIntegrity Text                 -- ^ Asset does not support operation over it
   | AddressIntegrity Text               -- ^ Address does not exist
   | ContractIntegrity Text              -- ^ Contract does not exist
@@ -40,15 +41,15 @@ data EvalFail
   | NoSuchPrimOp Name                   -- ^ Prim op name lookup fail
   | LookupFail Text                     -- ^ Foldable/Traversable type lookup fail
   | ModifyFail Text                     -- ^ Map modify fail
-  | CallPrimOpFail Loc (Maybe Value) Text -- ^ Prim op call failed
+  | CallPrimOpFail Loc (Maybe (Value as ac c)) Text -- ^ Prim op call failed
   | NoTransactionContext Loc Text       -- ^ Asked for a bit of transaction context without a transaction context
   -- Precondition errors, all of the form `PrecNotSatX Method <expected> <actual>`
-  | PrecNotSatAfter Method DateTime DateTime
-  | PrecNotSatBefore Method DateTime DateTime
-  | PrecNotSatCaller Method (Set (Address AAccount)) (Address AAccount)
+  | PrecNotSatAfter (Method as ac c) DateTime DateTime
+  | PrecNotSatBefore (Method as ac c) DateTime DateTime
+  | PrecNotSatCaller (Method as ac c) (Set ac) ac
   deriving (Eq, Show, Generic, Serialize, NFData)
 
-instance Pretty EvalFail where
+instance (Pretty as, Pretty ac, Pretty c) => Pretty (EvalFail as ac c) where
   ppr e = case e of
     AssetIntegrity err                 -> "Asset integrity error:" <+> ppr err
     AddressIntegrity err               -> "Address integrity error:" <+> ppr err
@@ -80,12 +81,12 @@ instance Pretty EvalFail where
                                        <$$+> ppr msg
     PrecNotSatAfter m dtExpected dtActual ->
       "Temporal precondition for calling method" <+> ppr (methodName m) <+> "not satisfied."
-      <$$+> "Method only callable after: " <+> ppr (VDateTime dtExpected)
-        <+> ". Actual date-time:" <+> ppr (VDateTime dtActual)
+      <$$+> "Method only callable after: " <+> ppr (VDateTime dtExpected :: Value as ac c)
+        <+> ". Actual date-time:" <+> ppr (VDateTime dtActual :: Value as ac c)
     PrecNotSatBefore m dtExpected dtActual ->
       "Temporal precondition for calling method" <+> ppr (methodName m) <+> "not satisfied."
-      <$$+> "Method only callable before: " <+> ppr (VDateTime dtExpected)
-        <+> ". Actual date-time:" <+> ppr (VDateTime dtActual)
+      <$$+> "Method only callable before: " <+> ppr (VDateTime dtExpected :: Value as ac c)
+        <+> ". Actual date-time:" <+> ppr (VDateTime dtActual :: Value as ac c)
     PrecNotSatCaller m setAccExpected accActual ->
       "Unauthorized to call method" <+> ppr (methodName m) <+> "."
       <$$+> "Authorized accounts: " <+> setOf setAccExpected

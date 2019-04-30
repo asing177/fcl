@@ -13,7 +13,7 @@ module Script.Storage (
 
 import Protolude hiding ((<>))
 
-import Ledger (World)
+import Ledger (World, Addressable)
 import Script
 import Storage
 import Script.Pretty
@@ -23,11 +23,11 @@ import qualified Data.Map as Map
 
 import Control.Monad.State.Strict (modify')
 
-initGlobalStorage :: Script -> Storage
+initGlobalStorage :: forall as ac c. Script as ac c -> Storage as ac c
 initGlobalStorage (Script _ defns _ _ _)
   = foldl' buildStores mempty defns
   where
-    buildStores :: Storage -> Def -> Storage
+    buildStores :: Storage as ac c -> Def as ac c -> Storage as ac c
     buildStores gstore = \case
 
       GlobalDef type_ _ (Name nm) expr ->
@@ -37,10 +37,12 @@ initGlobalStorage (Script _ defns _ _ _)
         Map.insert (Key nm) VUndefined gstore
 
 initStorage
-  :: EvalCtx    -- ^ Context to evaluate the top-level definitions in
-  -> World      -- ^ World to evaluate the top-level definitions in
-  -> Script     -- ^ Script
-  -> IO GlobalStorage
+  :: forall as ac c asset account sk.
+  (Ord as, Ord ac, Ord c, Show as, Show ac, Show c, Ledger.Addressable asset, Ledger.Addressable account)
+  => EvalCtx as ac c sk    -- ^ Context to evaluate the top-level definitions in
+  -> World as ac c asset account      -- ^ World to evaluate the top-level definitions in
+  -> Script as ac c     -- ^ Script
+  -> IO (GlobalStorage as ac c)
 initStorage evalCtx world s@(Script _ defns _ _ _)
   = do
   res <- Eval.execEvalM evalCtx emptyEvalState $ mapM_ assignGlobal defns
@@ -48,7 +50,7 @@ initStorage evalCtx world s@(Script _ defns _ _ _)
     Left err -> die $ show err
     Right state -> pure . GlobalStorage . globalStorage $ state
   where
-    assignGlobal :: Def -> EvalM ()
+    assignGlobal :: Def as ac c -> (EvalM as ac c asset account sk) ()
     assignGlobal = \case
       GlobalDef type_ _ nm expr -> do
         val <- Eval.evalLExpr expr
@@ -60,7 +62,7 @@ initStorage evalCtx world s@(Script _ defns _ _ _)
                Map.insert (Key nm) val (globalStorage st)
            }
 
-    emptyEvalState :: EvalState
+    emptyEvalState :: EvalState as ac c asset account
     emptyEvalState = EvalState
       { tempStorage      = mempty
       , globalStorage    = initGlobalStorage s
@@ -71,7 +73,7 @@ initStorage evalCtx world s@(Script _ defns _ _ _)
       }
 
 -- | Pretty print storage map
-dumpStorage :: EnumInfo -> Map Key Value -> Doc
+dumpStorage :: (Pretty as, Pretty ac, Pretty c) => EnumInfo -> Map Key (Value as ac c) -> Doc
 dumpStorage enumInfo store =
   if Map.null store
     then indent 8 "<empty>"

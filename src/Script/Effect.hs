@@ -48,7 +48,7 @@ meet (Effects l) (Effects r) = Effects (Set.union l r)
 meets :: Foldable t => t Effects -> Effects
 meets = foldr meet noEffect
 
-meetsErr :: Foldable t => t (Either [EffectError] Effects) -> Either [EffectError] Effects
+meetsErr :: Foldable t => t (Either [EffectError as ac c] Effects) -> Either [EffectError as ac c] Effects
 meetsErr es = case partitionEithers (toList es) of
   ([],effs) -> pure $ meets effs
   (errss,_) -> Left $ mconcat errss
@@ -68,14 +68,14 @@ readEff = Effects . Set.singleton . Read
 writeEff :: PrimOp -> Effects
 writeEff = Effects . Set.singleton . Write
 
-data EffectError
+data EffectError as ac c
   = LedgerEffectMismatch
     { effectActual :: Effects
     , effectLocation :: Loc
     }
   | PreconditionViolation
-    { accessExpected :: Preconditions
-    , accessActual :: Preconditions
+    { accessExpected :: Preconditions as ac c
+    , accessActual :: Preconditions as ac c
     , violationVar :: Name
     , violationLocation :: Loc
     }
@@ -89,7 +89,7 @@ data EffectError
     , collectionLocation :: Loc
     }
   | PreconditionsEffect
-    { preconditionExpr     :: LExpr
+    { preconditionExpr     :: LExpr as ac c
     , preconditionName     :: Precondition
     , preconditionLocation :: Loc
     , preconditionEffects  :: Effects
@@ -123,13 +123,13 @@ instance Pretty (Sig, Effects) where
   ppr _ = panic "Methods can only return TTransition"
 
 
-instance Pretty [EffectError] where
+instance (Ord as, Ord ac, Ord c, Pretty as, Pretty ac, Pretty c) => Pretty [EffectError as ac c] where
   ppr []
     = "No errors"
   ppr errs@(_:_)
     = vcat . map ppr $ errs
 
-instance Pretty EffectError where
+instance (Ord as, Ord ac, Ord c, Pretty as, Pretty ac, Pretty c) => Pretty (EffectError as ac c) where
   ppr LedgerEffectMismatch {..}
     = "Expected no ledger effects"
       <$$> "Actual effects:" <+> ppr effectActual
@@ -165,15 +165,16 @@ combineSigsEffects sigs effects
       = (name,sig,) <$> List.lookup name (methodEffects effects)
 
 effectCheckScript
-  :: Script
-  -> Either [EffectError] ScriptEffects
+  :: forall as ac c. (Eq as, Eq ac, Eq c)
+  => Script as ac c
+  -> Either [EffectError as ac c] ScriptEffects
 effectCheckScript scr
   = case allErrors of
       [] -> pure $ ScriptEffects defEffects
                                  (map (\(x,_,y) -> (x,y)) methodEffects)
       errs@(_:_) -> Left errs
   where
-    allErrors :: [EffectError]
+    allErrors :: [EffectError as ac c]
     allErrors = mconcat
       [ defErrors
       , accessErrors
@@ -184,7 +185,7 @@ effectCheckScript scr
     globalVarNms :: [Name]
     globalVarNms = map defnName (scriptDefs scr)
 
-    defErrors :: [EffectError]
+    defErrors :: [EffectError as ac c]
     defEffects :: [(Name, Effects)]
     (defErrors, defEffects)
       = first mconcat
@@ -193,15 +194,15 @@ effectCheckScript scr
         . scriptDefs
         $ scr
 
-    accessErrors :: [EffectError]
+    accessErrors :: [EffectError as ac c]
     accessErrors
       = flip concatMap methodEffects $ \(methName, precs, effects) ->
           checkDefRolePreconditions preconditionContext precs effects
       where
         preconditionContext = varPreconditions $ scriptDefs scr
 
-    methodErrors :: [EffectError]
-    methodEffects :: [(Name, Preconditions, Effects)]
+    methodErrors :: [EffectError as ac c]
+    methodEffects :: [(Name, Preconditions as ac c, Effects)]
     (methodErrors, methodEffects)
       = first mconcat
         . partitionEithers
@@ -209,7 +210,7 @@ effectCheckScript scr
         . scriptMethods
         $ scr
 
-    helperErrors :: [EffectError]
+    helperErrors :: [EffectError as ac c]
     helperErrors
       = concat
         . lefts
@@ -219,10 +220,10 @@ effectCheckScript scr
 
 doesOnly
   :: (Effect -> Bool) -- allowed effects
-  -> (a -> Either [EffectError] Effects) -- the check to run
-  -> (a -> Effects -> EffectError) -- make an error if disallowed effects happen
+  -> (a -> Either [EffectError as ac c] Effects) -- the check to run
+  -> (a -> Effects -> EffectError as ac c) -- make an error if disallowed effects happen
   -> a -- the thing to check
-  -> Either [EffectError] Effects
+  -> Either [EffectError as ac c] Effects
 doesOnly allowed check mkError x = do
   eff <- check x
   let disallowedEffects = Set.filter (not . allowed) . effectSet $ eff
@@ -231,7 +232,7 @@ doesOnly allowed check mkError x = do
     else Left [mkError x eff]
 
 effectCheckDef
-  :: [Name] -> Def -> Either [EffectError] (Name, Effects)
+  :: [Name] -> Def as ac c -> Either [EffectError as ac c] (Name, Effects)
 effectCheckDef gnms = \case
     GlobalDef _ precs n lexpr -> do
       effectCheckPreconditions gnms precs
@@ -252,10 +253,11 @@ effectCheckDef gnms = \case
 
 -- | Enforce global variable role write restrictions
 checkDefRolePreconditions
-  :: Map Name Preconditions -- ^ mapping of globals to their preconditions
-  -> Preconditions -- ^ method preconditions
+  :: forall as ac c. (Eq as, Eq ac, Eq c)
+  => Map Name (Preconditions as ac c) -- ^ mapping of globals to their preconditions
+  -> Preconditions as ac c -- ^ method preconditions
   -> Effects -- ^ effect set we are checking against our restriction
-  -> [EffectError]
+  -> [EffectError as ac c]
 checkDefRolePreconditions preconditionContext methodPrec
   = mapMaybe (checkVar <=< getWriteVarName) . Set.toList . effectSet
   where
@@ -263,7 +265,7 @@ checkDefRolePreconditions preconditionContext methodPrec
     getWriteVarName (WriteVar n) = pure n
     getWriteVarName _ = Nothing
 
-    checkVar :: Name -> Maybe EffectError
+    checkVar :: Name -> Maybe (EffectError as ac c)
     checkVar v = case Map.lookup v preconditionContext of
       Just defPrec | not $ methodPrec `subsumes` defPrec ->
         pure $ PreconditionViolation
@@ -274,7 +276,7 @@ checkDefRolePreconditions preconditionContext methodPrec
                }
       _ -> Nothing
 
-    subsumes :: Preconditions -> Preconditions -> Bool
+    subsumes :: Preconditions as ac c -> Preconditions as ac c -> Bool
     Preconditions ps1 `subsumes` Preconditions ps2
       = and
           [ subsumesAfter
@@ -302,27 +304,27 @@ checkDefRolePreconditions preconditionContext methodPrec
             (Just xM, Just xV) -> xM == xV
 
 -- | Create mapping from global name to its preconditions
-varPreconditions :: [Def] -> Map Name Preconditions
+varPreconditions :: forall as ac c. [Def as ac c] -> Map Name (Preconditions as ac c)
 varPreconditions = Map.fromList . map defToAssoc
   where
-    defToAssoc :: Def -> (Name, Preconditions)
+    defToAssoc :: Def as ac c -> (Name, Preconditions as ac c)
     defToAssoc (GlobalDef _ ps n _) = (n, ps)
     defToAssoc (GlobalDefNull _ ps n) = (locVal n, ps)
 
 effectCheckMethod
-  :: [Name] -> Method -> Either [EffectError] Effects
+  :: [Name] -> Method as ac c -> Either [EffectError as ac c] Effects
 effectCheckMethod gnms m = meetsErr
     [ effectCheckExpr gnms . methodBody $ m
     , effectCheckPreconditions gnms . methodPreconditions $ m
     ]
 
 effectCheckPreconditions
-  :: [Name] -> Preconditions -> Either [EffectError] Effects
+  :: [Name] -> Preconditions as ac c -> Either [EffectError as ac c] Effects
 effectCheckPreconditions gnms (Preconditions ps)
   = meetsErr $ map (effectCheckPrecondition gnms) ps
 
 effectCheckPrecondition
-  :: [Name] -> (Precondition, LExpr) -> Either [EffectError] Effects
+  :: forall as ac c. [Name] -> (Precondition, LExpr as ac c) -> Either [EffectError as ac c] Effects
 effectCheckPrecondition gnms (p, e) = case p of
     PrecRoles ->
       doesOnly allowedRoles (effectCheckExpr gnms) (mkPreconditionsErr p) e
@@ -342,7 +344,7 @@ effectCheckPrecondition gnms (p, e) = case p of
       ReadVar _ -> True
       _ -> False
 
-    mkPreconditionsErr :: Precondition -> LExpr -> Effects -> EffectError
+    mkPreconditionsErr :: Precondition -> LExpr as ac c -> Effects -> EffectError as ac c
     mkPreconditionsErr pr expr eff = PreconditionsEffect
       { preconditionExpr = expr
       , preconditionName = pr
@@ -353,7 +355,7 @@ effectCheckPrecondition gnms (p, e) = case p of
 -- | Should have no Effects. In the future, we may specific types of effects,
 -- like global variable updates, reads from the ledger, or writes to the ledger.
 effectCheckHelper
-  :: [Name] -> Helper -> Either [EffectError] Effects
+  :: [Name] -> Helper as ac c -> Either [EffectError as ac c] Effects
 effectCheckHelper gnms (Helper nm _ body) = go =<< effectCheckExpr gnms body
   where
     go effs
@@ -362,7 +364,7 @@ effectCheckHelper gnms (Helper nm _ body) = go =<< effectCheckExpr gnms body
 
 -- | Effect check an expression. -- If a variable is a global variable, a use of it constitutes a "read" effect
 effectCheckExpr
-  :: [Name] -> LExpr -> Either [EffectError] Effects
+  :: forall as ac c. [Name] -> LExpr as ac c -> Either [EffectError as ac c] Effects
 effectCheckExpr gnms expr = case locVal expr of
     ESeq e1 e2 -> effectCheckExprs gnms [e1, e2]
     ELit _ -> pure noEffect
@@ -391,8 +393,8 @@ effectCheckExpr gnms expr = case locVal expr of
   where
     effectCheckCollectionExprs
       :: Foldable t
-      => t LExpr
-      -> Either [EffectError] Effects
+      => t (LExpr as ac c)
+      -> Either [EffectError as ac c] Effects
     effectCheckCollectionExprs
       = doesOnly allowedInCollection (effectCheckExprs gnms) mkCollectionError
       where
@@ -407,7 +409,7 @@ effectCheckExpr gnms expr = case locVal expr of
           CollectionEffect {collectionEffects = eff, collectionLocation = located expr}
 
 -- | Effect check a bunch of expressions.
-effectCheckExprs :: Foldable t => [Name] -> t LExpr -> Either [EffectError] Effects
+effectCheckExprs :: Foldable t => [Name] -> t (LExpr as ac c) -> Either [EffectError as ac c] Effects
 effectCheckExprs gnms = meetsErr . map (effectCheckExpr gnms) . toList
 
 primEffect :: PrimOp -> Effects

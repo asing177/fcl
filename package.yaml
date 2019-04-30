@@ -20,7 +20,7 @@ extra-source-files:
 description:         Please see the README on GitHub at <https://github.com/githubuser/fcl-repo#readme>
 
 dependencies:
-  - base >= 4.7 && < 5
+  - base >= 4.12 && < 5
   - protolude
   - text
   - array
@@ -37,6 +37,7 @@ dependencies:
   - rank1dynamic
   - lattices
   - memory
+  - process-extras
 
   # Serialization
   - cereal
@@ -46,9 +47,12 @@ dependencies:
   - aeson-pretty
   - pretty-hex
 
+  # Exceptions
+  - exceptions
+
     # Control Structures
-  - mtl >= 2.2
-  - transformers >= 0.5.3.0
+  - mtl
+  - transformers
   - transformers-base
   - monad-control
   - lifted-base
@@ -119,31 +123,35 @@ library:
   exposed-modules:
     - Script
     - Delta
+    - Contract
     - Encoding
     - Fixed
     - Hash
+    - Ledger
     - SafeInteger
     - SafeString
+    - Storage
+    - Time
     - Utils
     - Script.Analysis
-    - Script.Init
-    - Script.Storage
-    - Script.Pretty
+    - Script.Compile
+    - Script.Duplicate
+    - Script.Effect
     - Script.Error
     - Script.Eval
-    - Script.Prim
-    - Script.Token
+    - Script.Graphviz
+    - Script.Init
     - Script.Lexer
     - Script.Parser
-    - Script.Compile
-    - Script.Typecheck
-    - Script.Duplicate
-    - Script.Undefinedness
-    - Script.Effect
-    - Script.WorkflowNet
+    - Script.Pretty
+    - Script.Prim
     - Script.ReachabilityGraph
-    - Script.Graphviz
+    - Script.Storage
+    - Script.Token
+    - Script.Typecheck
+    - Script.Undefinedness
     - Script.Warning
+    - Script.WorkflowNet
 
 executables:
   fcl-repo-exe:
