@@ -43,20 +43,16 @@ import Fixed
 import Script
 import SafeInteger
 import SafeString as SS
--- import Key (PrivateKey)
 import Time (Timestamp, posixMicroSecsToDatetime)
--- import Ledger (World)
 import Storage
--- import Account (Account,  address, publicKey)
 import Script.Error as Error
 import Script.Prim (PrimOp(..))
--- import Address (Address, AContract, AAccount, AAsset, rawAddr)
 import Script.ReachabilityGraph (applyTransition)
 import Utils (panicImpossible)
 import qualified Delta
 import qualified Contract
 import qualified Hash
--- import qualified Key
+import Asset
 import qualified Ledger
 import qualified Script.Pretty as Pretty
 import qualified Script.Prim as Prim
@@ -836,7 +832,12 @@ evalAssetPrim loc assetPrimOp args =
 
       -- Modify the world (perform the transfer)
       world <- gets worldState
-      case Ledger.transferAsset world assetAddr senderAddr contractAddr holdings of
+      case Ledger.transferAsset
+           world
+           assetAddr
+           (AccountHolder senderAddr)
+           (ContractHolder contractAddr)
+           holdings of
         Left err -> throwError $ AssetIntegrity $ show err
         Right newWorld -> setWorld newWorld
 
@@ -848,28 +849,32 @@ evalAssetPrim loc assetPrimOp args =
 
     -- From Contract to Account
     Prim.TransferFrom  -> do
-      notImplemented
-      -- let [assetExpr,holdingsExpr,accExpr] = args
+      let [assetExpr,holdingsExpr,accExpr] = args
 
-      -- contractAddr <- currentAddress <$> ask
-      -- assetAddr <- getAssetAddr assetExpr
-      -- accAddr <- getAccountAddr accExpr
+      contractAddr <- currentAddress <$> ask
+      assetAddr <- getAssetAddr assetExpr
+      accAddr <- getAccountAddr accExpr
 
-      -- -- Eval and convert holdings val to integer
-      -- holdingsVal <- evalLExpr holdingsExpr
-      -- let holdings = holdingsValToInteger holdingsVal
+      -- Eval and convert holdings val to integer
+      holdingsVal <- evalLExpr holdingsExpr
+      let holdings = holdingsValToInteger holdingsVal
 
-      -- -- Modify the world (perform the transfer)
-      -- world <- gets worldState
-      -- case Ledger.transferAsset world assetAddr contractAddr accAddr holdings of
-      --   Left err -> throwError $ AssetIntegrity $ show err
-      --   Right newWorld -> setWorld newWorld
+      -- Modify the world (perform the transfer)
+      world <- gets worldState
+      case Ledger.transferAsset
+           world
+           assetAddr
+           (ContractHolder contractAddr)
+           (AccountHolder accAddr)
+           holdings of
+        Left err -> throwError $ AssetIntegrity $ show err
+        Right newWorld -> setWorld newWorld
 
-      -- -- Emit the delta denoting the world state modification
-      -- emitDelta $ Delta.ModifyAsset $
-      --   Delta.TransferFrom assetAddr holdings accAddr contractAddr
+      -- Emit the delta denoting the world state modification
+      emitDelta $ Delta.ModifyAsset $
+        Delta.TransferFrom assetAddr holdings accAddr contractAddr
 
-      -- noop
+      noop
 
     -- Circulate the supply of an Asset to the Asset issuer's holdings
     Prim.CirculateSupply -> do
@@ -892,28 +897,32 @@ evalAssetPrim loc assetPrimOp args =
 
     -- From Account to Account
     Prim.TransferHoldings -> do
-      notImplemented
-      -- let [fromExpr,assetExpr,holdingsExpr,toExpr] = args
+      let [fromExpr,assetExpr,holdingsExpr,toExpr] = args
 
-      -- assetAddr <- getAssetAddr assetExpr
-      -- fromAddr <- getAccountAddr fromExpr
-      -- toAddr <- getAccountAddr toExpr
+      assetAddr <- getAssetAddr assetExpr
+      fromAddr <- getAccountAddr fromExpr
+      toAddr <- getAccountAddr toExpr
 
-      -- -- Eval and convert holdings val to integer
-      -- holdingsVal <- evalLExpr holdingsExpr
-      -- let holdings = holdingsValToInteger holdingsVal
+      -- Eval and convert holdings val to integer
+      holdingsVal <- evalLExpr holdingsExpr
+      let holdings = holdingsValToInteger holdingsVal
 
-      -- -- Modify the world (perform the transfer)
-      -- world <- gets worldState
-      -- case Ledger.transferAsset world assetAddr fromAddr toAddr holdings of
-      --   Left err -> throwError $ AssetIntegrity $ show err
-      --   Right newWorld -> setWorld newWorld
+      -- Modify the world (perform the transfer)
+      world <- gets worldState
+      case Ledger.transferAsset
+           world
+           assetAddr
+           (AccountHolder fromAddr)
+           (AccountHolder toAddr)
+           holdings of
+        Left err -> throwError $ AssetIntegrity $ show err
+        Right newWorld -> setWorld newWorld
 
-      -- -- Emit the delta denoting the world state modification
-      -- emitDelta $ Delta.ModifyAsset $
-      --   Delta.TransferHoldings fromAddr assetAddr holdings toAddr
+      -- Emit the delta denoting the world state modification
+      emitDelta $ Delta.ModifyAsset $
+        Delta.TransferHoldings fromAddr assetAddr holdings toAddr
 
-      -- noop
+      noop
 
   where
     holdingsValToInteger :: Value as ac c -> Int64

@@ -2,11 +2,11 @@
 {-# LANGUAGE DeriveGeneric  #-}
 module Ledger where
 
+import           Asset
 import           Contract
 import           Data.Serialize
 import           Protolude
 import           Script
-
 -- class World w where
 --   accountExists :: ac -> w -> Bool
 --   assetExists :: as -> w -> Bool
@@ -39,8 +39,8 @@ data ContractError c
 data World as ac c asset account = World
   { transferAsset
     :: as
-    -> ac
-    -> c
+    -> Holder ac c
+    -> Holder ac c
     -> Int64
     -> Either (AssetError ac as) (World as ac c asset account)
 
