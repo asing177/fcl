@@ -659,10 +659,9 @@ instance (Pretty ac, Pretty as, Pretty c) => Pretty (Lit as ac c) where
     LFixed mfix    -> ppr mfix
     LBool bool     -> ppr bool
     LText msg       -> dquotes $ ppr msg
-    LAccount addr  -> "u" <> squotes (ppr addr)
-    LAsset addr    -> "a" <> squotes (ppr addr)
-    -- ^ TODO: Pretty Print addr as rawAddr
-    LContract addr -> "c" <> squotes (ppr addr)
+    LAccount addr  -> "u" <> (ppr addr)
+    LAsset addr    -> "a" <> (ppr addr)
+    LContract addr -> "c" <> (ppr addr)
     LSig (r,s)     -> tupleOf [ppr r, ppr s]
     LVoid          -> token Token.void
     LState name    -> token Token.colon <> ppr name
