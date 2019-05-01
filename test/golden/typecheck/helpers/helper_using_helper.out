@@ -1,0 +1,17 @@
+[ ModifyGlobal
+    Name { unName = "flipper" }
+    (VEnum EnumConstr { unEnumConstr = "Flip" })
+, ModifyState
+    WorkflowState
+      { places =
+          fromList [ Place { placeName = Name { unName = "intermediate" } } ]
+      }
+, ModifyGlobal Name { unName = "x" } (VInt 43)
+, ModifyState WorkflowState { places = fromList [ PlaceEnd ] }
+]
+fromList
+  [ ( Key { unKey = "flipper" }
+    , VEnum EnumConstr { unEnumConstr = "Flip" }
+    )
+  , ( Key { unKey = "x" } , VInt 43 )
+  ]

@@ -1,0 +1,7 @@
+Variable "a" undefined at:
+  - line 25:16
+Variable "c" undefined at:
+  - line 25:5
+Stack trace leading up to error:
+   init : {initial} -> {stateA}
+   notCrash : {stateA} -> {terminal}

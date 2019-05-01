@@ -1,0 +1,19 @@
+Error at Line 7, Column 37:
+   Could not match expected type 'int' with actual type 'bool':
+      Type int was inferred from the assignment to variable 'x' on Line 7, Column 37
+      Type bool was inferred from the return type of the function 'contractValue' on Line 7, Column 7
+
+Error at Line 8, Column 37:
+   Could not match expected type 'int' with actual type 'bool':
+      Type int was inferred from the assignment to variable 'x' on Line 8, Column 37
+      Type bool was inferred from the return type of the function 'contractValue' on Line 8, Column 7
+
+Error at Line 9, Column 37:
+   Could not match expected type 'int' with actual type 'bool':
+      Type int was inferred from the assignment to variable 'x' on Line 9, Column 37
+      Type bool was inferred from the return type of the function 'contractValue' on Line 9, Column 7
+
+Error at Line 10, Column 37:
+   Could not match expected type 'int' with actual type 'bool':
+      Type int was inferred from the assignment to variable 'x' on Line 10, Column 37
+      Type bool was inferred from the return type of the function 'contractValue' on Line 10, Column 7

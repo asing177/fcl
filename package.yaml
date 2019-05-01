@@ -56,10 +56,12 @@ dependencies:
   - transformers-base
   - monad-control
   - lifted-base
+
   # Date & Time
   - time
   - datetimes
   - hourglass
+
   # Text
   - text
   - bytestring
@@ -124,6 +126,7 @@ library:
     - Encoding
     - Fixed
     - Hash
+    - Key
     - Ledger
     - SafeInteger
     - SafeString
@@ -175,6 +178,15 @@ tests:
   fcl-repo-test:
     main:                Main.hs
     source-dirs:         test
+    default-extensions:
+    - LambdaCase
+    - RecordWildCards
+    - OverloadedStrings
+    - NoImplicitPrelude
+    - FlexibleInstances
+    - FlexibleContexts
+    - ScopedTypeVariables
+    - RankNTypes
     ghc-options:
     - -threaded
     - -rtsopts
@@ -182,5 +194,6 @@ tests:
     dependencies:
     - fcl-repo
     - tasty
+    - tasty-hunit
     - tasty-golden
     - tasty-quickcheck

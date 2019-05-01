@@ -1,0 +1,3 @@
+Error at Line 3, Column 3:
+   Method 'f' does not specify where to transition to.
+      If the method should not transition, use the 'stay()' primop.

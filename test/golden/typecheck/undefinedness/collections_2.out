@@ -1,0 +1,6 @@
+Variable "foo" undefined at:
+  - line 7:3
+Variable "undef" undefined at:
+  - line 7:10
+Stack trace leading up to error:
+   m : {initial} -> {terminal}

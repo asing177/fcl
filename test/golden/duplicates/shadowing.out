@@ -1,0 +1,2 @@
+Duplicate errors:
+• The top level variable 'a' is shadowed by an argument in method 'shadow' at Line 7, Column 13.

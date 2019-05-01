@@ -1,0 +1,15 @@
+{
+    "signature": "AE4xMTUxMzY4MDA4MjA0NTY4MzM3Mzc5OTQxMjY3NzEzODYwMTUwMjYyODcwOTUwMzQ2MjU2MjM2NDQxODYyNzgxMDg5MjY2OTA3Nzk1Njc6AE0zNjA4NzY1ODgzNzUzNTM1Njg1OTI0MzA3NDU3MTAzNTcwODUzMDc3NjE4NTkxNzE2Nzk2MTYwNjY3OTU1MDA4MTM3OTM0MTYyMjk4MA==",
+    "origin": "fwBVDsVh8SYQy98CzYpNPcbyTRczVUZ96HszhNRB8Ve",
+    "header": {
+        "tag": "TxContract",
+        "contents": {
+            "tag": "Call",
+            "contents": {
+                "args": [],
+                "address": "fwBVDsVh8SYQy98CzYpNPcbyTRczVUZ96HszhNRB8Ve",
+                "method": "get"
+            }
+        }
+    }
+}

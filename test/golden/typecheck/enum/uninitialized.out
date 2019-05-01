@@ -1,0 +1,6 @@
+ 
+Method arguments and effects:
+start: (enum direction) -> {write i}
+increase: () -> {read i, write i}
+assignedStop: () -> {write via terminate}
+assign: (enum direction) -> {write i}

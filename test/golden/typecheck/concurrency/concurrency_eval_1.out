@@ -1,0 +1,27 @@
+[ ModifyState
+    WorkflowState
+      { places =
+          fromList
+            [ Place { placeName = Name { unName = "a" } }
+            , Place { placeName = Name { unName = "b" } }
+            ]
+      }
+, ModifyState
+    WorkflowState
+      { places =
+          fromList
+            [ Place { placeName = Name { unName = "b" } }
+            , Place { placeName = Name { unName = "c" } }
+            ]
+      }
+, ModifyState
+    WorkflowState
+      { places =
+          fromList
+            [ Place { placeName = Name { unName = "c" } }
+            , Place { placeName = Name { unName = "d" } }
+            ]
+      }
+, ModifyState WorkflowState { places = fromList [ PlaceEnd ] }
+]
+fromList []

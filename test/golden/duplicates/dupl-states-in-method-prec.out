@@ -1,0 +1,9 @@
+@{a, a}
+nope() {
+^
+  transitionTo(@a);
+}
+
+"<stdin>" (line 2, column 1):
+unexpected "n"
+Duplicate places: a

@@ -1,0 +1,4 @@
+Error at Line 10, Column 3:
+   The binding 'a' shadows the method argument
+      of the same name, of type 'int',
+      bound at Line 9, Column 9.

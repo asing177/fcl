@@ -1,0 +1,9 @@
+foo() {
+  if (tmp = 1; tmp == 1) {
+-------------^
+    transitionTo(@terminal)
+  }
+
+"<stdin>" (line 7, column 14):
+unexpected ";"
+expecting digit, operator or ")"

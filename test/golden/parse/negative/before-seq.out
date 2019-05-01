@@ -1,0 +1,9 @@
+foo() {
+  before (tmp = "2015-10-10T00:00:00Z"; tmp) {
+--------------------------------------^
+    transitionTo(@terminal)
+  }
+
+"<stdin>" (line 7, column 39):
+unexpected ";"
+expecting operator or ")"

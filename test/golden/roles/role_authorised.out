@@ -1,0 +1,4 @@
+[ ModifyState WorkflowState { places = fromList [ PlaceEnd ] }
+, Terminate
+]
+fromList []

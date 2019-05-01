@@ -1,0 +1,8 @@
+Variable "a" undefined at:
+  - line 32:7
+Variable "b" undefined at:
+  - line 32:3
+Stack trace leading up to error:
+   go : {initial} -> {myInitial}
+   init : {myInitial} -> {stateB}
+   exitTwo : {stateB} -> {terminal}
