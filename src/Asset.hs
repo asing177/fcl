@@ -5,3 +5,4 @@ import           Protolude
 data Holder ac c
   = AccountHolder ac
   | ContractHolder c
+  deriving (Eq, Ord, Show)

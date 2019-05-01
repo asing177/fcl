@@ -144,12 +144,17 @@ instance (Pretty as, Pretty ac, Pretty c) => Pretty (CheckedScript as ac c) wher
 -- an error message (Left).
 compileFile
   :: (Show as, Show ac, Show c, Ord as, Ord ac, Ord c, Pretty as, Pretty ac, Pretty c)
-  => FilePath -> IO (ExceptT Text (Reader (Parser.AddrParsers as ac c)) (CheckedScript as ac c))
+  => FilePath
+  -> ExceptT Text (ReaderT (Parser.AddrParsers as ac c) IO) (CheckedScript as ac c)
 compileFile fpath = do
-  res <- Utils.safeRead fpath
+  res <- liftIO $ Utils.safeRead fpath
   case res of
-    Left err       -> pure $ except $ Left err
-    Right contents -> pure $ compilePrettyErr $ decodeUtf8 contents
+    Left err       -> except $ Left err
+    Right contents -> do
+      parsers <- ask
+      case runReader (runExceptT (compilePrettyErr $ decodeUtf8 contents)) parsers of
+        Left err -> except $ Left err
+        Right c  -> pure $ c
 
 -- | Compile a text stream into a CheckedScript or return an error message.
 compile
@@ -163,7 +168,8 @@ compile body = do
 
 compilePrettyErr
   :: (Show as, Show ac, Show c, Ord as, Ord ac, Ord c, Pretty as, Pretty ac, Pretty c)
-  => Text -> ExceptT Text (Reader (Parser.AddrParsers as ac c)) (CheckedScript as ac c)
+  => Text
+  -> ExceptT Text (Reader (Parser.AddrParsers as ac c)) (CheckedScript as ac c)
 compilePrettyErr = ppCompilationErr . compile
 
 -- | Compile a Script into a CheckedScript or return an error message.
@@ -196,7 +202,8 @@ transitionSoundness = Set.toList . fst . Reachability.reachabilityGraph . Set.fr
 -- | Given a file path, make sure the script parses, returning any parser errors
 lintFile
   :: (Ord as, Ord ac, Ord c)
-  => FilePath -> ReaderT (Parser.AddrParsers as ac c) IO [Parser.ParseErrInfo]
+  => FilePath
+  -> ReaderT (Parser.AddrParsers as ac c) IO [Parser.ParseErrInfo]
 lintFile fpath = do
   addrParsers <- ask
   fcontents <- liftIO $ readFile fpath
@@ -213,9 +220,8 @@ verifyScript addrParsers script = isRight $ runReader (runExceptT (compileScript
 
 -- | Compile a file pretty printing the resulting AST.
 formatScript
-  :: (Show as, Show ac, Show c, Ord as, Ord ac, Ord c, Pretty as, Pretty ac, Pretty c)
+  :: (Ord as, Ord ac, Ord c, Pretty as, Pretty ac, Pretty c)
   => FilePath -> ExceptT Text (ReaderT (Parser.AddrParsers as ac c) IO) LText
--- IO (Either Text LText)
 formatScript fpath = do
   addrParsers <- ask
   body <- liftIO $ readFile fpath

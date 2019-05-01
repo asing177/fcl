@@ -158,12 +158,22 @@ executables:
     - -threaded
     - -rtsopts
     - -with-rtsopts=-N
+    default-extensions:
+    - LambdaCase
+    - RecordWildCards
+    - OverloadedStrings
+    - NoImplicitPrelude
+    - FlexibleInstances
+    - FlexibleContexts
+    - ScopedTypeVariables
+    - RankNTypes
     dependencies:
     - fcl-repo
+    - optparse-applicative
 
 tests:
   fcl-repo-test:
-    main:                Spec.hs
+    main:                Main.hs
     source-dirs:         test
     ghc-options:
     - -threaded
@@ -171,3 +181,6 @@ tests:
     - -with-rtsopts=-N
     dependencies:
     - fcl-repo
+    - tasty
+    - tasty-golden
+    - tasty-quickcheck
