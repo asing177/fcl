@@ -35,9 +35,9 @@ import           Crypto.Number.Basic (numBits)
 
 import           Data.Aeson          as A
 import           Data.Aeson.Types    as A
-import           Data.Serialize      as S (Serialize (..), decode, encode,
-                                           getWord16be, getWord8, putWord16be,
-                                           putWord8, runPut)
+import           Data.Serialize      as S (Serialize (..), getWord16be,
+                                           getWord8, putWord16be, putWord8,
+                                           runPut)
 import           Data.Text.Read      (decimal, signed)
 
 import qualified Hash

@@ -86,7 +86,7 @@ createFauxContract
   -> World as ac c asset account                                -- ^ Initial world
   -> Text                                 -- ^ Raw FCL code
   -> IO (Either Text (Contract as ac c))
-createFauxContract nodeAddr mtxCtx privKey cTimestamp cOwner world body =
+createFauxContract nodeAddr mtxCtx privKey cTimestamp cOwner world body = do
   notImplemented
   -- do
   -- let contractHdr = TX.TxContract $ TX.CreateContract (SafeString.fromBytes' $ toS body)

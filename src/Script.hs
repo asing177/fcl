@@ -639,20 +639,20 @@ instance (Eq ac, Eq as, Eq c, Pretty ac, Pretty as, Pretty c) => Pretty (Expr as
     EMap m -> tupleOf $ map (\(k,v) -> ppr k <+> ":" <+> ppr v) (Map.toList m)
     ESet s -> setOf s
 
-instance (Eq ac, Eq as, Eq c, Pretty ac, Pretty as, Pretty c) =>
+instance forall as ac c. (Eq as, Eq ac, Eq c, Pretty as, Pretty ac, Pretty c) =>
   Pretty (Match as ac c) where
-  ppr (Match (Located _ (PatLit p)) expr)
-    = notImplemented
-    -- ppr (LConstr p) <+> token Token.rarrow <+> maybeBrace expr
-    -- where
-    --   -- Wrap braces around the expression in case it is a sequence of
-    --   -- statements, otherwise don't.
-    --   maybeBrace e
-    --     = case locVal e of
-    --         ESeq _ _ -> lbrace <+> semify (ppr e) <+> rbrace
-    --         _        -> ppr e
+  ppr (Match (Located _ (PatLit x)) expr)
+    = text "`" <> ppr x <+> token Token.rarrow <+> maybeBrace expr
+    where
+      -- Wrap braces around the expression in case it is a sequence of
+      -- statements, otherwise don't.
+      maybeBrace :: (LExpr as ac c) -> Doc
+      maybeBrace e
+        = case locVal e of
+            ESeq _ _ -> lbrace <+> semify (ppr e) <+> rbrace
+            _        -> ppr e
 
-instance (Pretty ac, Pretty as, Pretty c) => Pretty (Lit as ac c) where
+instance (Pretty as, Pretty ac, Pretty c) => Pretty (Lit as ac c) where
   ppr = \case
     LInt int64     -> ppr int64
     LFloat dbl     -> ppr dbl

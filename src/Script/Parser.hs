@@ -49,8 +49,6 @@ module Script.Parser (
   parens,
   name,
   block,
-
-  testParse,
   ) where
 
 import Protolude hiding
@@ -151,11 +149,6 @@ parseBlock addrParsers input = first (mkParseErrInfo input)
 
 contents :: Parser a -> Parser a
 contents p = whiteSpace *> p
-
-testParse :: T.Text -> IO ()
-testParse = notImplemented
-  -- parseTest (contents (script @as @ac @c))
-
 
 -------------------------------------------------------------------------------
 -- Lit

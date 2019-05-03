@@ -48,7 +48,7 @@ genByteString :: Gen ByteString
 genByteString =
   (toS :: [Char] -> ByteString) <$>
   (arbitrary `suchThat` (\s -> length s < SS.maxSize))
-  
+
 instance (Encoding.ByteStringEncoding a) => Arbitrary (Hash.Hash a) where
   arbitrary = Hash.toHash <$> genByteString
 
