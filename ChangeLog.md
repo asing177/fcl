@@ -1,3 +1,5 @@
-# Changelog for fcl-repo
+# Changelog for fcl
 
-## Unreleased changes
+## 0.1
+
+* Initial release.
