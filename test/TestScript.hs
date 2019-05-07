@@ -7,48 +7,50 @@ module TestScript (
   scriptPropTests,
 ) where
 
-import           Prelude               (String)
-import           Protolude             hiding (Type)
+import qualified Data.ByteString.Lazy.Internal
+import           Prelude                       (String)
+import           Protolude                     hiding (Type)
 
 import           Test.Tasty
 import           Test.Tasty.Golden
 import           Test.Tasty.HUnit
 import           Test.Tasty.QuickCheck
 
-import           Control.Arrow         ((&&&))
-import           Control.Monad         (fail)
+import           Control.Arrow                 ((&&&))
+import           Control.Monad                 (fail)
 
-import qualified Data.ByteString       as BS
-import qualified Data.List.NonEmpty    as NonEmpty
-import qualified Data.Map              as Map
-import qualified Data.Set              as Set
-import qualified Data.Text             as T
+import qualified Data.ByteString               as BS
+import qualified Data.List.NonEmpty            as NonEmpty
+import qualified Data.Map                      as Map
+import qualified Data.Set                      as Set
+import qualified Data.Text                     as T
 
 
 import qualified Contract
 import qualified Encoding
 import qualified Fixed
-import qualified Hash                  (sha256Raw)
+import qualified Hash                          (sha256Raw)
 import qualified Key
 import qualified Ledger
 import qualified Utils
 
 import           SafeInteger
-import qualified SafeString            as SafeString
+import qualified SafeString                    as SafeString
 import           Script
-import qualified Script.Compile        as Compile
-import qualified Script.Eval           as Eval
-import qualified Script.Init           as Init
-import qualified Script.Parser         as Parser
-import qualified Script.Pretty         as Pretty
-import qualified Script.Prim           as Prim
-import qualified Script.Typecheck      as Typecheck
+import qualified Script.Compile                as Compile
+import qualified Script.Eval                   as Eval
+import qualified Script.Init                   as Init
+import qualified Script.Parser                 as Parser
+import qualified Script.Pretty                 as Pretty
+import qualified Script.Prim                   as Prim
+import qualified Script.Typecheck              as Typecheck
 import           Storage
 import qualified Time
 
 import qualified Hash
 
-import qualified Reference             as Ref
+import           Reference                     (AC, AS, C)
+import qualified Reference                     as Ref
 import           TestArbitrary
 
 -- Note: For some reason, all the eval.out files for golden tests are found in
@@ -319,11 +321,11 @@ scriptGoldenTests = testGroup "Script Compiler Golden Tests"
         case eSigs of
           Left err -> return $ toSL err
           Right _  -> return "Type checking succeeded... this should not happen!"
-    -- , evalTest "Eval outputs correct deltas and storage" evalFile evalOutFile [("f", [])]
-    -- , evalTest "Eval outputs correct deltas and storage with top-level computation"
-    --            (scriptsFolder <> "sample_eval_toplevel.s")
-    --            (goldenFolder <> "typecheck/eval_toplevel.out")
-    --            [("init", [])]
+    , evalTest "Eval outputs correct deltas and storage" evalFile evalOutFile [("f", [])]
+    , evalTest "Eval outputs correct deltas and storage with top-level computation"
+               (scriptsFolder <> "sample_eval_toplevel.s")
+               (goldenFolder <> "typecheck/eval_toplevel.out")
+               [("init", [])]
     , scriptTypesTests
     , scriptAnalysisGoldenTests
     , scriptEnumGoldenTests
@@ -357,60 +359,69 @@ differ ref new = ["diff", "-u", ref, new]
 -- accumulate the evalState while evaluation each method in order. Compares the
 -- resulting contract storage output with the specified golden file, and
 -- potentially the list of deltas.
+evalTest
+  :: TestName          -- ^ test name
+  -> FilePath          -- ^ FCL file
+  -> FilePath          -- ^ expected output
+  -> [(Name, [Value AS AC C])] -- ^ Sequence of methods to call
+  -> TestTree
+evalTest testName inputFp outputFp funcsAndArgs = do
+    goldenVsStringDiff testName differ outputFp $ do
+      evalScript >>= \e -> do
+        eResEvalState <- case e of
+          Left err -> panic (show err)
+          Right contract  -> runExceptT $ do
+            let helpers = scriptHelpers (Contract.script contract)
+                evalState = Eval.initEvalState contract Ref.genesisWorld
+            evalCtx <- liftIO $ initTestEvalCtx helpers
+            foldM (evalMethod' evalCtx) (contract, evalState) funcsAndArgs
+        e' <- runExceptT $ case eResEvalState of
+            Left err -> throwE $ Utils.ppShow err
+            Right (_, resEvalState) -> do
+              let globalStoreStr = Utils.ppShow (Eval.globalStorage resEvalState)
+              return $ toSL $ T.intercalate "\n"
+                    [ Utils.ppShow (Eval.deltas resEvalState), globalStoreStr ]
+        case e' of
+          Left err -> panic err
+          Right x -> pure x
+  where
+    evalScript = (flip runReaderT) Ref.customAddrParsers . runExceptT $ do
+        eBS <- liftIO $ Utils.safeRead inputFp
+        case eBS of
+          Left err -> throwE $ err
+          Right bs -> do
+            now <- liftIO $ Time.now
+            contractAddr <- liftIO $ Ref.toContractAddr bs
+            Init.createContract
+                (Proxy :: Proxy (Ref.Asset, Ref.Account))
+                contractAddr
+                Ref.testAddr
+                (Just Ref.testTransactionCtx)
+                Ref.testPriv
+                now
+                Ref.testAddr
+                Ref.genesisWorld
+                (toS bs)
 
--- evalTest
---   :: TestName          -- ^ test name
---   -> FilePath          -- ^ FCL file
---   -> FilePath          -- ^ expected output
---   -> [(Name, [Value])] -- ^ Sequence of methods to call
---   -> TestTree
--- evalTest testName inputFp outputFp funcsAndArgs =
---   goldenVsStringDiff testName differ outputFp $ do
---     eBS <- Utils.safeRead inputFp
---     case eBS of
---       Left err -> return $ toSL err
---       Right bs -> do
---         now <- Time.now
---         eContract <-
---           Init.createFauxContract
---             Ref.testAddr
---             (Just Ref.testTransactionCtx)
---             Ref.testPriv
---             now
---             Ref.testAddr
---             Ledger.genesisWorld
---             (toS bs)
---         case eContract of
---           Left err   -> return $ toSL err
---           Right contract -> do
---             -- Encrypt storage with RSA key
---             let helpers = scriptHelpers (Contract.script contract)
---                 evalState = Eval.initEvalState contract Ledger.genesisWorld
---             evalCtx <- initTestEvalCtx helpers
---             eResEvalState <- foldM (evalMethod' evalCtx) (Right (contract, evalState)) funcsAndArgs
---             case eResEvalState of
---               Left err -> return $ toSL $ Utils.ppShow err
---               Right (_, resEvalState) -> do
---                 let globalStoreStr = Utils.ppShow (Eval.globalStorage resEvalState)
---                 return $ toSL $ T.intercalate "\n"
---                     [ Utils.ppShow (Eval.deltas resEvalState), globalStoreStr ]
---   where
---     evalMethod' evalCtx accum (name, args) =
---       case accum of
---         Left err -> fail (show err)
---         Right (contract, evalState) ->
---           case Contract.lookupContractMethod name contract of
---             Left err -> fail (show err ++ "\n" ++ show contract)
---             Right method -> do
---               eNewEvalState <-
---                 Eval.execEvalM evalCtx evalState
---                   (Eval.evalMethod method args)
---               pure ((flip updateContract contract &&& identity) <$> eNewEvalState)
 
---     updateContract evalState contract = contract
---       { Contract.globalStorage = Storage.GlobalStorage (Eval.globalStorage evalState)
---       , Contract.state         = Eval.workflowState evalState
---       }
+    evalMethod'
+      :: Eval.EvalCtx AS AC C Ref.PrivateKey
+      -> (Contract.Contract AS AC C, Eval.EvalState AS AC C Ref.Asset Ref.Account Ref.World)
+      -> (Name, [Value AS AC C])
+      -> ExceptT (Eval.EvalFail AS AC C) IO (Contract.Contract AS AC C, Eval.EvalState AS AC C Ref.Asset Ref.Account Ref.World)
+    evalMethod' evalCtx (contract, evalState) (name, args) =
+      case Contract.lookupContractMethod name contract of
+            Left err     ->
+              panic (toS $ show err ++ "\n" ++ show contract)
+            Right method -> do
+              eNewEvalState <-
+                Eval.execEvalM evalCtx evalState (Eval.evalMethod method args)
+              pure ((updateContract contract &&& identity) eNewEvalState)
+
+    updateContract contract evalState = contract
+      { Contract.globalStorage = Storage.GlobalStorage (Eval.globalStorage evalState)
+      , Contract.state         = Eval.workflowState evalState
+      }
 
 scriptTypesTests
   = testGroup "Script type checker tests" $
@@ -504,17 +515,17 @@ scriptAnalysisGoldenTests = testGroup "Script analysis golden tests"
         , negativeTest "Access restriction in global def is not well typed (singleton)."
                (scriptsFolder <> "roles/illtyped2.s")
                (goldenFolder <> "roles/illtyped2.out")
-        -- , evalTest
-        --     "Eval doesn't proceed when issuer is not authorised" -- negative
-        --     (scriptsFolder <> "roles/roles_ok.s")
-        --     (goldenFolder <> "roles/role_not_authorised.out")
-        --     [("init", [])]
+        , evalTest
+            "Eval doesn't proceed when issuer is not authorised" -- negative
+            (scriptsFolder <> "roles/roles_ok.s")
+            (goldenFolder <> "roles/role_not_authorised.out")
+            [("init", [])]
 
-        -- , evalTest
-        --     "Eval proceeds when issuer is authorised" -- positive
-        --     (scriptsFolder <> "roles/roles_test_addr.s")
-        --     (goldenFolder <> "roles/role_authorised.out")
-        --     [("init", [])]
+        , evalTest
+            "Eval proceeds when issuer is authorised" -- positive
+            (scriptsFolder <> "roles/roles_test_addr.s")
+            (goldenFolder <> "roles/role_authorised.out")
+            [("init", [])]
 
         , negativeTest
             "Eval doesn't proceed when issuer is not authorised to edit var"
@@ -571,16 +582,16 @@ scriptMapGoldenTests = testGroup "Script map golden tests"
   [ negativeTest "Invalid types test for invalid_types.s"
                  (scriptsFolder <> "maps/invalid_types.s")
                  (goldenFolder <> "typecheck/maps/invalid_types.out")
-  -- , evalTest "Evaluation of inserts, deletes, and modifies in maps"
-  --            (scriptsFolder <> "maps/eval.s")
-  --            (goldenFolder <> "typecheck/maps/eval.out")
-  --            [("insertInvestor", [VAccount Ref.testAddr,  VEnum (EnumConstr "BigInvestor")])
-  --            ,("insertInvestor", [VAccount Ref.testAddr2, VEnum (EnumConstr "SmallInvestor")])
-  --            ,("insertInvestor", [VAccount Ref.testAddr3, VEnum (EnumConstr "BigInvestor")])
-  --            ,("deleteInvestor", [VAccount Ref.testAddr3])
-  --            ,("lookupInvestor", [VAccount Ref.testAddr])
-  --            ,("rem100Shares",   [VAccount Ref.testAddr])
-  --            ]
+  , evalTest "Evaluation of inserts, deletes, and modifies in maps"
+             (scriptsFolder <> "maps/eval.s")
+             (goldenFolder <> "typecheck/maps/eval.out")
+             [("insertInvestor", [VAccount Ref.testAddr,  VEnum (EnumConstr "BigInvestor")])
+             ,("insertInvestor", [VAccount Ref.testAddr2, VEnum (EnumConstr "SmallInvestor")])
+             ,("insertInvestor", [VAccount Ref.testAddr3, VEnum (EnumConstr "BigInvestor")])
+             ,("deleteInvestor", [VAccount Ref.testAddr3])
+             ,("lookupInvestor", [VAccount Ref.testAddr])
+             ,("rem100Shares",   [VAccount Ref.testAddr])
+             ]
   , positiveTest "Asset lookup from map asset_lookup.s"
                  (scriptsFolder <> "maps/asset_lookup.s")
                  (goldenFolder <> "typecheck/maps/asset_lookup.out")
@@ -601,16 +612,16 @@ scriptSetGoldenTests = testGroup "Script set golden tests"
   [ negativeTest "Invalid types test for invalid_types.s"
                  (scriptsFolder <> "sets/invalid_types.s")
                  (goldenFolder <> "typecheck/sets/invalid_types.out")
-  -- , evalTest "Evaluation of inserts, and deletes in sets"
-  --            (scriptsFolder <> "sets/eval.s")
-  --            (goldenFolder <> "typecheck/sets/eval.out")
-  --            [("insertInvestor", [VAccount Ref.testAddr,  VEnum (EnumConstr "BigInvestor")])
-  --            ,("insertInvestor", [VAccount Ref.testAddr2, VEnum (EnumConstr "SmallInvestor")])
-  --            ,("insertInvestor", [VAccount Ref.testAddr3, VEnum (EnumConstr "MedInvestor")])
-  --            ,("deleteInvestor", [VAccount Ref.testAddr2, VEnum (EnumConstr "SmallInvestor")])
-  --            ,("deleteInvestor", [VAccount Ref.testAddr,  VEnum (EnumConstr "BigInvestor")])
-  --            ,("end", [])
-  --            ]
+  , evalTest "Evaluation of inserts, and deletes in sets"
+             (scriptsFolder <> "sets/eval.s")
+             (goldenFolder <> "typecheck/sets/eval.out")
+             [("insertInvestor", [VAccount Ref.testAddr,  VEnum (EnumConstr "BigInvestor")])
+             ,("insertInvestor", [VAccount Ref.testAddr2, VEnum (EnumConstr "SmallInvestor")])
+             ,("insertInvestor", [VAccount Ref.testAddr3, VEnum (EnumConstr "MedInvestor")])
+             ,("deleteInvestor", [VAccount Ref.testAddr2, VEnum (EnumConstr "SmallInvestor")])
+             ,("deleteInvestor", [VAccount Ref.testAddr,  VEnum (EnumConstr "BigInvestor")])
+             ,("end", [])
+             ]
   ]
 
 scriptCollectionGoldenTests :: TestTree
@@ -619,33 +630,33 @@ scriptCollectionGoldenTests =
     [ negativeTest "Test expected typechecker failure for 'aggregate' primop using 'invalid_aggregate.s'"
                    (scriptsFolder <> "collections/invalid_aggregate.s")
                    (goldenFolder <> "typecheck/collections/invalid_aggregate.out")
-    -- , evalTest "Test eval of higher-order collection prim op 'aggregate' using aggregate.s"
-    --            (scriptsFolder <> "collections/aggregate.s")
-    --            (goldenFolder <> "typecheck/collections/aggregate.out")
-    --            [("sumBalances", [])]
+    , evalTest "Test eval of higher-order collection prim op 'aggregate' using aggregate.s"
+               (scriptsFolder <> "collections/aggregate.s")
+               (goldenFolder <> "typecheck/collections/aggregate.out")
+               [("sumBalances", [])]
 
     , negativeTest "Test expected typechecker failure for 'transform' primop using 'invalid_transform.s'"
                    (scriptsFolder <> "collections/invalid_transform.s")
                    (goldenFolder <> "typecheck/collections/invalid_transform.out")
-    -- , evalTest "Test eval of higher-order collection prim op 'transform' using transform.s"
-    --            (scriptsFolder <> "collections/transform.s")
-    --            (goldenFolder <> "typecheck/collections/transform.out")
-    --            [("applyInterest",[])]
+    , evalTest "Test eval of higher-order collection prim op 'transform' using transform.s"
+               (scriptsFolder <> "collections/transform.s")
+               (goldenFolder <> "typecheck/collections/transform.out")
+               [("applyInterest",[])]
 
     , negativeTest "Test expected typechecker failure for 'filter' primop using 'invalid_filter.s'"
                    (scriptsFolder <> "collections/invalid_filter.s")
                    (goldenFolder <> "typecheck/collections/invalid_filter.out")
-    -- , evalTest "Test eval of higher-order collection prim op 'filter' using filter.s"
-    --            (scriptsFolder <> "collections/filter.s")
-    --            (goldenFolder <> "typecheck/collections/filter.out")
-    --            [("filterTest",[])]
+    , evalTest "Test eval of higher-order collection prim op 'filter' using filter.s"
+               (scriptsFolder <> "collections/filter.s")
+               (goldenFolder <> "typecheck/collections/filter.out")
+               [("filterTest",[])]
     , negativeTest "Test expected typechecker failure for 'element' primop using 'invalid_element.s'"
                    (scriptsFolder <> "collections/invalid_element.s")
                    (goldenFolder <> "typecheck/collections/invalid_element.out")
-    -- , evalTest "Test eval of higher-order collection prim op 'element' using element.s"
-    --            (scriptsFolder <> "collections/element.s")
-    --            (goldenFolder <> "typecheck/collections/element.out")
-    --            [("elementTest",[VAccount Ref.testAddr, VInt 500])]
+    , evalTest "Test eval of higher-order collection prim op 'element' using element.s"
+               (scriptsFolder <> "collections/element.s")
+               (goldenFolder <> "typecheck/collections/element.out")
+               [("elementTest",[VAccount Ref.testAddr, VInt 500])]
     , negativeTest "Raise type error when initialising collections with wrong expressions"
                    (scriptsFolder <> "collections/expr_type_mismatches.s")
                    (goldenFolder <> "typecheck/collections/expr_type_mismatches.out")
@@ -666,42 +677,42 @@ scriptHelperGoldenTests =
     , negativeTest "Helpers with invalid argument and return should not pass the typechecker"
                    (scriptsFolder <> "helpers/invalid_types.s")
                    (goldenFolder <> "typecheck/helpers/invalid_types.out")
-    -- , evalTest "Helper function can use previously defined helper function"
-    --            (scriptsFolder <> "helpers/helper_using_helper.s")
-    --            (goldenFolder <> "typecheck/helpers/helper_using_helper.out")
-    --            [("flipeeFlopee", [VEnum (EnumConstr "Flop")])
-    --            ,("setX", [VInt 42])
-    --            ]
-    -- , evalTest "Example use of helper functions succeeds"
-    --            (scriptsFolder <> "helpers/helpers.s")
-    --            (goldenFolder <> "typecheck/helpers/helpers.out")
-    --            [("f", [ VAccount (Address.fromBS "43WRxMNcnYgZFcE36iohqrXKQdajUdAxeSn9mzE1ZedB")
-    --                   , VFixed (Fixed.mkFixed Fixed.Prec2 5000)
-    --                   ]
-    --             )
-    --            ]
+    , evalTest "Helper function can use previously defined helper function"
+               (scriptsFolder <> "helpers/helper_using_helper.s")
+               (goldenFolder <> "typecheck/helpers/helper_using_helper.out")
+               [("flipeeFlopee", [VEnum (EnumConstr "Flop")])
+               ,("setX", [VInt 42])
+               ]
+    , evalTest "Example use of helper functions succeeds"
+               (scriptsFolder <> "helpers/helpers.s")
+               (goldenFolder <> "typecheck/helpers/helpers.out")
+               [("f", [ VAccount (Ref.fromBS "43WRxMNcnYgZFcE36iohqrXKQdajUdAxeSn9mzE1ZedB")
+                      , VFixed (Fixed.mkFixed Fixed.Prec2 5000)
+                      ]
+                )
+               ]
     ]
 
--- scriptConcurrentTests :: TestTree
--- scriptConcurrentTests =
---   testGroup "Concurrent workflow eval golden tests"
---     [ evalTest "Concurrency test (interleaving 1)"
---                (scriptsFolder <> "concurrency/concurrency_eval.s")
---                (goldenFolder <> "typecheck/concurrency/concurrency_eval_1.out")
---                [ ("f", [])
---                , ("g", [])
---                , ("h", [])
---                , ("i", [])
---                ]
---     , evalTest "Concurrency test (interleaving 2)"
---                (scriptsFolder <> "concurrency/concurrency_eval.s")
---                (goldenFolder <> "typecheck/concurrency/concurrency_eval_2.out")
---                [ ("f", [])
---                , ("h", [])
---                , ("g", [])
---                , ("i", [])
---                ]
---     ]
+scriptConcurrentTests :: TestTree
+scriptConcurrentTests =
+  testGroup "Concurrent workflow eval golden tests"
+    [ evalTest "Concurrency test (interleaving 1)"
+               (scriptsFolder <> "concurrency/concurrency_eval.s")
+               (goldenFolder <> "typecheck/concurrency/concurrency_eval_1.out")
+               [ ("f", [])
+               , ("g", [])
+               , ("h", [])
+               , ("i", [])
+               ]
+    , evalTest "Concurrency test (interleaving 2)"
+               (scriptsFolder <> "concurrency/concurrency_eval.s")
+               (goldenFolder <> "typecheck/concurrency/concurrency_eval_2.out")
+               [ ("f", [])
+               , ("h", [])
+               , ("g", [])
+               , ("i", [])
+               ]
+    ]
 
 -- TODO move all duplicate tests here
 scriptDuplicateTests :: TestTree
@@ -747,23 +758,23 @@ negativeTest msg inFile outFile
       Left err -> return $ toSL err
       Right _ -> panic "Script analysis succeeded... this should not happen!"
 
--- initTestEvalCtx :: [Helper] -> IO Eval.EvalCtx
--- initTestEvalCtx helpers = do
---   now <- Time.now
---   pure Eval.EvalCtx
---     { Eval.currentTxCtx = Just Eval.TransactionCtx
---         { Eval.transactionBlockIdx = 0
---         , Eval.transactionHash = Hash.toHash (Ref.testTx Ref.testCall)
---         , Eval.transactionBlockTs = now
---         , Eval.transactionIssuer = Ref.testAddr
---         }
---     , Eval.currentValidator = Ref.testAddr
---     , Eval.currentCreated = now
---     , Eval.currentDeployer = Ref.testAddr
---     , Eval.currentAddress = Ref.testAddr
---     , Eval.currentPrivKey = Ref.testPriv
---     , Eval.currentHelpers = helpers
---     }
+initTestEvalCtx :: [Helper AS AC C] -> IO (Eval.EvalCtx AS AC C Ref.PrivateKey)
+initTestEvalCtx helpers = do
+  now <- Time.now
+  pure Eval.EvalCtx
+    { Eval.currentTxCtx = Just Eval.TransactionCtx
+        { Eval.transactionBlockIdx = 0
+        , Eval.transactionHash = Hash.toHash (Ref.testTx Ref.testCall)
+        , Eval.transactionBlockTs = now
+        , Eval.transactionIssuer = Ref.testAddr
+        }
+    , Eval.currentValidator = Ref.testAddr
+    , Eval.currentCreated = now
+    , Eval.currentDeployer = Ref.testAddr
+    , Eval.currentAddress = Ref.testAddr
+    , Eval.currentPrivKey = Ref.testPriv
+    , Eval.currentHelpers = helpers
+    }
 
 ensureExamplesCompileTests :: TestTree
 ensureExamplesCompileTests = withResource

@@ -1,29 +1,23 @@
-{-# LANGUAGE DeriveAnyClass #-}
-{-# LANGUAGE DeriveGeneric  #-}
+{-# LANGUAGE DeriveAnyClass        #-}
+{-# LANGUAGE DeriveGeneric         #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
 module Ledger where
 
 import           Asset
 import           Contract
+import qualified Data.Map       as Map
 import           Data.Serialize
 import           Protolude
 import           Script
--- class World w where
---   accountExists :: ac -> w -> Bool
---   assetExists :: as -> w -> Bool
---   contractExists :: c -> w -> Bool
---   transferAsset :: as -> ac -> ac -> balance -> w -> Either err w
---   circulateAsset :: as -> ac -> balance -> w -> Either err w
---   lookupAccount :: ac -> w -> account
---   lookupAsset :: as -> w -> asset
---   lookupContract :: c -> w -> contract
---   calcBalance :: asset -> ac -> w -> Value as ac c
 
-data AssetError as ac
-  = InsufficientHoldings ac Integer
-  | InsufficientSupply as Integer     -- [Char] for serialize instance
-  | CirculatorIsNotIssuer ac as
-  | SelfTransfer ac
-  | HolderDoesNotExist ac
+-- TODO: Change Int64 to some generic balance
+data AssetError as ac c
+  = InsufficientHoldings ac Int64
+  | InsufficientSupply as Int64     -- [Char] for serialize instance
+  | CirculatorIsNotIssuer (Holder ac c) as
+  | SelfTransfer (Holder ac c)
+  | HolderDoesNotExist (Holder ac c)
+  | AssetDoesNotExist as
   deriving (Show, Eq, Generic, Serialize)
 
 data AccountError ac
@@ -36,25 +30,28 @@ data ContractError c
   | ContractExists c
   deriving (Show, Eq, Generic, Serialize)
 
-data World as ac c asset account = World
-  { transferAsset
-    :: as
+class WorldOps w where
+  transferAsset
+    :: (Num balance)
+    => w
+    -> as
     -> Holder ac c
     -> Holder ac c
-    -> Int64
-    -> Either (AssetError ac as) (World as ac c asset account)
+    -> balance
+    -> Either (AssetError as ac c) w
 
-  , circulateAsset
-    :: as
+  circulateAsset
+    :: (Num balance)
+    => w
+    -> as
     -> ac
-    -> Int64
-    -> Either (AssetError ac as) (World as ac c asset account)
+    -> balance
+    -> Either (AssetError as ac c) w
 
-  , lookupAccount  :: ac -> Either (AccountError ac) account
-  , lookupAsset    :: as -> Either (AssetError as ac) asset
-  , lookupContract :: c -> Either (ContractError c) (Contract as ac c)
-  , calcBalance    :: asset -> ac -> Value as ac c
-  } deriving (Generic, NFData)
+  lookupAccount :: w -> ac -> Either (AccountError ac) account
+  lookupAsset :: w -> as -> Either (AssetError as ac c) asset
+  lookupContract :: w -> c -> Either (ContractError c) (Contract as ac c)
+  calcBalance :: w -> asset -> ac -> Value as ac c
 
-class Addressable o where
+class Addressable o a where
   toAddress :: o -> a

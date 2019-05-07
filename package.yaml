@@ -114,7 +114,7 @@ library:
     - RankNTypes
 
   exposed-modules:
-    - Script
+    - Asset
     - Delta
     - Contract
     - Encoding
@@ -124,6 +124,7 @@ library:
     - Ledger
     - SafeInteger
     - SafeString
+    - Script
     - Storage
     - Time
     - Utils
@@ -187,6 +188,7 @@ tests:
     - -with-rtsopts=-N
     dependencies:
     - fcl
+    - cryptonite
     - tasty
     - tasty-hunit
     - tasty-golden

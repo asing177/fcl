@@ -13,7 +13,7 @@ module Script.Storage (
 
 import Protolude hiding ((<>))
 
-import Ledger (World, Addressable)
+import Ledger (WorldOps, Addressable)
 import qualified Key
 import Script
 import Storage
@@ -38,20 +38,21 @@ initGlobalStorage (Script _ defns _ _ _)
         Map.insert (Key nm) VUndefined gstore
 
 initStorage
-  :: forall as ac c asset account sk.
-  (Ord as, Ord ac, Ord c, Show as, Show ac, Show c, Ledger.Addressable asset, Ledger.Addressable account, Key.Key sk)
-  => EvalCtx as ac c sk    -- ^ Context to evaluate the top-level definitions in
-  -> World as ac c asset account      -- ^ World to evaluate the top-level definitions in
+  :: forall as ac c asset account sk world.
+  (Ord as, Ord ac, Ord c, Show as, Show ac, Show c, Ledger.Addressable asset as, Ledger.Addressable account ac, Ledger.WorldOps world, Key.Key sk)
+  => Proxy (asset, account)
+  -> EvalCtx as ac c sk    -- ^ Context to evaluate the top-level definitions in
+  -> world      -- ^ World to evaluate the top-level definitions in
   -> Script as ac c     -- ^ Script
   -> IO (GlobalStorage as ac c)
-initStorage evalCtx world s@(Script _ defns _ _ _)
+initStorage _ evalCtx world s@(Script _ defns _ _ _)
   = do
-  res <- Eval.execEvalM evalCtx emptyEvalState $ mapM_ assignGlobal defns
+  res <- runExceptT . Eval.execEvalM evalCtx emptyEvalState $ mapM_ assignGlobal defns
   case res of
     Left err -> die $ show err
     Right state -> pure . GlobalStorage . globalStorage $ state
   where
-    assignGlobal :: Def as ac c -> (EvalM as ac c asset account sk) ()
+    assignGlobal :: Def as ac c -> (EvalM as ac c asset account sk world) ()
     assignGlobal = \case
       GlobalDef type_ _ nm expr -> do
         val <- Eval.evalLExpr expr
@@ -63,7 +64,7 @@ initStorage evalCtx world s@(Script _ defns _ _ _)
                Map.insert (Key nm) val (globalStorage st)
            }
 
-    emptyEvalState :: EvalState as ac c asset account
+    emptyEvalState :: EvalState as ac c asset account world
     emptyEvalState = EvalState
       { tempStorage      = mempty
       , globalStorage    = initGlobalStorage s

@@ -33,7 +33,7 @@ module Script.Eval (
   EvalCtx(..),
 ) where
 
-import Protolude hiding (DivideByZero, Overflow, Underflow, StateT, execStateT, runStateT, modify, get, gets)
+import Protolude hiding (DivideByZero, Overflow, Underflow, StateT, execStateT, evalStateT, runStateT, modify, get, gets)
 
 import Prelude (read)
 
@@ -103,12 +103,12 @@ data EvalCtx as ac c sk = EvalCtx
 
 type LocalStorages as ac c = Map.Map ac (Storage as ac c)
 
-data EvalState as ac c asset account = EvalState
+data EvalState as ac c asset account w = EvalState
   { tempStorage      :: Storage as ac c          -- ^ Tmp variable env
   , globalStorage    :: Storage as ac c          -- ^ Global variable env
   , workflowState    :: WorkflowState    -- ^ Current state of contract
   , currentMethod    :: Maybe (Method as ac c)     -- ^ Which method we're currently in, if any
-  , worldState       :: Ledger.World as ac c asset account            -- ^ Current world state
+  , worldState       :: w           -- ^ Current world state
   , deltas           :: [Delta.Delta as ac c]
   } deriving (Generic, NFData)
 
@@ -132,8 +132,8 @@ data EvalState as ac c asset account = EvalState
 
 initEvalState
   :: Contract.Contract as ac c
-  -> Ledger.World as ac c asset account
-  -> EvalState as ac c asset account
+  -> w
+  -> EvalState as ac c asset account w
 initEvalState c w = EvalState
   { tempStorage      = mempty
   , globalStorage    = Storage.unGlobalStorage (Contract.globalStorage c)
@@ -147,17 +147,17 @@ initEvalState c w = EvalState
 -- Interpreter Steps
 -------------------------------------------------------------------------------
 
-lookupGlobalVar :: Name -> (EvalM as ac c asset account sk) (Maybe (Value as ac c))
+lookupGlobalVar :: Name -> (EvalM as ac c asset account sk world) (Maybe (Value as ac c))
 lookupGlobalVar (Name var) = do
   globalStore <- gets globalStorage
   return $ Map.lookup (Key var) globalStore
 
-lookupTempVar :: Name -> (EvalM as ac c asset account sk) (Maybe (Value as ac c))
+lookupTempVar :: Name -> (EvalM as ac c asset account sk world) (Maybe (Value as ac c))
 lookupTempVar (Name var) = do
   tmpStore <- gets tempStorage
   return $ Map.lookup (Key var) tmpStore
 
-insertTempVar :: Name -> (Value as ac c) -> (EvalM as ac c asset account sk) ()
+insertTempVar :: Name -> (Value as ac c) -> (EvalM as ac c asset account sk world) ()
 insertTempVar (Name var) val = modify' $ \evalState ->
     evalState { tempStorage = insertVar (tempStorage evalState) }
   where
@@ -166,7 +166,7 @@ insertTempVar (Name var) val = modify' $ \evalState ->
 -- | Extends the temp storage with temporary variable updates. Emulates a
 -- closure environment for evaluating the body of helper functions by
 -- assigning values to argument names. Effectively ad-hoc substitution.
-localTempStorage :: [(Name, Value as ac c)] -> (EvalM as ac c asset account sk) a -> (EvalM as ac c asset account sk) a
+localTempStorage :: [(Name, Value as ac c)] -> (EvalM as ac c asset account sk world) a -> (EvalM as ac c asset account sk world) a
 localTempStorage varVals evalM = do
   currTempStorage <- tempStorage <$> get
   let store = Map.fromList (map (first (Key . unName)) varVals)
@@ -180,7 +180,7 @@ localTempStorage varVals evalM = do
 
 -- | Warning: This function will throw an exception on a non-existent helper, as
 -- this indicates the typechecker failed to spot an undefined function name.
-lookupHelper :: LName -> (EvalM as ac c asset account sk) (Helper as ac c)
+lookupHelper :: LName -> (EvalM as ac c asset account sk world) (Helper as ac c)
 lookupHelper lhnm = do
   helpers <- currentHelpers <$> ask
   case List.find ((==) lhnm . helperName) helpers of
@@ -188,63 +188,63 @@ lookupHelper lhnm = do
     Just helper -> pure helper
 
 -- | Emit a delta updating  the state of a global reference.
-updateGlobalVar :: Name -> (Value as ac c) -> (EvalM as ac c asset account sk) ()
+updateGlobalVar :: Name -> (Value as ac c) -> (EvalM as ac c asset account sk world) ()
 updateGlobalVar (Name var) val = modify' $ \evalState ->
     evalState { globalStorage = updateVar (globalStorage evalState) }
   where
     updateVar = Map.update (\_ -> Just val) (Key var)
 
-setWorld :: Ledger.World as ac c asset account -> (EvalM as ac c asset account sk) ()
+setWorld :: w -> (EvalM as ac c asset account sk w) ()
 setWorld w = modify' $ \evalState -> evalState { worldState = w }
 
 -- | Update the evaluate state.
-updateState :: WorkflowState -> (EvalM as ac c asset account sk) ()
+updateState :: WorkflowState -> (EvalM as ac c asset account sk world) ()
 updateState newState = modify' $ \s -> s { workflowState = newState }
 
 -- | Get the evaluation state
-getState :: (EvalM as ac c asset account sk) WorkflowState
+getState :: (EvalM as ac c asset account sk world) WorkflowState
 getState = gets workflowState
 
-setCurrentMethod :: Method as ac c -> (EvalM as ac c asset account sk) ()
+setCurrentMethod :: Method as ac c -> (EvalM as ac c asset account sk world) ()
 setCurrentMethod m = modify' $ \s -> s { currentMethod = Just m }
 
 -- | Emit a delta
-emitDelta :: Delta.Delta as ac c -> (EvalM as ac c asset account sk) ()
+emitDelta :: Delta.Delta as ac c -> (EvalM as ac c asset account sk world) ()
 emitDelta delta = modify' $ \s -> s { deltas = deltas s ++ [delta] }
 
 -- | Lookup variable in scope
-lookupVar :: Name -> (EvalM as ac c asset account sk) (Maybe (Value as ac c))
+lookupVar :: Name -> (EvalM as ac c asset account sk world) (Maybe (Value as ac c))
 lookupVar var = do
   gVar <- lookupGlobalVar var
   case gVar of
     Nothing  -> lookupTempVar var
     Just val -> return $ Just val
 
-transactionCtxField :: Loc -> Text -> (TransactionCtx ac -> a) -> (EvalM as ac c asset account sk) a
+transactionCtxField :: Loc -> Text -> (TransactionCtx ac -> a) -> (EvalM as ac c asset account sk world) a
 transactionCtxField loc errMsg getField = do
   mfield <- fmap getField . currentTxCtx <$> ask
   case mfield of
     Nothing -> throwError $ NoTransactionContext loc errMsg
     Just field -> pure field
 
-currBlockTimestamp :: Loc -> (EvalM as ac c asset account sk) Time.Timestamp
+currBlockTimestamp :: Loc -> (EvalM as ac c asset account sk world) Time.Timestamp
 currBlockTimestamp loc = do
   let errMsg = "Cannot get timestamp without a transaction context"
   transactionCtxField loc errMsg transactionBlockTs
 
-currentBlockIdx :: Loc -> (EvalM as ac c asset account sk) Int64
+currentBlockIdx :: Loc -> (EvalM as ac c asset account sk world) Int64
 currentBlockIdx loc = do
   let errMsg = "Cannot get block index without a transaction context"
   transactionCtxField loc errMsg transactionBlockIdx
 
 currentTxHash
   :: Loc
-  -> (EvalM as ac c asset account sk) (Hash.Hash Encoding.Base16ByteString)
+  -> (EvalM as ac c asset account sk world) (Hash.Hash Encoding.Base16ByteString)
 currentTxHash loc = do
   let errMsg = "Cannot get current transaction hash without a transaction context"
   transactionCtxField loc errMsg transactionHash
 
-currentTxIssuer :: Loc -> (EvalM as ac c asset account sk) ac
+currentTxIssuer :: Loc -> (EvalM as ac c asset account sk world) ac
 currentTxIssuer loc = do
   let errMsg = "Cannot get current transaction issuer without a transaction context"
   transactionCtxField loc errMsg transactionIssuer
@@ -266,49 +266,47 @@ runRandom m = do
   return . fst . Crypto.withDRG gen $ m
 
 -- | EvalM monad
-type EvalM as ac c asset account sk
+type EvalM as ac c asset account sk world
   = ReaderT
     (EvalCtx as ac c sk)
-    (StateT (EvalState as ac c asset account) (ExceptT (Error.EvalFail as ac c) RandomM))
+    (StateT (EvalState as ac c asset account world) (ExceptT (Error.EvalFail as ac c) RandomM))
 
-instance Crypto.MonadRandom (EvalM as ac c asset account sk) where
+instance Crypto.MonadRandom (EvalM as ac c asset account sk world) where
   getRandomBytes = lift . lift . lift . Crypto.getRandomBytes
 
 -- | Run the evaluation monad.
 execEvalM
   :: EvalCtx as ac c sk
-  -> EvalState as ac c asset account
-  -> (EvalM as ac c asset account sk) a
-  -> IO (Either (Error.EvalFail as ac c) (EvalState as ac c asset account))
-execEvalM evalCtx evalState
-  = handleArithError
-  . runRandom
-  . runExceptT
-  . flip execStateT evalState
-  . flip runReaderT evalCtx
+  -> EvalState as ac c asset account world
+  -> (EvalM as ac c asset account sk world) a
+  -> ExceptT (Error.EvalFail as ac c) IO (EvalState as ac c asset account world)
+execEvalM evalCtx evalState evalM = do
+  rnd <- liftIO $ runRandom $ runExceptT $ flip runStateT evalState . flip runReaderT evalCtx $ evalM
+  case rnd of
+    Left err -> throwE err
+    Right p -> handleArithError (pure $ snd p)
 
 -- | Run the evaluation monad.
 runEvalM
   :: EvalCtx as ac c sk
-  -> EvalState as ac c asset account
-  -> (EvalM as ac c asset account sk) a
-  -> IO (Either (Error.EvalFail as ac c) (a, EvalState as ac c asset account))
-runEvalM evalCtx evalState
-  = handleArithError
-  . runRandom
-  . runExceptT
-  . flip runStateT evalState
-  . flip runReaderT evalCtx
+  -> EvalState as ac c asset account world
+  -> (EvalM as ac c asset account sk world) a
+  -> ExceptT (Error.EvalFail as ac c) IO (a, EvalState as ac c asset account world)
+runEvalM evalCtx evalState evalM  = do
+  rnd <- liftIO $ runRandom $ runExceptT $ flip runStateT evalState . flip runReaderT evalCtx $ evalM
+  case rnd of
+    Left err -> throwE err
+    Right p -> handleArithError (pure p)
 
 handleArithError
-  :: IO (Either (Error.EvalFail as ac c) a)
-  -> IO (Either (Error.EvalFail as ac c) a)
+  :: ExceptT (Error.EvalFail as ac c) IO a
+  -> ExceptT (Error.EvalFail as ac c) IO a
 handleArithError m = do
    res <- Catch.try $! m
    case res of
-    Left E.Overflow              -> return . Left $ Overflow
-    Left E.Underflow             -> return . Left $ Underflow
-    Left (e :: E.ArithException) -> return . Left $ Impossible "Arithmetic exception"
+    Left E.Overflow              -> throwE Overflow
+    Left E.Underflow             -> throwE Underflow
+    Left (e :: E.ArithException) -> throwE $ Impossible "Arithmetic exception"
     Right val                    -> pure val
 
 -------------------------------------------------------------------------------
@@ -317,11 +315,11 @@ handleArithError m = do
 
 -- | Evaluator for expressions
 evalLExpr
-  :: forall as ac c asset account sk.
-  (Eq as, Eq ac, Eq c, Ord as, Ord ac, Ord c, Show as, Show ac, Show c
-  ,Ledger.Addressable asset, Ledger.Addressable account, Key.Key sk)
+  :: forall as ac c asset account sk world.
+  (Ord as, Ord ac, Ord c, Show as, Show ac, Show c
+  ,Ledger.Addressable asset as, Ledger.Addressable account ac, Key.Key sk, Ledger.WorldOps world)
   => LExpr as ac c
-  -> (EvalM as ac c asset account sk) (Value as ac c)
+  -> (EvalM as ac c asset account sk world) (Value as ac c)
 evalLExpr (Located loc e) = case e of
   ESeq a b        -> evalLExpr a >> evalLExpr b
 
@@ -531,7 +529,7 @@ evalBinOpF
   -> (a -> Value as ac c)
   -> a
   -> a
-  -> (EvalM as ac c asset account sk) (Value as ac c)
+  -> (EvalM as ac c asset account sk world) (Value as ac c)
 evalBinOpF Script.Add constr a b = pure $ constr (a + b)
 evalBinOpF Script.Sub constr a b = pure $ constr (a - b)
 evalBinOpF Script.Mul constr a b = pure $ constr (a * b)
@@ -547,12 +545,12 @@ evalBinOpF Script.Greater constr a b = pure $ VBool (a > b)
 evalBinOpF bop c a b = panicInvalidBinOp bop (c a) (c b)
 
 evalPrim
-  :: forall as ac c asset account sk.
-  (Show as, Show ac, Show c, Ord as, Ord ac, Ord c, Ledger.Addressable asset, Ledger.Addressable account, Key.Key sk)
+  :: forall as ac c asset account sk world.
+  (Show as, Show ac, Show c, Ord as, Ord ac, Ord c, Ledger.Addressable asset as, Ledger.Addressable account ac, Key.Key sk, Ledger.WorldOps world)
   => Loc
   -> PrimOp
   -> [LExpr as ac c]
-  -> (EvalM as ac c asset account sk) (Value as ac c)
+  -> (EvalM as ac c asset account sk world) (Value as ac c)
 evalPrim loc ex args = case ex of
   Now               -> do
     currDatetime <- posixMicroSecsToDatetime <$> currBlockTimestamp loc
@@ -795,13 +793,13 @@ evalPrim loc ex args = case ex of
   CollPrimOp c  -> evalCollPrim c args
 
 evalAssetPrim
-  :: forall as ac c asset account sk.
+  :: forall as ac c asset account sk world.
   (Ord as, Ord ac, Ord c, Show as, Show ac, Show c
-  ,Ledger.Addressable asset, Ledger.Addressable account, Key.Key sk)
+  ,Ledger.Addressable asset as, Ledger.Addressable account ac, Ledger.WorldOps world, Key.Key sk)
   => Loc
   -> Prim.AssetPrimOp
   -> [LExpr as ac c]
-  -> (EvalM as ac c asset account sk) (Value as ac c)
+  -> (EvalM as ac c asset account sk world) (Value as ac c)
 evalAssetPrim loc assetPrimOp args =
   case assetPrimOp of
 
@@ -900,7 +898,8 @@ evalAssetPrim loc assetPrimOp args =
       world <- gets worldState
       txIssuer <- currentTxIssuer loc
       case Ledger.circulateAsset world assetAddr txIssuer amount of
-        Left err -> throwError $ AssetIntegrity $ show err
+        Left err -> throwError $ AssetIntegrity $ "TODO: use err"
+          -- show err
         Right newWorld -> setWorld newWorld
 
       noop
@@ -925,7 +924,8 @@ evalAssetPrim loc assetPrimOp args =
            (AccountHolder fromAddr)
            (AccountHolder toAddr)
            holdings of
-        Left err -> throwError $ AssetIntegrity $ show err
+        Left err -> throwError $ AssetIntegrity $ "TODO: Use err"
+          -- show err
         Right newWorld -> setWorld newWorld
 
       -- Emit the delta denoting the world state modification
@@ -942,11 +942,11 @@ evalAssetPrim loc assetPrimOp args =
       VFixed f -> fromIntegral $ getFixedInteger f
       otherVal -> panicInvalidHoldingsVal otherVal
 
-    getAccountAddr :: LExpr as ac c -> (EvalM as ac c asset account sk) ac
+    getAccountAddr :: LExpr as ac c -> (EvalM as ac c asset account sk world) ac
     getAccountAddr accExpr =
       Ledger.toAddress <$> getAccount accExpr
 
-    getAccount :: LExpr as ac c -> (EvalM as ac c asset account sk) account
+    getAccount :: LExpr as ac c -> (EvalM as ac c asset account sk world) account
     getAccount accExpr = do
       world <- gets worldState
       accAddr <- extractAddrAccount <$> evalLExpr accExpr
@@ -955,11 +955,11 @@ evalAssetPrim loc assetPrimOp args =
           AccountIntegrity ("No account with address: " <> show accAddr)
         Right acc -> pure acc
 
-    getAssetAddr :: LExpr as ac c -> (EvalM as ac c asset account sk) as
+    getAssetAddr :: LExpr as ac c -> (EvalM as ac c asset account sk world) as
     getAssetAddr assetExpr =
       Ledger.toAddress <$> getAsset assetExpr
 
-    getAsset :: LExpr as ac c -> (EvalM as ac c asset account sk) asset
+    getAsset :: LExpr as ac c -> (EvalM as ac c asset account sk world) asset
     getAsset assetExpr = do
       world <- gets worldState
       assetAddr   <- extractAddrAsset <$> evalLExpr assetExpr
@@ -969,12 +969,12 @@ evalAssetPrim loc assetPrimOp args =
         Right asset -> pure asset
 
 evalMapPrim
-  :: forall as ac c asset account sk.
+  :: forall as ac c asset account sk world.
   (Ord as, Ord ac, Ord c, Show as, Show ac, Show c
-  ,Ledger.Addressable asset, Ledger.Addressable account, Key.Key sk)
+  ,Ledger.Addressable asset as, Ledger.Addressable account ac, Ledger.WorldOps world, Key.Key sk)
   => Prim.MapPrimOp
   -> [LExpr as ac c]
-  -> (EvalM as ac c asset account sk) (Value as ac c)
+  -> (EvalM as ac c asset account sk world) (Value as ac c)
 evalMapPrim mapPrimOp args =
   case mapPrimOp of
     Prim.MapInsert -> do
@@ -1003,8 +1003,8 @@ evalMapPrim mapPrimOp args =
 
 evalSetPrim
   :: (Ord as, Ord ac, Ord c, Show as, Show ac, Show c
-     ,Ledger.Addressable asset, Ledger.Addressable account, Key.Key sk)
-  => Prim.SetPrimOp -> [LExpr as ac c] -> (EvalM as ac c asset account sk) (Value as ac c)
+     ,Ledger.Addressable asset as, Ledger.Addressable account ac, Ledger.WorldOps world, Key.Key sk)
+  => Prim.SetPrimOp -> [LExpr as ac c] -> (EvalM as ac c asset account sk world) (Value as ac c)
 evalSetPrim setPrimOp args =
   case setPrimOp of
     Prim.SetInsert -> do
@@ -1015,10 +1015,10 @@ evalSetPrim setPrimOp args =
       pure $ VSet (Set.delete v setVal)
 
 evalCollPrim
-  :: forall as ac c asset account sk.
+  :: forall as ac c asset account sk world.
   (Ord as, Ord ac, Ord c, Show as, Show ac, Show c
-  ,Ledger.Addressable asset, Ledger.Addressable account, Key.Key sk)
-  => Prim.CollPrimOp -> [LExpr as ac c] -> (EvalM as ac c asset account sk) (Value as ac c)
+  ,Ledger.Addressable asset as, Ledger.Addressable account ac, Ledger.WorldOps world, Key.Key sk)
+  => Prim.CollPrimOp -> [LExpr as ac c] -> (EvalM as ac c asset account sk world) (Value as ac c)
 evalCollPrim collPrimOp args =
   case collPrimOp of
     Prim.Aggregate -> do
@@ -1078,12 +1078,12 @@ evalCollPrim collPrimOp args =
       CallPrimOpFail loc (Just v) "Cannot call a collection primop on a non-collection value"
 
     -- Map over a collection type (which happen to all implement Traversable)
-    mapColl :: Traversable f => LExpr as ac c -> Name -> f (Value as ac c) -> (EvalM as ac c asset account sk) (f (Value as ac c))
+    mapColl :: Traversable f => LExpr as ac c -> Name -> f (Value as ac c) -> (EvalM as ac c asset account sk world) (f (Value as ac c))
     mapColl body nm coll =
       forM coll $ \val ->
         localTempStorage [(nm, val)] (evalLExpr body)
 
-    filterPred :: LExpr as ac c -> (Name, Value as ac c) -> (EvalM as ac c asset account sk) Bool
+    filterPred :: LExpr as ac c -> (Name, Value as ac c) -> (EvalM as ac c asset account sk world) Bool
     filterPred body var = do
       res <- localTempStorage [var] (evalLExpr body)
       pure $ case res of
@@ -1091,7 +1091,7 @@ evalCollPrim collPrimOp args =
         VBool False -> False
         otherwise -> panicImpossible $ Just "Body of helper function used in filter primop did not return Bool"
 
-    foldColl :: LExpr as ac c -> (Name, Value as ac c) -> Name -> [Value as ac c] -> (EvalM as ac c asset account sk) (Value as ac c)
+    foldColl :: LExpr as ac c -> (Name, Value as ac c) -> Name -> [Value as ac c] -> (EvalM as ac c asset account sk world) (Value as ac c)
     foldColl fbody (accNm, initVal) argNm vals =
         foldM accum initVal vals
       where
@@ -1102,7 +1102,7 @@ evalCollPrim collPrimOp args =
 
 
 -- | Check that the method state precondition is a substate of the actual state.
-checkGraph :: (EvalM as ac c asset account sk) ()
+checkGraph :: (EvalM as ac c asset account sk world) ()
 checkGraph = do
   Just m <- gets currentMethod
   actualState <- getState
@@ -1114,8 +1114,8 @@ checkGraph = do
 -- this is done by 'Contract.callableMethods'
 evalMethod
   :: (Ord as, Ord ac, Ord c, Show as, Show ac, Show c
-     ,Ledger.Addressable asset, Ledger.Addressable account, Key.Key sk)
-  => Method as ac c -> [Value as ac c] -> (EvalM as ac c asset account sk) (Value as ac c)
+     ,Ledger.Addressable asset as, Ledger.Addressable account ac, Ledger.WorldOps world, Key.Key sk)
+  => Method as ac c -> [Value as ac c] -> (EvalM as ac c asset account sk world) (Value as ac c)
 evalMethod meth@(Method _ _ nm argTyps body) args = do
     setCurrentMethod meth
     checkPreconditions meth
@@ -1135,18 +1135,18 @@ evalMethod meth@(Method _ _ nm argTyps body) args = do
 -- contract, call `evalMethod`.
 eval
   :: (Eq as, Eq ac, Eq c, Ord as, Ord ac, Ord c, Show as, Show ac, Show c
-     ,Ledger.Addressable asset, Ledger.Addressable account, Key.Key sk)
+     ,Ledger.Addressable asset as, Ledger.Addressable account ac, Ledger.WorldOps world, Key.Key sk)
   => Contract.Contract as ac c
   -> Name
   -> [Value as ac c]
-  -> (EvalM as ac c asset account sk) (Value as ac c)
+  -> (EvalM as ac c asset account sk world) (Value as ac c)
 eval c nm args =
   case Contract.lookupContractMethod nm c of
     Right method -> evalMethod method args
     Left err -> throwError (InvalidMethodName err)
 
 evalFloatToFixed :: (Ord as, Ord ac, Ord c, Show as, Show ac, Show c
-                    ,Ledger.Addressable asset, Ledger.Addressable account, Key.Key sk) => PrecN -> [LExpr as ac c] -> (EvalM as ac c asset account sk) (Value as ac c)
+                    ,Ledger.Addressable asset as, Ledger.Addressable account ac, Ledger.WorldOps world, Key.Key sk) => PrecN -> [LExpr as ac c] -> (EvalM as ac c asset account sk world) (Value as ac c)
 evalFloatToFixed prec args = do
     let [eFloat] = args
     VFloat float <- evalLExpr eFloat
@@ -1160,7 +1160,7 @@ evalFloatToFixed prec args = do
     floatToFixed Prec5 = Fixed5 . F5 . MkFixed . round . (*) (10^5)
     floatToFixed Prec6 = Fixed6 . F6 . MkFixed . round . (*) (10^6)
 
-noop :: (EvalM as ac c asset account sk) (Value as ac c)
+noop :: (EvalM as ac c asset account sk world) (Value as ac c)
 noop = pure VVoid
 
 
@@ -1191,10 +1191,10 @@ data PreconditionsV ac = PreconditionsV
 -- | Succeeds when all preconditions are fulfilled and throws an error otherwise
 -- NB: We assume that we are given a type checked AST
 evalPreconditions
-  :: forall as ac c asset account sk.
-  (Ord as, Ord ac, Ord c, Show as, Show ac, Show c, Ledger.Addressable asset, Ledger.Addressable account, Key.Key sk)
+  :: forall as ac c asset account sk world.
+  (Ord as, Ord ac, Ord c, Show as, Show ac, Show c, Ledger.Addressable asset as, Ledger.Addressable account ac, Ledger.WorldOps world, Key.Key sk)
   => Method as ac c
-  -> (EvalM as ac c asset account sk) (PreconditionsV ac)
+  -> (EvalM as ac c asset account sk world) (PreconditionsV ac)
 evalPreconditions m = do
   let Preconditions ps = methodPreconditions m
   PreconditionsV
@@ -1202,25 +1202,25 @@ evalPreconditions m = do
     <*> sequence (evalBefore <$> List.lookup PrecBefore ps)
     <*> sequence (evalRole <$> List.lookup PrecRoles ps)
   where
-    evalAfter :: LExpr as ac c -> (EvalM as ac c asset account sk) DateTime
+    evalAfter :: LExpr as ac c -> (EvalM as ac c asset account sk world) DateTime
     evalAfter expr = do
       VDateTime dt <- evalLExpr expr
       pure dt
 
-    evalBefore :: LExpr as ac c -> (EvalM as ac c asset account sk) DateTime
+    evalBefore :: LExpr as ac c -> (EvalM as ac c asset account sk world) DateTime
     evalBefore expr = do
       VDateTime dt <- evalLExpr expr
       pure dt
 
-    evalRole :: LExpr as ac c -> (EvalM as ac c asset account sk) (Set ac)
+    evalRole :: LExpr as ac c -> (EvalM as ac c asset account sk world) (Set ac)
     evalRole expr = do
       VSet vAccounts <- evalLExpr expr
       let accounts = Set.map (\(VAccount a) -> a) vAccounts
       pure accounts
 
 checkPreconditions
-  :: (Ord as, Ord ac, Ord c, Show as, Show ac, Show c, Ledger.Addressable asset, Ledger.Addressable account, Key.Key sk)
-  => Method as ac c -> (EvalM as ac c asset account sk) ()
+  :: (Ord as, Ord ac, Ord c, Show as, Show ac, Show c, Ledger.Addressable asset as, Ledger.Addressable account ac, Ledger.WorldOps world, Key.Key sk)
+  => Method as ac c -> (EvalM as ac c asset account sk world) ()
 checkPreconditions m = do
   PreconditionsV afterV beforeV roleV <- evalPreconditions m
   sequence_
@@ -1248,8 +1248,8 @@ checkPreconditions m = do
         (throwError $ PrecNotSatCaller m accounts issuer)
 
 evalCallableMethods
-  :: (Ord as, Ord ac, Ord c, Show as, Show ac, Show c, Ledger.Addressable asset, Ledger.Addressable account, Key.Key sk)
-  => Contract.Contract as ac c -> (EvalM as ac c asset account sk) (Contract.CallableMethods ac)
+  :: (Ord as, Ord ac, Ord c, Show as, Show ac, Show c, Ledger.Addressable asset as, Ledger.Addressable account ac, Ledger.WorldOps world, Key.Key sk)
+  => Contract.Contract as ac c -> (EvalM as ac c asset account sk world) (Contract.CallableMethods ac)
 evalCallableMethods contract =
     foldM insertCallableMethod mempty (Contract.callableMethods contract)
   where
@@ -1277,7 +1277,7 @@ evalCallableMethods contract =
 -------------------------------------------------------------------------------
 
 {-# INLINE hashValue #-}
-hashValue :: (Show as, Show ac, Show c) => Value as ac c -> (EvalM as ac c asset account sk) ByteString
+hashValue :: (Show as, Show ac, Show c) => Value as ac c -> (EvalM as ac c asset account sk world) ByteString
 hashValue = \case
   VText msg       -> pure $ SS.toBytes msg
   VInt n         -> pure (show n)
