@@ -104,13 +104,13 @@ steps:
         --local-bin-path .
 
   # TODO spawn a speparate job for this (from release.yaml)
-  - id: "build-fcl-image"
-    name: 'gcr.io/kaniko-project/executor:latest'
-    waitFor: ['build']
-    args:
-    - --destination=gcr.io/$PROJECT_ID/fcl
-    - --destination=gcr.io/$PROJECT_ID/fcl:$BRANCH_NAME
-    - --cache=true
+  # - id: "build-fcl-image"
+  #   name: 'gcr.io/kaniko-project/executor:latest'
+  #   waitFor: ['build']
+  #   args:
+  #   - --destination=gcr.io/$PROJECT_ID/fcl
+  #   - --destination=gcr.io/$PROJECT_ID/fcl:$BRANCH_NAME
+  #   - --cache=true
 
   - id: "test"
     name: $_BUILD_IMAGE
