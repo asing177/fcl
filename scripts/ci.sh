@@ -2,7 +2,7 @@
 
 set -euo pipefail
 
-dependency_hash=$( (cat package.yaml; cat snapshot.yaml) | sha256sum | cut -d ' ' -f 1)
+dependency_hash=$( cat package.yaml | sha256sum | cut -d ' ' -f 1)
 
 remote="gs://fcl-build-cache/v1"
 
