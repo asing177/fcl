@@ -8,7 +8,7 @@
 timeout: 3600s # Cache misses are slow to rebuild
 substitutions:
   # Bump the version if you make changes to `ci/Dockerfile
-  _BUILD_IMAGE: gcr.io/uplink-test-cluster-174313/fcl-ci:v2
+  _BUILD_IMAGE: gcr.io/uplink-test-cluster-174313/fcl-ci:v3
 options:
   machineType: N1_HIGHCPU_8
 steps:
