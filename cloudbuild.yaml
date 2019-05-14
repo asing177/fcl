@@ -134,7 +134,7 @@ steps:
 
   # - id: "Build reference document and swagger spec"
   #   waitFor:
-  #   - "Build"
+  #   - "build"
   #   name: $_BUILD_IMAGE
   #   env: ['STACK_ROOT=/workspace/.stack']
   #   entrypoint: bash
