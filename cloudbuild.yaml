@@ -63,7 +63,7 @@ steps:
         --dependencies-only
 
   - id: "save-cache"
-    waitFor: ["Build deps"]
+    waitFor: ["build-deps"]
     name: $_BUILD_IMAGE
     entrypoint: 'bash'
     env:
