@@ -1,3 +1,5 @@
+{-# LANGUAGE DataKinds #-}
+{-# LANGUAGE DataKinds #-}
 {-
 
 Core AST for the FCL core language.
@@ -129,6 +131,7 @@ import Data.Serialize.Text()
 
 import Language.FCL.Address
 import Language.FCL.Utils (duplicates)
+import Language.FCL.SafeString
 
 -------------------------------------------------------------------------------
 -- Core Language
@@ -164,7 +167,7 @@ type LEnumConstr = Located EnumConstr
 type LPattern = Located Pattern
 
 -- | Enum constructor.
-newtype EnumConstr = EnumConstr { unEnumConstr :: Text }
+newtype EnumConstr = EnumConstr { unEnumConstr :: SafeString }
   deriving (Eq, Show, Ord, Generic)
 
 instance ToJSON EnumConstr where
@@ -239,7 +242,7 @@ data Lit
   | LAccount   (Address AAccount)
   | LAsset     (Address AAsset)
   | LContract  (Address AContract)
-  | LText       Text
+  | LText       SafeString
   | LSig       (Integer,Integer)
   | LDateTime  DateTime
   | LTimeDelta TimeDelta
@@ -254,7 +257,7 @@ data Value
   | VAccount (Address AAccount)    -- ^ Account Address
   | VAsset (Address AAsset)        -- ^ Asset Address
   | VContract (Address AContract)  -- ^ Contract Address
-  | VText Text                -- ^ Msgs (ASCII)
+  | VText SafeString                -- ^ Msgs (ASCII)
   | VSig (Integer,Integer) -- ^ ESDSA Sig
   | VVoid                          -- ^ Void
   | VDateTime DateTime             -- ^ A datetime with a timezone
@@ -658,9 +661,9 @@ instance Pretty Lit where
     LNum n         -> ppr n
     LBool bool     -> ppr bool
     LText msg       -> dquotes $ ppr msg
-    LAccount addr  -> "u" <> squotes (ppr $ rawAddr addr)
-    LAsset addr    -> "a" <> squotes (ppr $ rawAddr addr)
-    LContract addr -> "c" <> squotes (ppr $ rawAddr addr)
+    LAccount addr  -> "u" <> squotes (ppr addr)
+    LAsset addr    -> "a" <> squotes (ppr addr)
+    LContract addr -> "c" <> squotes (ppr addr)
     LSig (r,s)     -> tupleOf [ppr r, ppr s]
     LVoid          -> token Token.void
     LState name    -> token Token.colon <> ppr name

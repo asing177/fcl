@@ -1,3 +1,5 @@
+{-# LANGUAGE DataKinds #-}
+{-# LANGUAGE KindSignatures #-}
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE MultiWayIf #-}
@@ -77,7 +79,7 @@ import Language.FCL.Address
 import Language.FCL.Lexer as Lexer
 import Language.FCL.Pretty hiding (parens)
 import Language.FCL.Prim (lookupPrim)
-import qualified SafeString as SS
+import Language.FCL.SafeString (fromBytes')
 import qualified Language.FCL.Token as Token
 import qualified Datetime.Types as DT
 
@@ -199,16 +201,19 @@ boolLit =
  <|> LBool True  <$ try ((reserved Token.true)  <|> (() <$ string "True"  <* whiteSpace))
  <?> "boolean literal"
 
-rawAddress :: Parser (Address a)
-rawAddress
-  = Address.fromBS . BS8.pack <$> between (symbol "\'") (symbol "\'") (many1 alphaNum)
+rawAddress :: forall (a :: AddrType). Parser (Address a)
+rawAddress = do
+  bsE <- byteStringToAddress . BS8.pack <$> between (symbol "\'") (symbol "\'") (many1 alphaNum)
+  case bsE of
+    Left err -> parserFail $ show err
+    Right addr -> pure addr
 
 addressLit :: Parser Lit
 addressLit = try $ do
   type_ <- char 'c' <|> char 'a' <|> char 'u'
-  if | type_ == 'c' -> LContract <$> rawAddress
-     | type_ == 'a' -> LAsset <$> rawAddress
-     | type_ == 'u' -> LAccount <$> rawAddress
+  if | type_ == 'c' -> LContract . Address <$> rawAddress
+     | type_ == 'a' -> LAsset . Address <$> rawAddress
+     | type_ == 'u' -> LAccount . Address <$> rawAddress
      | otherwise    -> parserFail "Cannot parse address literal"
 
 datetimeParser :: Parser DateTime
@@ -251,7 +256,7 @@ timedeltaLit :: Parser Lit
 timedeltaLit = LTimeDelta <$> timedeltaParser
 
 textLit :: Parser Lit
-textLit = LText . SS.fromBytes' . BS8.pack <$> rawTextLit
+textLit = LText . fromBytes' . BS8.pack <$> rawTextLit
  <?> "text"
 
 stateLit :: Parser Lit

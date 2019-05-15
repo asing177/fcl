@@ -37,15 +37,13 @@ import Data.Binary (Binary(..))
 import Data.Char (isDigit)
 import Data.List (genericLength, genericReplicate, genericSplitAt)
 import Data.Serialize (Serialize(..))
-import Database.PostgreSQL.Simple.FromField (FromField(..))
-import Database.PostgreSQL.Simple.ToField (ToField(..))
 import Text.ParserCombinators.ReadP
 import Text.Read
 import Text.Show
 
 import Language.FCL.Pretty (Pretty(..), prettyPrint)
-import Hash (Hashable(..))
-import Utils ((?), putBinaryViaSerialize, getBinaryViaSerialize)
+import Language.FCL.Hash (Hashable(..))
+import Language.FCL.Utils ((?), putBinaryViaSerialize, getBinaryViaSerialize)
 
 data Decimal = Decimal
   { decimalPlaces :: Integer
@@ -178,7 +176,3 @@ instance Binary Decimal where
   put = putBinaryViaSerialize
   get = getBinaryViaSerialize
 
-instance ToField Decimal where
-  toField = toField . prettyPrint
-instance FromField Decimal where
-  fromField f mbs = read <$> fromField f mbs

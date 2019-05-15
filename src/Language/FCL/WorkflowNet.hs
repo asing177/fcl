@@ -106,7 +106,7 @@ insertMethodTransitions initial (ColorTransition colorizer) wfn method =
         outputPlaces
         (transitions wfn)
   where
-    methodName = locVal $ Language.FCL.methodName method
+    methodName = locVal $ Language.FCL.AST.methodName method
 
     inputPlaces = places . methodInputPlaces $ method
     outputPlaces = colorizer method (initial \/)

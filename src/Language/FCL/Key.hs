@@ -171,6 +171,9 @@ import Crypto.Cipher.Types (Cipher(..), BlockCipher(..), IV, makeIV, blockSize)
 import System.Directory (doesFileExist)
 import System.Posix.Files (setFileMode, ownerReadMode)
 
+import qualified Language.FCL.SafeString as SS
+import qualified Language.FCL.Hash as Hash
+
 -------------------------------------------------------------------------------
 -- Generation
 -------------------------------------------------------------------------------
@@ -493,7 +496,7 @@ safeWritePubKey file pubKey = do
 -- Warning: Overwrites existing file at the given filepath
 safeWritePubKey' :: FilePath -> PubKey -> IO (Either Text ())
 safeWritePubKey' file pubKey = do
-  eRes <- Utils.safeWrite file $ Key.exportPub pubKey
+  eRes <- Utils.safeWrite file $ exportPub pubKey
   case eRes of
     Left err -> pure $ Left err -- V Set chmod 0400
     Right _  -> Right <$> setFileMode file ownerReadMode

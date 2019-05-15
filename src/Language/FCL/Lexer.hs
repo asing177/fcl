@@ -48,6 +48,7 @@ import qualified Data.Text as T
 
 import Language.FCL.AST (Name(..), Loc(..), Located(..), LName, BinOp(..), UnOp(..), EnumConstr(..), LEnumConstr)
 import qualified Language.FCL.Token as Token
+import Language.FCL.SafeString (fromBytes')
 
 import qualified Data.Text.Encoding as Text
 
@@ -88,7 +89,7 @@ locName :: Parser LName
 locName = mkLocated name
 
 enumConstr :: Parser EnumConstr
-enumConstr = EnumConstr <$> identifier
+enumConstr = EnumConstr . fromBytes' . Text.encodeUtf8 <$> identifier
   <?> "enum constructor"
 
 locEnumConstr :: Parser LEnumConstr

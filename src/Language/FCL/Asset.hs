@@ -1,3 +1,5 @@
+{-# LANGUAGE UndecidableInstances #-}
+{-# LANGUAGE DataKinds #-}
 {-|
 
 Asset data types.
@@ -58,9 +60,11 @@ import Protolude hiding (Hashable, put, get, putByteString)
 
 import qualified Data.Coerce
 import qualified GHC.Show
-import Time (Timestamp)
-import Address (Address, AAsset, EitherAccountContract, AAccount, AContract, addressFromField)
-import qualified Metadata
+import qualified GHC.TypeLits as Lits
+
+import Language.FCL.Time (Timestamp)
+import Language.FCL.Address
+import Language.FCL.Metadata
 import qualified Language.FCL.Utils as Utils
 
 import Control.Monad (fail)
@@ -76,16 +80,33 @@ import qualified Data.ByteString as BS
 import qualified Data.ByteString.Lazy as BSL
 import qualified Data.Aeson.Encode.Pretty as A
 
-import Hash (Hashable(..))
+import Language.FCL.Hash as Hash (Hashable(..))
 import Numeric.Lossless.Number (Decimal(..))
-import Script.Pretty (Pretty(..))
+import Language.FCL.Pretty (Pretty(..))
 
 -------------------------------------------------------------------------------
 -- Types
 -------------------------------------------------------------------------------
 
+type family EitherAccountContract a :: Constraint where
+  EitherAccountContract (Address AAccount) = ()
+  EitherAccountContract (Address AContract) = ()
+  EitherAccountContract _ = Lits.TypeError (Lits.Text "Expecting either an account or contract")
+
 -- | A holder of a balance in an asset.
-data Holder = forall a. (Show a, Eq a, Typeable a, EitherAccountContract a) => Holder (Address a)
+data Holder
+  = forall a. (Show a
+              , Eq a
+              , Typeable a
+              , EitherAccountContract a
+              , Ord a
+              , Serialize a
+              , Hashable a
+              , Pretty a
+              , Coercible a (Address AAccount)
+              , Coercible a (Address AContract)
+              , ToJSON a
+              ) => Holder a
 
 instance Eq Holder where
   Holder a == Holder b = maybe False (== b) (cast a)
@@ -165,7 +186,7 @@ data Asset = Asset
   , reference :: Maybe Ref         -- ^ Reference unit
   , assetType :: AssetType         -- ^ Asset type
   , address   :: Address AAsset    -- ^ Asset address
-  , metadata  :: Metadata.Metadata -- ^ Asset address
+  , metadata  :: Metadata -- ^ Asset address
   } deriving (Show, Generic, B.Binary, Serialize)
 
 -- | Two Assets are equal if their addresses are equal
@@ -396,9 +417,9 @@ createAsset
   -> Balance
   -> Maybe Ref
   -> AssetType
-  -> Time.Timestamp
+  -> Timestamp
   -> (Address AAsset)
-  -> Metadata.Metadata
+  -> Metadata
   -> Asset
 createAsset name issuer supply mRef assetType ts addr metadata =
   Asset name issuer ts supply mempty mRef assetType addr metadata

@@ -46,7 +46,7 @@ import Numeric.Lossless.Number
 import Language.FCL.AST
 import Language.FCL.Prim
 import Language.FCL.Pretty hiding ((<>))
-import Utils ((?), duplicates, zipWith3M_)
+import Language.FCL.Utils ((?), duplicates, zipWith3M_)
 -- import Control.Exception (assert)
 import Control.Monad.State.Strict (modify')
 
@@ -299,7 +299,7 @@ tcMethodCall enumInfo method argVals
           (VEnum c, Nothing) -> Left $ UnknownConstructor c
           (o, Nothing) -> Left $ Impossible $ "Malformed value: " <> show o
 
-    expectedTypes = Language.FCL.argtys' method
+    expectedTypes = Language.FCL.AST.argtys' method
 
     validateTypes expected actual =
       when (not $ validMethodArgType expected actual) $
@@ -1305,24 +1305,29 @@ instance Pretty [Constraint] where
 typeVars :: [Text]
 typeVars = [1..] >>= flip replicateM ['a'..'z'] >>= return . toS
 
+freshText :: InferM Text
+freshText = do
+  inferState <- get
+  put $ inferState { count = count inferState + 1 }
+  return $ (typeVars `unsafeIndex` count inferState)
+
 freshTVar :: InferM Type
 freshTVar = TVar <$> freshTVar'
 
 freshTVar' :: InferM TVar
-freshTVar' = do
-  inferState <- get
-  put $ inferState { count = count inferState + 1 }
-  return $ TV (typeVars `unsafeIndex` count inferState)
+freshTVar' = TV <$> freshText
 
 freshTAVar :: InferM Type
-freshTAVar = TVar <$> (do
-  TV v <- freshTVar'
-  pure $ TAV v)
+freshTAVar = TVar <$> freshTAVar'
+
+freshTAVar' :: InferM TVar
+freshTAVar' = TAV <$> freshText
 
 freshTCVar :: InferM Type
-freshTCVar = TVar <$> (do
-  TV v <- freshTVar'
-  pure $ TCV v)
+freshTCVar = TVar <$> freshTCVar'
+
+freshTCVar' :: InferM TVar
+freshTCVar' = TCV <$> freshText
 
 lookupVarType :: LName -> InferM (Maybe (TMeta, TypeInfo))
 lookupVarType (Located loc name) = lookupContext name <$> gets context

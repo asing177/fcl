@@ -27,10 +27,10 @@ import Data.Serialize (Serialize(..))
 
 import Numeric.Lossless.Decimal
 import Language.FCL.Pretty (Pretty(..))
-import Hash (Hashable(..))
+import Language.FCL.Hash (Hashable(..))
 
 data Number = NumDecimal Decimal | NumRational Rational
-  deriving (Show, Generic, Hash.Hashable, Serialize, FromJSON, ToJSON)
+  deriving (Show, Generic, Hashable, Serialize, FromJSON, ToJSON)
 
 instance Num Number where
   NumDecimal  f1 + NumDecimal  f2 = NumDecimal  (f1           + f2)
