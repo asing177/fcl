@@ -120,59 +120,53 @@ library:
     - RankNTypes
 
   exposed-modules:
-    - Asset
-    - Delta
-    - Contract
-    - Encoding
-    - Hash
-    - Key
-    - Ledger
-    - SafeInteger
-    - SafeString
-    - Script
-    - Storage
-    - Time
-    - Utils
-    - Script.Analysis
-    - Script.Compile
-    - Script.Duplicate
-    - Script.Effect
-    - Script.Error
-    - Script.Eval
-    - Script.Graphviz
-    - Script.Init
-    - Script.Lexer
-    - Script.Parser
-    - Script.Pretty
-    - Script.Prim
-    - Script.ReachabilityGraph
-    - Script.Storage
-    - Script.Token
-    - Script.Typecheck
-    - Script.Undefinedness
-    - Script.Warning
-    - Script.WorkflowNet
+    - Language.FCL.Contract
+    - Language.FCL.TxLog
+    - Language.FCL.AST
+    - Language.FCL.Delta
+    - Numeric.Lossless.Decimal
+    - Numeric.Lossless.Number
+    - Language.FCL.Init
+    - Language.FCL.Storage
+    - Language.FCL.Pretty
+    - Language.FCL.Error
+    - Language.FCL.Eval
+    - Language.FCL.Prim
+    - Language.FCL.Token
+    - Language.FCL.Lexer
+    - Language.FCL.Parser
+    - Language.FCL.Compile
+    - Language.FCL.Typecheck
+    - Language.FCL.Duplicate
+    - Language.FCL.Undefinedness
+    - Language.FCL.Effect
+    - Language.FCL.WorkflowNet
+    - Language.FCL.ReachabilityGraph
+    - Language.FCL.Analysis
+    - Language.FCL.Graphviz
+    - Language.FCL.Hash
+    - Language.FCL.Warning
 
-executables:
-  fcl-exe:
-    main:                Main.hs
-    source-dirs:         app
-    ghc-options:
-    - -threaded
-    - -rtsopts
-    - -with-rtsopts=-N
-    default-extensions:
-    - LambdaCase
-    - RecordWildCards
-    - OverloadedStrings
-    - NoImplicitPrelude
-    - FlexibleInstances
-    - FlexibleContexts
-    - ScopedTypeVariables
-    - RankNTypes
-    dependencies:
-    - fcl
-    - optparse-applicative
+# executables:
+#   fcl-exe:
+#     main:                Main.hs
+#     source-dirs:         app
+#     ghc-options:
+#     - -threaded
+#     - -rtsopts
+#     - -with-rtsopts=-N
+#     default-extensions:
+#     - LambdaCase
+#     - RecordWildCards
+#     - OverloadedStrings
+#     - NoImplicitPrelude
+#     - FlexibleInstances
+#     - FlexibleContexts
+#     - ScopedTypeVariables
+#     - RankNTypes
+#     dependencies:
+#     - fcl
+#     - optparse-applicative
 
 # tests:
 #   fcl-repo-test:

@@ -26,7 +26,7 @@ import Data.Aeson (ToJSON(..), FromJSON(..))
 import Data.Serialize (Serialize(..))
 
 import Numeric.Lossless.Decimal
-import Script.Pretty (Pretty(..))
+import Language.FCL.Pretty (Pretty(..))
 import Hash (Hashable(..))
 
 data Number = NumDecimal Decimal | NumRational Rational
