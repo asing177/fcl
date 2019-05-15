@@ -1,4 +1,0 @@
-Variable "bob" undefined at:
-  - line 5:19
-Stack trace leading up to error:
-   go : {initial} -> {terminal}

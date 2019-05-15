@@ -31,8 +31,7 @@ import Data.Text (unlines)
 -- 'UndefinednessEnv' values, we want `unionWith (/\)` in every case.
 
 undefinednessAnalysis
-  :: (Show as, Show ac, Show c)
-  => Script as ac c
+  :: Script
   -> Either [InvalidStackTrace] [ValidStackTrace]
 undefinednessAnalysis script = do
     initialUndefEnv <- initialEnv script
@@ -81,7 +80,7 @@ initializeInEnv = Map.insertWith replaceUnlessError
 -- | Given the initial values of the global variables (or
 -- lack thereof), set their undefinedness status in the environment
 -- accordingly.
-initialEnv :: Script as ac c -> Either [InvalidStackTrace] UndefinednessEnv
+initialEnv :: Script -> Either [InvalidStackTrace] UndefinednessEnv
 initialEnv script = handleErrors (fmap ($ mempty) buildEnv)
   where
     buildEnv = foldlM addDef identity (scriptDefs script)
@@ -98,7 +97,7 @@ initialEnv script = handleErrors (fmap ($ mempty) buildEnv)
 
     addDef
       :: (UndefinednessEnv -> UndefinednessEnv)
-      -> Def as ac c
+      -> Def
       -> Either Text (UndefinednessEnv -> UndefinednessEnv)
     addDef mkEnv (GlobalDef _ precs n lexpr) = do
       mkEnv <- checkPreconditions precs mkEnv
@@ -311,8 +310,7 @@ instance Pretty IsInitialized where
 --------------------------------------------------------------------------------
 
 checkMethod
-  :: (Show as, Show ac, Show c)
-  => Method as ac c
+  :: Method
   -> (UndefinednessEnv -> UndefinednessEnv)
   -> Either Text (Map (Set Place) [UndefinednessEnv -> UndefinednessEnv])
 checkMethod method mkEnv = do
@@ -320,7 +318,7 @@ checkMethod method mkEnv = do
   checkStatement (methodBody method) mkEnv
 
 checkPreconditions
-  :: Preconditions as ac c
+  :: Preconditions
   -> (UndefinednessEnv -> UndefinednessEnv)
   -> Either Text (UndefinednessEnv -> UndefinednessEnv)
 checkPreconditions (Preconditions ps) mkEnv
@@ -330,8 +328,7 @@ checkPreconditions (Preconditions ps) mkEnv
 -- you feed it a naked expression. We expect the input to be an assignment,
 -- primop call of if-*statement* (and variants thereof).
 checkStatement
-  :: (Show as, Show ac, Show c)
-  => LExpr as ac c -- ^ *statement* to check
+  :: LExpr -- ^ *statement* to check
   -> (UndefinednessEnv -> UndefinednessEnv)
   -> Either Text (Map (Set Place) [UndefinednessEnv -> UndefinednessEnv])
 checkStatement (Located loc actual@(ELit _)) _
@@ -416,7 +413,7 @@ checkAssignment
   :: Loc
   -> (UndefinednessEnv -> UndefinednessEnv)
   -> Name
-  -> LExpr as ac c
+  -> LExpr
   -> Either Text (UndefinednessEnv -> UndefinednessEnv)
 checkAssignment loc g var rhs = do
     f <- checkExpression rhs g
@@ -439,7 +436,7 @@ checkAssignment loc g var rhs = do
     -- Collect all variables in an *expression*. Returns an error
     -- whenever you feed it sequences or assignments.
     expressionVars
-      :: LExpr as ac c -> Either Text (Set Name)
+      :: LExpr  -> Either Text (Set Name)
     expressionVars (Located loc (ESeq _ _))
       = Left (showAtLoc loc "expected expression")
     expressionVars (Located _ (ELit _))
@@ -473,7 +470,7 @@ checkAssignment loc g var rhs = do
     expressionVars (Located loc EHole)
       = panic $ "Hole expression at " <> show loc <> " in `expressionVars`"
 
-    collectExprVars :: [LExpr as ac c] -> Either Text (Set Name)
+    collectExprVars :: [LExpr] -> Either Text (Set Name)
     collectExprVars xs = case partitionEithers $ map expressionVars xs of
         ([],ss) -> pure (Set.unions ss)
         (es@(_:_),_) -> Left $ unlines es
@@ -482,7 +479,7 @@ checkAssignment loc g var rhs = do
 -- variable. Returns an error whenever you feed it sequences or
 -- assignments.
 checkExpression
-  :: LExpr as ac c -- ^ *expression* to check
+  :: LExpr -- ^ *expression* to check
   -> (UndefinednessEnv -> UndefinednessEnv)
   -> Either Text (UndefinednessEnv -> UndefinednessEnv)
 checkExpression (Located loc (ESeq _ _)) _
@@ -521,7 +518,7 @@ checkExpression (Located loc EHole) _
 -- | 'checkExpression' for lists of expressions
 collectCheckExprs
   :: (UndefinednessEnv -> UndefinednessEnv)
-  -> [LExpr as ac c]
+  -> [LExpr]
   -> Either Text (UndefinednessEnv -> UndefinednessEnv)
 collectCheckExprs mkEnv = foldM (flip checkExpression) mkEnv
 

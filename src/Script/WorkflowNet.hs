@@ -69,11 +69,11 @@ type TransitionMap a =
 -- the mapping of potential sets of output places with their transformation
 -- functions representing the different transformations and output markings that
 -- may occur when branching logic occurs in the body of the method.
-data ColorTransition a as ac c where
+data ColorTransition a where
   ColorTransition
     :: BoundedJoinSemiLattice a
-    => (Method as ac c -> (a -> a) -> Map (Set Place) [(a -> a)])
-    -> ColorTransition a as ac c
+    => (Method -> (a -> a) -> Map (Set Place) [(a -> a)])
+    -> ColorTransition a
 
 -- | For Colored Workflow nets the 'a' represents the color. For non colored
 -- workflow nets, the 'a' can simply be '()', and the transition functions can
@@ -83,9 +83,9 @@ data WorkflowNet a = WorkflowNet
   }
 
 createWorkflowNet
-  :: Script as ac c            -- ^ Initial Script
+  :: Script            -- ^ Initial Script
   -> a                 -- ^ Input token mark of the initial state
-  -> ColorTransition a as ac c -- ^ Generate a set of coloring functions from a method
+  -> ColorTransition a -- ^ Generate a set of coloring functions from a method
   -> WorkflowNet a
 createWorkflowNet s im ct =
   let initWorkflowNet = WorkflowNet mempty
@@ -94,9 +94,9 @@ createWorkflowNet s im ct =
 -- | Insert a method's transitions into the Workflow Net representation
 insertMethodTransitions
   :: a                 -- ^ Input token mark of the initial state
-  -> ColorTransition a as ac c -- ^ The way to generate a mapping of output places to transformations
+  -> ColorTransition a -- ^ The way to generate a mapping of output places to transformations
   -> WorkflowNet a     -- ^ The Workflow Net to insert the transition into
-  -> Method as ac c            -- ^ The method being inserted
+  -> Method            -- ^ The method being inserted
   -> WorkflowNet a
 insertMethodTransitions initial (ColorTransition colorizer) wfn method =
     WorkflowNet $

@@ -4,6 +4,8 @@ The pretty printer for FCL syntax, types and values.
 
 -}
 
+{-# LANGUAGE TypeApplications #-}
+
 module Script.Pretty (
   Doc,
   Pretty(..),
@@ -73,6 +75,7 @@ import Data.Monoid ((<>))
 import qualified Data.Map as Map
 
 import qualified Script.Token as Token
+import Utils ((?))
 
 pprRender :: Pretty a => a -> LText
 pprRender = render . ppr
@@ -108,6 +111,12 @@ instance Pretty Int64 where
 
 instance Pretty Integer where
   ppr = integer
+
+instance Pretty Rational where
+  ppr r = ppr n <> (d /= 1 ? ppr @Text " / " <> ppr d)
+    where
+      n = numerator r
+      d = denominator r
 
 instance Pretty Double where
   ppr = double

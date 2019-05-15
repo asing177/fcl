@@ -1,57 +1,70 @@
-{-# LANGUAGE DeriveAnyClass        #-}
-{-# LANGUAGE DeriveGeneric         #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
+{-|
+
+Ledger world state.
+
+-}
+
+{-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE DeriveAnyClass #-}
+{-# LANGUAGE DuplicateRecordFields #-}
+{-# LANGUAGE StrictData #-}
+
 module Ledger where
 
-import           Asset
-import           Contract
-import qualified Data.Map       as Map
-import           Data.Serialize
-import           Protolude
-import           Script
+import Protolude hiding (from, to, get, put)
 
--- TODO: Change Int64 to some generic balance
-data AssetError as ac c
-  = InsufficientHoldings ac Int64
-  | InsufficientSupply as Int64     -- [Char] for serialize instance
-  | CirculatorIsNotIssuer (Holder ac c) as
-  | SelfTransfer (Holder ac c)
-  | HolderDoesNotExist (Holder ac c)
-  | AssetDoesNotExist as
+import Control.Arrow ((&&&))
+
+import Data.Aeson (ToJSON, FromJSON, eitherDecode)
+import qualified Data.Binary as B
+import Data.Serialize (Serialize)
+import qualified Data.Map.Strict as Map
+
+import Asset (Holder(..))
+import Contract (Contract)
+
+import Asset
+import qualified Contract
+import qualified Utils
+import Script
+
+data AssetError
+  = InsufficientHoldings Addr Balance
+  | InsufficientSupply Addr Balance     -- [Char] for serialize instance
+  | CirculatorIsNotIssuer Holder Addr
+  | SelfTransfer Holder
+  | HolderDoesNotExist Holder
+  | AssetDoesNotExist Addr
   deriving (Show, Eq, Generic, Serialize)
 
-data AccountError ac
-  = AccountDoesNotExist ac
-  | AccountExists ac
+data AccountError
+  = AccountDoesNotExist Addr
+  | AccountExists Addr
   deriving (Show, Eq, Generic, Serialize)
 
-data ContractError c
-  = ContractDoesNotExist c
-  | ContractExists c
+data ContractError
+  = ContractDoesNotExist Addr
+  | ContractExists Addr
   deriving (Show, Eq, Generic, Serialize)
 
 class WorldOps w where
   transferAsset
-    :: (Num balance)
-    => w
-    -> as
-    -> Holder ac c
-    -> Holder ac c
-    -> balance
-    -> Either (AssetError as ac c) w
+    :: w
+    -> Addr
+    -> Holder
+    -> Holder
+    -> Balance
+    -> Either AssetError w
 
   circulateAsset
-    :: (Num balance)
-    => w
-    -> as
-    -> ac
-    -> balance
-    -> Either (AssetError as ac c) w
+    :: w
+    -> Addr
+    -> Addr
+    -> Balance
+    -> Either AssetError w
 
-  lookupAccount :: w -> ac -> Either (AccountError ac) account
-  lookupAsset :: w -> as -> Either (AssetError as ac c) asset
-  lookupContract :: w -> c -> Either (ContractError c) (Contract as ac c)
-  calcBalance :: w -> asset -> ac -> Value as ac c
+  lookupAccount :: w -> Addr -> Either AccountError account
+  lookupAsset :: w -> Addr -> Either AssetError asset
+  lookupContract :: w -> Addr -> Either ContractError Contract
+  calcBalance :: w -> asset -> Addr -> Value
 
-class Addressable o a where
-  toAddress :: o -> a

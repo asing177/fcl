@@ -1,9 +1,0 @@
-Error at Line 7, Column 30:
-   Could not match expected type 'asset<a>' with actual type 'text':
-      Type asset<a> was inferred from the type signature of argument 2 of function 'transferHoldings' on Line 7, Column 30
-      Type text was inferred from the return type of the function 'lookup' on Line 7, Column 30
-
-Error at Line 7, Column 53:
-   Could not match expected type 'holdings<asset<a>>' with actual type 'int':
-      Type holdings<asset<a>> was inferred from the type signature of argument 3 of function 'transferHoldings' on Line 7, Column 53
-      Type int was inferred from the type signature of argument 1 of function 'foo' on Line 6, Column 9

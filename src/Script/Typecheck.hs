@@ -42,12 +42,11 @@ module Script.Typecheck (
 
 import Protolude hiding (Type, TypeError, Constraint)
 import Unsafe (unsafeIndex)
-import Fixed
+import Numeric.Lossless.Number
 import Script
 import Script.Prim
 import Script.Pretty hiding ((<>))
 import Utils ((?), duplicates, zipWith3M_)
--- import Control.Exception (assert)
 import Control.Monad.State.Strict (modify')
 
 import qualified Data.Aeson as A
@@ -69,10 +68,10 @@ data Sig = Sig [Type] Type
 -- | Type error metadata
 -- This type uses ByteString for ad-hoc error messages so that we can get a
 -- Serialize instance for free.
-data TypeErrInfo as ac c
+data TypeErrInfo
   = UnboundVariable Name                -- ^ Unbound variables
-  | Shadow Name TMeta (TypeInfo as ac c)          -- ^ Shadowing variables/methods/helpers
-  | InvalidDefinition Name (Expr as ac c) Type Type -- ^ Invalid definition
+  | Shadow Name TMeta TypeInfo          -- ^ Shadowing variables/methods/helpers
+  | InvalidDefinition Name Expr Type Type -- ^ Invalid definition
   | InvalidUnOp UnOp Type               -- ^ Invalid unary op
   | InvalidBinOp BinOp Type Type        -- ^ Invalid binary op
   | UndefinedFunction Name              -- ^ Invocation of non-existent non-primop function
@@ -80,13 +79,13 @@ data TypeErrInfo as ac c
   | InvalidArgType Name Type Type       -- ^ Invalid argument to Method call
   | VarNotFunction Name Type         -- ^ Helpers must be of type 'TFun'
   | ArityFail Name Int Int              -- ^ Incorrect # args supplied to function
-  | UnificationFail (TypeInfo as ac c) (TypeInfo as ac c)   -- ^ Unification fail
-  | TransitionOnlyInTrueBranch (LExpr as ac c)    -- ^ Transition in an @else@less @if@ statement
+  | UnificationFail TypeInfo TypeInfo   -- ^ Unification fail
+  | TransitionOnlyInTrueBranch LExpr    -- ^ Transition in an @else@less @if@ statement
   | TransitionOnlyInOneBranch           -- ^ Transition only in one branch of @if@ statement
   | UnreachableStatement Loc            -- ^ The following statement is unreachable because of a transition
   | ExpectedStatement Type              -- ^ Expected statement but got expression
   | MethodUnspecifiedTransition Name    -- ^ Method doesn't specify where to transition to
-  | CaseOnNotEnum (TypeInfo as ac c)              -- ^ Case analysis on non-enum type
+  | CaseOnNotEnum TypeInfo              -- ^ Case analysis on non-enum type
   | UnknownConstructor EnumConstr       -- ^ Reference to undefined constructor
   | UnknownEnum Name                    -- ^ Reference to unknown enum type
   | EmptyMatches                        -- ^ Case statement with empty matches
@@ -95,21 +94,25 @@ data TypeErrInfo as ac c
     , patMatchErrorDuplicate :: [EnumConstr]
     }                                   -- ^ Pattern match failures
   | Impossible Text -- ^ Malformed syntax, impossible
-  | InvalidAccessRestriction (LExpr as ac c) Type -- ^ Role precondition is not valid
   | UnknownHoleInProgram
     -- ^ There is an underconstrained hole, e.g. @z = ?@ where @z@ is a temp variable
   | HoleInProgram
-    { inferredType :: Type, suggestions :: [(Name, (TMeta, TypeInfo as ac c))] }
+    { inferredType :: Type, suggestions :: [(Name, (TMeta, TypeInfo))] }
     -- ^ There is a hole in the program, so we give the context
+  | InvalidPrecision
+  | NumPrecisionMismatch
+    { typeInfo1 :: TypeInfo
+    , typeInfo2 :: TypeInfo
+    }
   deriving (Eq, Show, Generic, Serialize, A.FromJSON, A.ToJSON)
 
 -- | Type error
-data TypeError as ac c = TypeError
-  { errInfo :: TypeErrInfo as ac c
+data TypeError = TypeError
+  { errInfo :: TypeErrInfo
   , errLoc  :: Loc
   } deriving (Eq, Show, Generic, Serialize, A.FromJSON, A.ToJSON)
 
-instance (Ord as, Ord ac, Ord c) => Ord (TypeError as ac c) where
+instance Ord TypeError where
   compare te1 te2 = compare (errLoc te1) (errLoc te2)
 
 -- | Source of type
@@ -119,14 +122,14 @@ instance (Ord as, Ord ac, Ord c) => Ord (TypeError as ac c) where
 -- way, when a type origin is assigned to the type of an argument to a function,
 -- the origin will point directly to the column the argument name is introduced,
 -- instead of the column that the helper function name occurs in.
-data TypeOrigin as ac c
+data TypeOrigin
   = OutOfThinAir
   | ExpectedFromMethodBody -- ^ Expected type from method body (i.e. @TTransition@)
   | ExpectedFromSeq -- ^ Expected type of left-hand side of @ESeq@
   | VariableDefn Name     -- ^ Top level definitions
   | InferredFromVar Name  -- ^ Local method variable assignment
-  | InferredFromExpr (Expr as ac c) -- ^ Local method variable assignment
-  | InferredFromLit (Lit as ac c)   -- ^ Literal types
+  | InferredFromExpr Expr -- ^ Local method variable assignment
+  | InferredFromLit Lit   -- ^ Literal types
   | InferredFromAssetType Name Type -- ^ Holdings type inferred from asset type passed to primop
   | InferredFromHelperDef Name -- ^ Inferred from helper function definition
   | InferredFromCollType Name TCollection -- ^ Inferred from collection type in collection primop
@@ -141,25 +144,24 @@ data TypeOrigin as ac c
   | FunctionArg Int Name  -- ^ Expr passed as function argument + it's position
   | FunctionRet Name      -- ^ Returned from prip op
   | CasePattern Name      -- ^ Enum type of pattern
-  | CaseBody (Expr as ac c)         -- ^ Body of case match
+  | CaseBody Expr         -- ^ Body of case match
   | EmptyCollection       -- ^ From an empty collection
   | MapExpr               -- ^ From a Map expression
   | SetExpr               -- ^ From a Set expression
   | FromPrecondition Precondition -- ^ From a method precondition
   | FromHole
   | EmptyBlock -- ^ An empty block has type @TVoid@
+  | FromRoundingPrecision -- ^ The output precision of a rounding operation
   deriving (Eq, Ord, Show, Generic, Serialize, A.FromJSON, A.ToJSON)
 
 -- | Type error metadata
-data TypeInfo as ac c = TypeInfo
+data TypeInfo = TypeInfo
   { ttype :: Type        -- ^ What type
-  , torig :: TypeOrigin as ac c  -- ^ Where did it come from
+  , torig :: TypeOrigin  -- ^ Where did it come from
   , tloc  :: Loc         -- ^ Where is it located
   } deriving (Show, Eq, Ord, Generic, Serialize, A.FromJSON, A.ToJSON)
 
-tIntInfo, tFloatInfo, tContractInfo, tBoolInfo, tAccountInfo, tDatetimeInfo, tDeltaInfo, tMsgInfo :: TypeOrigin as ac c -> Loc -> TypeInfo as ac c
-tIntInfo = TypeInfo TInt
-tFloatInfo = TypeInfo TFloat
+tContractInfo, tBoolInfo, tAccountInfo, tDatetimeInfo, tDeltaInfo, tMsgInfo :: TypeOrigin -> Loc -> TypeInfo
 tContractInfo = TypeInfo TContract
 tBoolInfo = TypeInfo TBool
 tAccountInfo = TypeInfo TAccount
@@ -167,16 +169,13 @@ tDatetimeInfo = TypeInfo TDateTime
 tDeltaInfo = TypeInfo TTimeDelta
 tMsgInfo = TypeInfo TText
 
-tAssetInfo :: TAsset -> TypeOrigin as ac c -> Loc -> TypeInfo as ac c
-tAssetInfo ta = TypeInfo (TAsset ta)
+tAssetInfo :: Type -> TypeOrigin -> Loc -> TypeInfo
+tAssetInfo = TypeInfo . TAsset
 
-tFixedInfo :: PrecN -> TypeOrigin as ac c -> Loc -> TypeInfo as ac c
-tFixedInfo p = TypeInfo (TFixed p)
-
-tFunInfo :: [Type] -> TVar -> TypeOrigin as ac c -> Loc -> TypeInfo as ac c
+tFunInfo :: [Type] -> TVar -> TypeOrigin -> Loc -> TypeInfo
 tFunInfo argTypes tv = TypeInfo (TFun argTypes (TVar tv))
 
-throwErrInferM :: TypeErrInfo as ac c -> Loc -> InferM as ac c (TypeInfo as ac c)
+throwErrInferM :: TypeErrInfo -> Loc -> InferM TypeInfo
 throwErrInferM tErrInfo loc = do
     modify' $ \inferState ->
       inferState { errs = errs inferState ++ [typeError] }
@@ -184,26 +183,26 @@ throwErrInferM tErrInfo loc = do
   where
     typeError = TypeError tErrInfo loc
 
-throwTypeErrInferM :: TypeError as ac c -> InferM as ac c (TypeInfo as ac c)
+throwTypeErrInferM :: TypeError -> InferM TypeInfo
 throwTypeErrInferM (TypeError err loc) = throwErrInferM err loc
 
-data Hole as ac c = Hole
+data Hole = Hole
   { holeLocation :: Loc
-  , holeContext  :: Context (TMeta, TypeInfo as ac c)
+  , holeContext  :: Context (TMeta, TypeInfo)
   , holeTyVar    :: TVar
   } deriving (Eq, Ord, Show)
 
 
 -- | Type inference monad state
-data InferState as ac c = InferState
+data InferState = InferState
   { count       :: Int            -- ^ unique counter for variable freshening
-  , errs        :: [TypeError as ac c]    -- ^ accumulator for type errors
-  , constraints :: [Constraint as ac c]   -- ^ accumulator for type equality constraints
-  , holes       :: Set (Hole as ac c)       -- ^ accumulator for holes
-  , context     :: Context (TMeta, TypeInfo as ac c)  -- ^ variable context
+  , errs        :: [TypeError]    -- ^ accumulator for type errors
+  , constraints :: [Constraint]   -- ^ accumulator for type equality constraints
+  , holes       :: Set Hole       -- ^ accumulator for holes
+  , context     :: Context (TMeta, TypeInfo)  -- ^ variable context
   } deriving (Show)
 
-emptyInferState :: (Ord as, Ord ac, Ord c) => InferState as ac c
+emptyInferState :: InferState
 emptyInferState = InferState 0 mempty mempty mempty emptyContext
 
 data TMeta = Global | Temp | FuncArg | HelperFunc
@@ -240,7 +239,7 @@ lookupContext v = foldr mplus Nothing . map (Map.lookup v) . unContext
 
 -- | Extend the context with a new binding in the current scope. Ensure that
 -- there is no shadowing.
-extendContextInferM :: (Name, TMeta, TypeInfo as ac c) -> InferM as ac c ()
+extendContextInferM :: (Name, TMeta, TypeInfo) -> InferM ()
 extendContextInferM (id, meta, info) = do
   shadowed <- lookupContext id <$> gets context
   case shadowed of
@@ -255,7 +254,7 @@ extendContextInferM (id, meta, info) = do
 
 -- | Execute an `InferM` computation in a new temporary variable scope, e.g.
 -- in one of the branches of an if statement.
-bracketScopeTmpEnvM :: InferM as ac c a -> InferM as ac c a
+bracketScopeTmpEnvM :: InferM a -> InferM a
 bracketScopeTmpEnvM thingToDo = do
     pushScope
     result <- thingToDo
@@ -273,10 +272,10 @@ bracketScopeTmpEnvM thingToDo = do
 --------------------------------------------------------------------------------
 
 
-type InferM as ac c = ReaderT EnumInfo (State (InferState as ac c))
+type InferM = ReaderT EnumInfo (State InferState)
 
 runInferM
-  :: EnumInfo -> InferState as ac c -> InferM as ac c a -> (a, InferState as ac c)
+  :: EnumInfo -> InferState -> InferM a -> (a, InferState)
 runInferM enumInfo inferState act
   = runState (runReaderT act enumInfo) inferState
 
@@ -286,15 +285,13 @@ runInferM enumInfo inferState act
 
 -- | Typechecks whether the values supplied as arguments to the method
 -- call match the method argument types expected
-tcMethodCall
-  :: forall as ac c. (Show as, Show ac, Show c)
-  => EnumInfo -> Method as ac c -> [Value as ac c] -> Either (TypeErrInfo as ac c) ()
+tcMethodCall :: EnumInfo -> Method -> [Value] -> Either TypeErrInfo ()
 tcMethodCall enumInfo method argVals
   = do
   actualTypes <- mapM valueType argVals
   zipWithM_ validateTypes expectedTypes actualTypes
   where
-    valueType :: Value as ac c -> Either (TypeErrInfo as ac c) Type
+    valueType :: Value -> Either TypeErrInfo Type
     valueType val
       = case (val, mapType enumInfo val) of
           (_, Just ty) -> pure ty
@@ -308,11 +305,12 @@ tcMethodCall enumInfo method argVals
         Left $ InvalidArgType (locVal $ methodName method) expected actual
 
     validMethodArgType :: Type -> Type -> Bool
-    validMethodArgType (TAsset _) TAssetAny = True
-    validMethodArgType TAssetAny (TAsset _) = True
+    validMethodArgType (TAsset _) (TAsset TAny) = True
+    validMethodArgType (TAsset TAny) (TAsset _) = True
+    validMethodArgType (TNum np1) (TNum np2) = np1 <= np2
     validMethodArgType t1 t2 = t1 == t2
 
-signatures :: (Eq as, Eq ac, Eq c, Ord as, Ord ac, Ord c) => Script as ac c -> Either (NonEmpty (TypeError as ac c)) [(Name,Sig)]
+signatures :: Script -> Either (NonEmpty TypeError) [(Name,Sig)]
 signatures (Script enums defns graph methods helpers) =
     case tcErrs of
       []   -> Right methodSigs
@@ -331,11 +329,10 @@ signatures (Script enums defns graph methods helpers) =
 -- from other methods or functions, whereas helper functions are able to be
 -- called from any method or other helper functions.
 methodSig
-  :: (Ord as, Ord ac, Ord c)
-  => EnumInfo
-  -> InferState as ac c
-  -> Method as ac c
-  -> Either (NonEmpty (TypeError as ac c)) (Name, Sig)
+  :: EnumInfo
+  -> InferState
+  -> Method
+  -> Either (NonEmpty TypeError) (Name, Sig)
 methodSig enumInfo initInferState m@(Method _ precs lMethNm args body) =
     case runSolverM resInferState of
       Right _ -> Right (locVal lMethNm, sig)
@@ -349,7 +346,7 @@ methodSig enumInfo initInferState m@(Method _ precs lMethNm args body) =
               (void $ throwErrInferM (MethodUnspecifiedTransition (locVal lMethNm)) (located body))
         pure sig
 
-tcHelpers :: (Ord as, Ord ac, Ord c) => [Helper as ac c] -> InferM as ac c ()
+tcHelpers :: [Helper] -> InferM ()
 tcHelpers helpers =
   forM_ helpers $ \helper -> do
     helperInfo <- tcHelper helper
@@ -360,9 +357,8 @@ tcHelpers helpers =
 -- returned, because helper functions are injected into the variable environment
 -- as variables with 'TFun' types.
 tcHelper
-  :: (Ord as, Ord ac, Ord c)
-  => Helper as ac c
-  -> InferM as ac c (TypeInfo as ac c)
+  :: Helper
+  -> InferM TypeInfo
 tcHelper (Helper fnm args body) = do
   (Sig argTypes retType) <- functionSig (locVal fnm, args, body)
   let tfun = TFun argTypes retType
@@ -372,9 +368,8 @@ tcHelper (Helper fnm args body) = do
 -- Given a triple of a function name, a list of arguments and an expression
 -- find the type signature of the expression body (using some initial state)
 functionSig
-  :: (Ord as, Ord ac, Ord c)
-  => (Name, [Arg], LExpr as ac c)
-  -> InferM as ac c Sig
+  :: (Name, [Arg], LExpr)
+  -> InferM Sig
 functionSig (fnm, args, body) = do
   argInfos <- zipWithM (tcArg fnm) args [1..]
   bracketScopeTmpEnvM $ do
@@ -384,7 +379,7 @@ functionSig (fnm, args, body) = do
 
 -- | Typechecks the argument and returns the type info of the function argument
 -- such that it can be added to the typing env in the manner the caller prefers.
-tcArg :: forall as ac c. Name -> Arg -> Int -> InferM as ac c (Name, TMeta, TypeInfo as ac c)
+tcArg :: Name -> Arg -> Int -> InferM (Name, TMeta, TypeInfo)
 tcArg fnm (Arg typ (Located loc anm)) argPos =
     case typ of
       TEnum enm -> do
@@ -398,7 +393,7 @@ tcArg fnm (Arg typ (Located loc anm)) argPos =
   where
     argInfo = (anm, FuncArg, TypeInfo typ (FunctionArg argPos fnm) loc)
 
-    enumExists :: Name -> InferM as ac c Bool
+    enumExists :: Name -> InferM Bool
     enumExists enumNm = do
       enumConstrs <- enumToConstrs <$> ask
       case Map.lookup enumNm enumConstrs of
@@ -409,9 +404,7 @@ tcArg fnm (Arg typ (Located loc anm)) argPos =
 -- Typechecker (w/ inference)
 -------------------------------------------------------------------------------
 
-tcDefn
-  :: forall as ac c. (Ord as, Ord ac, Ord c)
-  => Def as ac c -> InferM as ac c ()
+tcDefn :: Def -> InferM ()
 tcDefn def = extendContextInferM =<< case def of
   -- GlobalDef variable can be any type
   GlobalDefNull typ precs lnm -> do
@@ -431,7 +424,7 @@ tcDefn def = extendContextInferM =<< case def of
 
   where
     -- Check if the stated definition type and the rhs expr type match
-    unifyDef :: Name -> LExpr as ac c -> TypeInfo as ac c -> TypeInfo as ac c -> Either (TypeErrInfo as ac c) ()
+    unifyDef :: Name -> LExpr -> TypeInfo -> TypeInfo -> Either TypeErrInfo ()
     unifyDef nm le t1 t2 = do
       case runSolverM emptyInferState{ constraints = [Constraint (Just le) t1 t2] } of
         Right _ -> pure ()
@@ -441,14 +434,12 @@ tcDefn def = extendContextInferM =<< case def of
             otherwise               -> panic "Solver should fail with UnificationFail"
 
 
-tcDefns :: (Ord as, Ord ac, Ord c) => [Def as ac c] -> InferM as ac c ()
+tcDefns :: [Def] -> InferM ()
 tcDefns = mapM_ tcDefn
 
 -- | Type check an LExpr. Remember to use `bracketScopeTmpEnvM` if temporary
 -- variables are meant to be discarded.
-tcLExpr
-  :: forall as ac c. (Ord as, Ord ac, Ord c, Eq as, Eq ac, Eq c)
-  => LExpr as ac c -> InferM as ac c (TypeInfo as ac c)
+tcLExpr :: LExpr -> InferM TypeInfo
 tcLExpr le@(Located loc expr) = case expr of
   ENoOp     -> return $ TypeInfo TVoid EmptyBlock loc
   EVar nm   -> snd <$> lookupVarType' nm
@@ -604,7 +595,7 @@ tcLExpr le@(Located loc expr) = case expr of
     pure $ TypeInfo (TColl (TSet ty)) SetExpr loc
 
   where
-    tcLExprs :: Foldable t => t (LExpr as ac c) -> InferM as ac c (TypeInfo as ac c)
+    tcLExprs :: Foldable t => t LExpr -> InferM TypeInfo
     tcLExprs = foldM step zero
       where
         step prevTyInfo e = do
@@ -614,14 +605,14 @@ tcLExpr le@(Located loc expr) = case expr of
         zero = TypeInfo TAny EmptyCollection loc
 
 -- | Type check an LExpr in a new scope which doesn't leak temporary variables.
-tcLExprScoped :: (Ord as, Ord ac, Ord c) => LExpr as ac c -> InferM as ac c (TypeInfo as ac c)
+tcLExprScoped :: LExpr -> InferM TypeInfo
 tcLExprScoped = bracketScopeTmpEnvM . tcLExpr
 
 tcCasePatterns
-  :: LExpr as ac c
-  -> TypeInfo as ac c
+  :: LExpr
+  -> TypeInfo
   -> [LPattern]
-  -> InferM as ac c ()
+  -> InferM ()
 tcCasePatterns scrut scrutInfo []
   = void
     . throwErrInferM EmptyMatches
@@ -664,7 +655,7 @@ tcCasePatterns scrut scrutInfo ps@(_:_)
                , tloc = ploc
                }
 
-tcLLit :: LLit as ac c -> InferM as ac c (TypeInfo as ac c)
+tcLLit :: LLit -> InferM TypeInfo
 tcLLit (Located loc lit) = do
   enumConstrs <- constrToEnum <$> ask
   case tcLit enumConstrs lit of
@@ -672,43 +663,30 @@ tcLLit (Located loc lit) = do
     Right typ -> pure $
       TypeInfo typ (InferredFromLit lit) loc
 
-tcLit :: Map EnumConstr Name -> Lit as ac c -> Either (TypeErrInfo as ac c) Type
+tcLit :: Map EnumConstr Name -> Lit -> Either TypeErrInfo Type
 tcLit enumConstrs lit =
   case lit of
-    LInt _         -> Right TInt
-    LFloat _       -> Right TFloat
-    LFixed fixedn  -> Right $ tcFixedN fixedn
-    LBool _        -> Right TBool
-    LVoid          -> Right TVoid
-    LText _        -> Right TText
-    LSig _         -> Right TSig
-    LAccount addr  -> Right TAccount
-    LAsset addr    -> Right TAssetAny
-    LContract addr -> Right TContract
-    LState label   -> Right TState
-    LDateTime _    -> Right TDateTime
-    LTimeDelta _   -> Right TTimeDelta
-    LConstr c      ->
+    LNum (Decimal p v)        -> Right (TNum $ NPDecimalPlaces p)
+    LBool _                   -> Right TBool
+    LVoid                     -> Right TVoid
+    LText _                   -> Right TText
+    LSig _                    -> Right TSig
+    LAccount addr             -> Right TAccount
+    LAsset addr               -> Right $ TAsset TAny
+    LContract addr            -> Right TContract
+    LState label              -> Right TState
+    LDateTime _               -> Right TDateTime
+    LTimeDelta _              -> Right TTimeDelta
+    LConstr c                 ->
       case Map.lookup c enumConstrs of
         Nothing -> Left (Impossible "Reference to unknown enum constructor")
         Just enum -> Right (TEnum enum)
-
-tcFixedN :: FixedN -> Type
-tcFixedN = TFixed . \case
-  Fixed1 _ -> Prec1
-  Fixed2 _ -> Prec2
-  Fixed3 _ -> Prec3
-  Fixed4 _ -> Prec4
-  Fixed5 _ -> Prec5
-  Fixed6 _ -> Prec6
 
 -------------------------------------------------------------------------------
   -- Type checking of prim op calls
 -------------------------------------------------------------------------------
 
-tcPrim
-  :: forall as ac c. (Ord as, Ord ac, Ord c)
-  => LExpr as ac c -> Loc -> PrimOp -> [LExpr as ac c] -> InferM as ac c (TypeInfo as ac c)
+tcPrim :: LExpr -> Loc -> PrimOp -> [LExpr] -> InferM TypeInfo
 tcPrim le eLoc prim argExprs = do
 
     -- Setup some prim op agnostic contextironment
@@ -716,30 +694,73 @@ tcPrim le eLoc prim argExprs = do
     -- 2) Typecheck the arg exprs supplied to the prim op call
     -- 3) Create the type infos of the arg types
     (Sig argTypes retType) <- primSig prim
+    correctArity <- arityCheck (Located eLoc primNm) argTypes argExprs
+    -- Now check the prim (if the arity is correct) and maybe get a new return
+    -- type (in the case of a dependent primop)
 
     let argTypeOrig n = FunctionArg n primNm
         mkArgTypeInfo t (lexpr, n) = TypeInfo t (argTypeOrig n) $ located lexpr
-        argTypeInfos = zipWith mkArgTypeInfo argTypes (zip argExprs [1..])
+        argTypeInfosExpected = zipWith mkArgTypeInfo argTypes (zip argExprs [1..])
         retTypeInfo = TypeInfo retType (FunctionRet primNm) eLoc
 
-    correctArity <- arityCheck (Located eLoc primNm) argTypes argExprs
-    when correctArity $ do
-      argExprTypeInfos <- mapM tcLExpr argExprs
+    mbRetTypeInfo <- if correctArity
+      then do
+        argTypeInfosActual <- mapM tcLExpr argExprs
+        zipWith3M_ addConstr argExprs argTypeInfosExpected argTypeInfosActual
+        tcPrimSpecial argTypeInfosExpected argTypeInfosActual retTypeInfo prim
+      else pure Nothing
+    return (fromMaybe retTypeInfo mbRetTypeInfo)
 
-      -- Ok now typecheck
+  where
+    primNm = primName prim
+
+    -- The return type of some primops depends on its operands, hence here we
+    -- may get a different return type. NB: Assumes that arities have been
+    -- checked.
+    tcPrimSpecial
+      :: [TypeInfo]
+      -> [TypeInfo]
+      -> TypeInfo
+      -> PrimOp
+      -> InferM (Maybe TypeInfo)
+    tcPrimSpecial argTypeInfosExpected argTypeInfosActual retTypeInfo prim = do
+
       case prim of
+        -- round : (int n, num) -> decimal<n>
+        Round -> do
+          let [precisionExpr, operandExpr] = argExprs
+          --     [_, operandTInfoExpected]    = argTypeInfos
+          --     [_, operandTInfoActual]      = argTypeInfosActual
+
+          -- addConstr operandExpr operandTInfoExpected operandTInfoActual
+
+          -- do the dependently typed magic: get the int literal to be used
+          -- in the return type of the rounding operation
+          case precisionExpr of
+            Located loc (ELit (Located _ (LNum (Decimal 0 n)))) ->
+              pure . Just $ TypeInfo
+                (TNum (NPDecimalPlaces n))
+                FromRoundingPrecision
+                loc
+            Located loc _ -> do
+              _ <- throwTypeErrInferM $ TypeError InvalidPrecision loc
+              pure Nothing
+
+        -- Type checking for `Round(Down|Up)` is the same as for `Round`
+        RoundDown -> tcPrimSpecial argTypeInfosExpected argTypeInfosActual retTypeInfo Round
+        RoundUp -> tcPrimSpecial argTypeInfosExpected argTypeInfosActual retTypeInfo Round
 
         -- AssetPrimOps must be typechecked uniquely-- Sometimes the type of one of
         -- the arguments to the prim op is dependent on the type of the asset
         -- supplied, and other times the _return type_ is dependent on the type of
         -- the asset supplied  as an argument.
-        AssetPrimOp assetPrimOp ->
+        AssetPrimOp assetPrimOp -> do
           case assetPrimOp of
 
             HolderBalance    -> do
               let [assetVarExpr, accExpr]  = argExprs
-                  [tassetVarInfo,taccInfo] = argTypeInfos
-                  [tassetInfo,taccInfo']   = argExprTypeInfos
+                  [tassetVarInfo,taccInfo] = argTypeInfosExpected
+                  [tassetInfo,taccInfo']   = argTypeInfosActual
               -- add constraint for 1st arg to be an asset type
               addConstr assetVarExpr tassetVarInfo tassetInfo
               -- add constraint for 2nd arg to be an account type
@@ -747,8 +768,8 @@ tcPrim le eLoc prim argExprs = do
 
             TransferHoldings -> do
               let [accExpr, assetVarExpr, varExpr, acc2Expr]      = argExprs
-                  [tacc1Info, tassetVarInfo, tvarInfo, tacc2Info] = argTypeInfos
-                  [tacc1Info', tassetInfo, tbalInfo, tacc2Info']  = argExprTypeInfos
+                  [tacc1Info, tassetVarInfo, tvarInfo, tacc2Info] = argTypeInfosExpected
+                  [tacc1Info', tassetInfo, tbalInfo, tacc2Info']  = argTypeInfosActual
               -- add constraint for 1st arg to be an account
               addConstr accExpr tacc1Info tacc1Info'
               -- add constraint for 2nd arg to be an asset
@@ -760,8 +781,8 @@ tcPrim le eLoc prim argExprs = do
 
             TransferTo       -> do
               let [assetVarExpr, varExpr]  = argExprs
-                  [tassetVarInfo, tvarInfo] = argTypeInfos
-                  [tassetInfo, tbalInfo]    = argExprTypeInfos
+                  [tassetVarInfo, tvarInfo] = argTypeInfosExpected
+                  [tassetInfo, tbalInfo]    = argTypeInfosActual
               -- add constraint for 1st arg to be an asset
               addConstr assetVarExpr tassetVarInfo tassetInfo
               -- add constraint for 2nd arg depending on asset type
@@ -769,8 +790,8 @@ tcPrim le eLoc prim argExprs = do
 
             TransferFrom     -> do
               let [assetVarExpr, varExpr, accExpr]    = argExprs
-                  [tassetVarInfo, tvarInfo, taccInfo] = argTypeInfos
-                  [tassetInfo, tbalInfo, taccInfo']   = argExprTypeInfos
+                  [tassetVarInfo, tvarInfo, taccInfo] = argTypeInfosExpected
+                  [tassetInfo, tbalInfo, taccInfo']   = argTypeInfosActual
               -- add constraint for 1st arg to be an asset
               addConstr assetVarExpr tassetVarInfo tassetInfo
               -- add constraint for 2nd arg depending on asset type
@@ -780,12 +801,13 @@ tcPrim le eLoc prim argExprs = do
 
             CirculateSupply -> do
               let [assetVarExpr, varExpr]  = argExprs
-                  [tassetVarInfo, tvarInfo] = argTypeInfos
-                  [tassetInfo, tbalInfo]    = argExprTypeInfos
+                  [tassetVarInfo, tvarInfo] = argTypeInfosExpected
+                  [tassetInfo, tbalInfo]    = argTypeInfosActual
               -- add constraint for 1st arg to be an asset
               addConstr assetVarExpr tassetVarInfo tassetInfo
               -- add constraint for 2nd arg depending on asset type
               addConstr varExpr tvarInfo tbalInfo
+          pure Nothing
 
         CollPrimOp collPrimOp -> do
 
@@ -794,8 +816,8 @@ tcPrim le eLoc prim argExprs = do
           case collPrimOp of
             Aggregate -> do
               let [_, accumExpr, _]  = argExprs
-                  [_, tinfoAccum, _] = argTypeInfos
-                  [_, _, tinfoColl'] = argExprTypeInfos
+                  [_, tinfoAccum, _] = argTypeInfosExpected
+                  [_, _, tinfoColl'] = argTypeInfosActual
               case tinfoAccum of
                 -- The second arg must be a function, and we need to generate
                 -- constraints using its arguments so we must pattern match on it.
@@ -809,8 +831,8 @@ tcPrim le eLoc prim argExprs = do
 
             Transform -> do
               let [funcExpr, _]   = argExprs
-                  [tinfoFunc, _]  = argTypeInfos
-                  [tinfoFunc', tinfoColl'] = argExprTypeInfos
+                  [tinfoFunc, _]  = argTypeInfosExpected
+                  [tinfoFunc', tinfoColl'] = argTypeInfosActual
               case tinfoFunc of
                 -- The first arg must be a function, and we need to generate
                 -- constraints using its arguments so we must pattern match on it.
@@ -834,8 +856,8 @@ tcPrim le eLoc prim argExprs = do
 
             Filter -> do
               let [funcExpr, _]   = argExprs
-                  [tinfoFunc, _]  = argTypeInfos
-                  [tinfoFunc', tinfoColl'] = argExprTypeInfos
+                  [tinfoFunc, _]  = argTypeInfosExpected
+                  [tinfoFunc', tinfoColl'] = argTypeInfosActual
               case tinfoFunc of
                 -- The first arg must be a function, and we need to generate
                 -- a constraint using its arguments so we must pattern match on it.
@@ -849,8 +871,8 @@ tcPrim le eLoc prim argExprs = do
 
             Element -> do
               let [valExpr, _]  = argExprs
-                  [tinfoVal, _] = argTypeInfos
-                  [_, tinfoColl'] = argExprTypeInfos
+                  [tinfoVal, _] = argTypeInfosExpected
+                  [_, tinfoColl'] = argTypeInfosActual
               case tinfoColl' of
                 TypeInfo (TColl tcoll) torigCol tlocCol -> do
                   let expectedValType =
@@ -868,22 +890,15 @@ tcPrim le eLoc prim argExprs = do
             -- There is no special typechecking to do here
             IsEmpty -> pure ()
 
-          -- After the ad-hoc constraints are generated, generate constraints for
-          -- the type sig for the primops and it's arguments.
-          zipWith3M_ addConstr argExprs argTypeInfos argExprTypeInfos
+          pure Nothing
+
 
         -- All other primops are typechecked simply-- The expressions supplied as
         -- arguments must unify with the types of the arguments denoted in the prim
         -- op signature.
-        normalPrimOp -> zipWith3M_ addConstr argExprs argTypeInfos argExprTypeInfos
+        normalPrimOp -> pure Nothing
 
-      -- The return type of all prim ops has either been contrained in the above
-      -- code, or is a monomorphic type that is what it is, and should be the
-      -- return type of the prim op as dictated by `primSig`
-    return retTypeInfo
 
-  where
-    primNm = primName prim
 
     -----------------------------------------------------
     -- Helpers for Constraint Gen for Collection PrimOps
@@ -891,7 +906,7 @@ tcPrim le eLoc prim argExprs = do
 
     -- The first, second, and first argument of the HO functions aggregate,
     -- transform, and filter must match the type of the values in the collection.
-    addHofArgConstr :: LExpr as ac c -> (TypeOrigin as ac c, Loc) -> TypeInfo as ac c -> Type -> InferM as ac c ()
+    addHofArgConstr :: LExpr -> (TypeOrigin, Loc) -> TypeInfo -> Type -> InferM ()
     addHofArgConstr hofExpr (hofTypeOrig, hofTypeLoc) tinfoColl argType =
       case tinfoColl of
         TypeInfo (TColl tcoll) _ tlocCol -> do
@@ -909,7 +924,7 @@ tcPrim le eLoc prim argExprs = do
 
     -- Add a constraint on the return type of the prim op to be the new type of
     -- the collection after applying the 'transform' primop.
-    addRetTypeConstr :: LExpr as ac c -> (TypeOrigin as ac c, Loc) -> TypeInfo as ac c -> Type -> TypeInfo as ac c -> InferM as ac c ()
+    addRetTypeConstr :: LExpr -> (TypeOrigin, Loc) -> TypeInfo -> Type -> TypeInfo -> InferM ()
     addRetTypeConstr hofExpr (torigHof, tlocHof) tinfoColl newValType retTypeInfo =
       case tinfoColl of
         TypeInfo (TColl tcoll) torigCol tlocCol -> do
@@ -926,12 +941,16 @@ tcPrim le eLoc prim argExprs = do
         -- it will fail with a unification error.
         TypeInfo t torig tloc -> pure ()
 
+arity :: PrimOp -> Int
+arity p = case runInferM (createEnumInfo []) emptyInferState (primSig p) of
+  (Sig ps _, _) -> length ps
+
 -- | Type signatures of builtin primitive operations.
-primSig :: PrimOp -> InferM as ac c Sig
+primSig :: PrimOp -> InferM Sig
 primSig = \case
   Verify              -> pure $ Sig [TAccount, TText, TSig] TBool
   Sign                -> pure $ Sig [TText] TSig
-  Block               -> pure $ Sig [] TInt
+  Block               -> pure . Sig [] . TNum $ nPInt
   Deployer            -> pure $ Sig [] TAccount
   Sender              -> pure $ Sig [] TAccount
   Created             -> pure $ Sig [] TDateTime
@@ -947,7 +966,7 @@ primSig = \case
   Stay                -> pure $ Sig [] TTransition
   CurrentState        -> pure $ Sig [] TState
   TxHash              -> pure $ Sig [] TText
-  ContractValue       -> Sig [TContract, TText]   <$> freshTVar
+  ContractValue       -> Sig [TContract, TText] <$> freshTVar
   ContractValueExists -> pure $ Sig [TContract, TText] TBool
   ContractState       -> pure $ Sig [TContract] TState
   IsBusinessDayUK     -> pure $ Sig [TDateTime] TBool
@@ -956,24 +975,18 @@ primSig = \case
   NextBusinessDayNYSE -> pure $ Sig [TDateTime] TDateTime
   Between             -> pure $ Sig [TDateTime, TDateTime, TDateTime] TDateTime
   TimeDiff            -> pure $ Sig [TDateTime, TDateTime] TTimeDelta
-  Fixed1ToFloat       -> pure $ Sig [TFixed Prec1] TFloat
-  Fixed2ToFloat       -> pure $ Sig [TFixed Prec2] TFloat
-  Fixed3ToFloat       -> pure $ Sig [TFixed Prec3] TFloat
-  Fixed4ToFloat       -> pure $ Sig [TFixed Prec4] TFloat
-  Fixed5ToFloat       -> pure $ Sig [TFixed Prec5] TFloat
-  Fixed6ToFloat       -> pure $ Sig [TFixed Prec6] TFloat
-  FloatToFixed1       -> pure $ Sig [TFloat] (TFixed Prec1)
-  FloatToFixed2       -> pure $ Sig [TFloat] (TFixed Prec2)
-  FloatToFixed3       -> pure $ Sig [TFloat] (TFixed Prec3)
-  FloatToFixed4       -> pure $ Sig [TFloat] (TFixed Prec4)
-  FloatToFixed5       -> pure $ Sig [TFloat] (TFixed Prec5)
-  FloatToFixed6       -> pure $ Sig [TFloat] (TFixed Prec6)
+  Round               -> pure $ Sig [TNum nPInt, TNum NPArbitrary] (panic "dependent return type")
+  RoundUp             -> pure $ Sig [TNum nPInt, TNum NPArbitrary] (panic "dependent return type")
+  RoundDown           -> pure $ Sig [TNum nPInt, TNum NPArbitrary] (panic "dependent return type")
+  RoundRem            -> pure . Sig [TNum nPInt, TNum NPArbitrary] . TNum $ NPArbitrary
+  RoundUpRem          -> pure . Sig [TNum nPInt, TNum NPArbitrary] . TNum $ NPArbitrary
+  RoundDownRem        -> pure . Sig [TNum nPInt, TNum NPArbitrary] . TNum $ NPArbitrary
   AssetPrimOp a       -> assetPrimSig a
   MapPrimOp m         -> mapPrimSig m
   SetPrimOp m         -> setPrimSig m
   CollPrimOp c        -> collPrimSig c
 
-assetPrimSig :: AssetPrimOp -> InferM as ac c Sig
+assetPrimSig :: AssetPrimOp -> InferM Sig
 assetPrimSig apo = do
   (assetVar, holdingsVar) <-
     freshTAVar >>= \tav ->
@@ -985,7 +998,7 @@ assetPrimSig apo = do
     TransferFrom     -> pure $ Sig [assetVar, holdingsVar, TAccount] TVoid          -- from Contract to Account
     CirculateSupply  -> pure $ Sig [assetVar, holdingsVar] TVoid                    -- from Asset Supply to Asset issuer's holdings
 
-mapPrimSig :: MapPrimOp -> InferM as ac c Sig
+mapPrimSig :: MapPrimOp -> InferM Sig
 mapPrimSig = \case
   MapInsert -> do
     a <- freshTVar
@@ -1004,7 +1017,7 @@ mapPrimSig = \case
     b <- freshTVar
     pure $ Sig [a, TFun [b] b, TColl (TMap a b)] (TColl (TMap a b))
 
-setPrimSig :: SetPrimOp -> InferM as ac c Sig
+setPrimSig :: SetPrimOp -> InferM Sig
 setPrimSig = \case
   SetInsert -> do
     a <- freshTVar
@@ -1013,7 +1026,7 @@ setPrimSig = \case
     a <- freshTVar
     pure $ Sig [a, TColl (TSet a)] (TColl (TSet a))
 
-collPrimSig :: CollPrimOp -> InferM as ac c Sig
+collPrimSig :: CollPrimOp -> InferM Sig
 collPrimSig = \case
   Aggregate -> do
     a <- freshTVar
@@ -1043,7 +1056,7 @@ collPrimSig = \case
 -- Valid Binary Op logic
 -------------------------------------------------------------------------------
 
-tcUnOp :: (Ord as, Ord ac, Ord c) => LUnOp -> LExpr as ac c -> InferM as ac c (TypeInfo as ac c)
+tcUnOp :: LUnOp -> LExpr -> InferM TypeInfo
 tcUnOp (Located opLoc op) e = do
     tcUnOp' opLoc (UnaryOperator op) e
   where
@@ -1051,8 +1064,7 @@ tcUnOp (Located opLoc op) e = do
       case op of
         Not -> tcNotOp
 
-tcBinOp :: (Ord as, Ord ac, Ord c)
-  => LBinOp -> LExpr as ac c -> LExpr as ac c -> InferM as ac c (TypeInfo as ac c)
+tcBinOp :: LBinOp -> LExpr -> LExpr -> InferM TypeInfo
 tcBinOp (Located opLoc op) e1 e2 = do
     tcBinOp' opLoc (BinaryOperator op) e1 e2
   where
@@ -1071,29 +1083,24 @@ tcBinOp (Located opLoc op) e1 e2 = do
         Lesser  -> tcLesser
         NEqual  -> tcNEqual
 
--- | Multiplication is only valid for:
---     TDelta * TInt
---     TInt * TDelta
---     TInt   * TInt
---     TFloat * TFloat
---     TFixed * TFixed
-tcMult
-  :: (Ord as, Ord ac, Ord c)
-  => Loc -> TypeOrigin as ac c -> LExpr as ac c -> LExpr as ac c -> InferM as ac c (TypeInfo as ac c)
+-- -- | Helper for common pattern "Add constraint of two TypeInfos and return a TypeInfo"
+-- addConstrAndRetInfo :: LExpr -> TypeInfo -> (TypeInfo, TypeInfo) -> InferM TypeInfo
+-- addConstrAndRetInfo le retInfo (expected, actual) =
+--   addConstr le expected actual >> return retInfo
+
+-- | Type check multiplication
+tcMult :: Loc -> TypeOrigin -> LExpr -> LExpr -> InferM TypeInfo
 tcMult opLoc torig e1 e2 = do
   tinfo1 <- tcLExpr e1
   tinfo2 <- tcLExpr e2
   case (ttype tinfo1, ttype tinfo2) of
+    (TNum p1, TNum p2) -> pure $ TypeInfo (TNum (NPAdd p1 p2)) torig eLoc
 
     -- The reason for these alternating pattern matches is to correctly
     -- typecheck unusual binops in which both expression the operation is over
     -- do not need to necessarily have the same type, albeit a specific one.
-    (TTimeDelta, _)   -> addConstrAndRetInfo' (tDeltaInfo torig eLoc) (tIntInfo torig opLoc, tinfo2)
-    (_, TTimeDelta)   -> addConstrAndRetInfo' (tDeltaInfo torig eLoc) (tinfo1, tIntInfo torig opLoc)
-
-    (TInt, _)         -> addConstrAndRetInfo' (tIntInfo torig eLoc) (tIntInfo torig opLoc, tinfo2)
-    (TFloat, _)       -> addConstrAndRetInfo' (tFloatInfo torig eLoc) (tFloatInfo torig opLoc, tinfo2)
-    (TFixed p, _)     -> addConstrAndRetInfo' (tFixedInfo p torig eLoc) (tFixedInfo p torig opLoc, tinfo2)
+    (TTimeDelta, _)   -> addConstrAndRetInfo' (tDeltaInfo torig eLoc) (TypeInfo (TNum nPInt) torig opLoc, tinfo2)
+    (_, TTimeDelta)   -> addConstrAndRetInfo' (tDeltaInfo torig eLoc) (tinfo1, TypeInfo (TNum nPInt) torig opLoc)
     (TVar a, _)       -> addConstrAndRetInfo' tinfo1 (tinfo1, tinfo2)
     (t1,t2)           -> do
       throwErrInferM (InvalidBinOp Mul t1 t2) opLoc
@@ -1109,23 +1116,18 @@ tcMult opLoc torig e1 e2 = do
 --     TDatetime      +/- TDelta
 --     TDelta          +  TDelta
 --     TText            +  TText (concatenation)
-tcAddSub
-  :: (Ord as, Ord ac, Ord c)
-  => BinOp -> Loc -> TypeOrigin as ac c -> LExpr as ac c -> LExpr as ac c -> InferM as ac c (TypeInfo as ac c)
+tcAddSub :: BinOp -> Loc -> TypeOrigin -> LExpr -> LExpr -> InferM TypeInfo
 tcAddSub op opLoc torig e1 e2 = do
   tinfo1 <- tcLExpr e1
   tinfo2 <- tcLExpr e2
   case (ttype tinfo1, ttype tinfo2) of
-
+    (TNum p1, TNum p2) -> pure $ TypeInfo (TNum (NPMax p1 p2)) torig eLoc
     -- Constrain the LHS to be the only type expected in the binary operation
     -- that it can be, due to binary op definitions in FCL.
-    (TInt, _)         -> addConstrAndRetInfo' (tIntInfo torig eLoc) (tIntInfo torig opLoc, tinfo2)
-    (TFloat, _)       -> addConstrAndRetInfo' (tFloatInfo torig eLoc) (tFloatInfo torig opLoc, tinfo2)
-    (TFixed p, _)     -> addConstrAndRetInfo' (tFixedInfo p torig eLoc) (tFixedInfo p torig opLoc, tinfo2)
     (TDateTime, _)    -> addConstrAndRetInfo' (tDatetimeInfo torig eLoc) (tDeltaInfo torig opLoc, tinfo2)
     -- TDelta + TDelta (no subtraction)
     (TTimeDelta, _)   -> tcAddNoSub tinfo1 tinfo2
-    -- TText + TText (concatenation, no subtraction)
+    -- TMsg + TMsg (concatenation, no subtraction)
     (TText, _)         -> tcAddNoSub tinfo1 tinfo2
     (TVar a, _)       -> addConstrAndRetInfo' tinfo1 (tinfo1, tinfo2)
     (t1, t2)          -> do
@@ -1151,16 +1153,12 @@ tcAddSub op opLoc torig e1 e2 = do
 --     TInt   / TInt
 --     TFloat / TFLoat
 --     TFixed / TFixed
-tcDiv
-  :: (Ord as, Ord ac, Ord c)
-  => Loc -> TypeOrigin as ac c -> LExpr as ac c -> LExpr as ac c -> InferM as ac c (TypeInfo as ac c)
+tcDiv :: Loc -> TypeOrigin -> LExpr -> LExpr -> InferM TypeInfo
 tcDiv opLoc torig e1 e2 = do
   tinfo1 <- tcLExpr e1
   tinfo2 <- tcLExpr e2
   case (ttype tinfo1, ttype tinfo2) of
-    (TInt, _)         -> addConstrAndRetInfo' (tIntInfo torig eLoc) (tIntInfo torig opLoc, tinfo2)
-    (TFloat, _)       -> addConstrAndRetInfo' (tFloatInfo torig eLoc) (tFloatInfo torig opLoc, tinfo2)
-    (TFixed p, _)     -> addConstrAndRetInfo' (tFixedInfo p torig eLoc) (tFixedInfo p torig opLoc, tinfo2)
+    (TNum _, TNum _)  -> pure $ TypeInfo (TNum NPArbitrary) torig eLoc
     (TVar a, _)       -> addConstrAndRetInfo' tinfo1 (tinfo1, tinfo2)
     (t1,t2)           -> do
       throwErrInferM (InvalidBinOp Div t1 t2) opLoc
@@ -1169,9 +1167,7 @@ tcDiv opLoc torig e1 e2 = do
     eLoc = located e1
     addConstrAndRetInfo' = addConstrAndRetInfo e2
 
-tcAndOr
-  :: (Ord as, Ord ac, Ord c)
-  => Loc -> TypeOrigin as ac c -> LExpr as ac c -> LExpr as ac c -> InferM as ac c (TypeInfo as ac c)
+tcAndOr :: Loc -> TypeOrigin -> LExpr -> LExpr -> InferM TypeInfo
 tcAndOr opLoc torig e1 e2 = do
   tinfo1 <- tcLExpr e1
   tinfo2 <- tcLExpr e2
@@ -1180,24 +1176,20 @@ tcAndOr opLoc torig e1 e2 = do
   addConstr e2 argTypeInfo tinfo2
   return $ TypeInfo TBool torig (located e2)
 
-tcEqual
-  :: (Ord as, Ord ac, Ord c)
-  => BinOp -> Loc -> TypeOrigin as ac c -> LExpr as ac c -> LExpr as ac c -> InferM as ac c (TypeInfo as ac c)
+tcEqual :: BinOp -> Loc -> TypeOrigin -> LExpr -> LExpr -> InferM TypeInfo
 tcEqual op opLoc torig e1 e2 = do
   tinfo1 <- tcLExpr e1
   tinfo2 <- tcLExpr e2
   case (ttype tinfo1, ttype tinfo2) of
     (TContract, _) -> addConstrAndRetBool (tContractInfo torig opLoc, tinfo2)
-    (TInt, _)      -> addConstrAndRetBool (tIntInfo torig opLoc, tinfo2)
-    (TFloat, _)    -> addConstrAndRetBool (tFloatInfo torig opLoc, tinfo2)
-    (TFixed p, _)  -> addConstrAndRetBool (tFixedInfo p torig opLoc, tinfo2)
     (TAccount, _)  -> addConstrAndRetBool (tAccountInfo torig opLoc, tinfo2)
     (TBool, _)     -> addConstrAndRetBool (tBoolInfo torig opLoc, tinfo2)
     (TAsset at, _) -> addConstrAndRetBool (tAssetInfo at torig opLoc, tinfo2)
     (TDateTime, _) -> addConstrAndRetBool (tDatetimeInfo torig opLoc, tinfo2)
     (TTimeDelta, _) -> addConstrAndRetBool (tDeltaInfo torig opLoc, tinfo2)
     (TText, _)      -> addConstrAndRetBool (tMsgInfo torig opLoc, tinfo2)
-    (TVar a, _)    -> addConstrAndRetBool (tinfo1, tinfo2)
+    (TVar a, _)     -> addConstrAndRetBool (tinfo1, tinfo2)
+    (TNum _, TNum _) -> return $ tBoolInfo torig eLoc
     (t1,t2)        -> do
       throwErrInferM (InvalidBinOp op t1 t2) opLoc
       return $ tBoolInfo torig eLoc
@@ -1205,19 +1197,15 @@ tcEqual op opLoc torig e1 e2 = do
     eLoc = located e2
     addConstrAndRetBool = addConstrAndRetInfo e2 $ tBoolInfo torig eLoc
 
-tcLEqual
-  :: (Ord as, Ord ac, Ord c)
-  => BinOp -> Loc -> TypeOrigin as ac c -> LExpr as ac c -> LExpr as ac c -> InferM as ac c (TypeInfo as ac c)
+tcLEqual :: BinOp -> Loc -> TypeOrigin -> LExpr -> LExpr -> InferM TypeInfo
 tcLEqual op opLoc torig e1 e2 = do
   tinfo1 <- tcLExpr e1
   tinfo2 <- tcLExpr e2
   case (ttype tinfo1, ttype tinfo2) of
-    (TInt, _)        -> addConstrAndRetBool (tIntInfo torig opLoc, tinfo2)
-    (TFloat, _)      -> addConstrAndRetBool (tFloatInfo torig opLoc, tinfo2)
-    (TFixed p, _)    -> addConstrAndRetBool (tFixedInfo p torig opLoc, tinfo2)
     (TDateTime, _)   -> addConstrAndRetBool (tDatetimeInfo torig opLoc, tinfo2)
     (TTimeDelta, _)  -> addConstrAndRetBool (tDeltaInfo torig opLoc, tinfo2)
     (TVar a, _)      -> addConstrAndRetBool (tinfo1, tinfo2)
+    (TNum _, TNum _) -> return $ tBoolInfo torig eLoc
     (t1,t2)          -> do
       throwErrInferM (InvalidBinOp op t1 t2) opLoc
       return $ TypeInfo TError torig eLoc
@@ -1225,19 +1213,19 @@ tcLEqual op opLoc torig e1 e2 = do
     eLoc = located e2
     addConstrAndRetBool = addConstrAndRetInfo e2 $ tBoolInfo torig eLoc
 
-tcGEqual :: (Ord as, Ord ac, Ord c) => Loc -> TypeOrigin as ac c -> LExpr as ac c -> LExpr as ac c -> InferM as ac c (TypeInfo as ac c)
+tcGEqual :: Loc -> TypeOrigin -> LExpr -> LExpr -> InferM TypeInfo
 tcGEqual = tcLEqual GEqual
 
-tcGreater :: (Ord as, Ord ac, Ord c) => Loc -> TypeOrigin as ac c -> LExpr as ac c -> LExpr as ac c -> InferM as ac c (TypeInfo as ac c)
+tcGreater :: Loc -> TypeOrigin -> LExpr -> LExpr -> InferM TypeInfo
 tcGreater = tcLEqual Greater
 
-tcLesser :: (Ord as, Ord ac, Ord c) => Loc -> TypeOrigin as ac c -> LExpr as ac c -> LExpr as ac c -> InferM as ac c (TypeInfo as ac c)
+tcLesser :: Loc -> TypeOrigin -> LExpr -> LExpr -> InferM TypeInfo
 tcLesser = tcLEqual Lesser
 
-tcNEqual :: (Ord as, Ord ac, Ord c) => Loc -> TypeOrigin as ac c -> LExpr as ac c -> LExpr as ac c -> InferM as ac c (TypeInfo as ac c)
+tcNEqual :: Loc -> TypeOrigin -> LExpr -> LExpr -> InferM TypeInfo
 tcNEqual = tcEqual NEqual
 
-tcNotOp :: (Ord as, Ord ac, Ord c) => Loc -> TypeOrigin as ac c -> LExpr as ac c -> InferM as ac c (TypeInfo as ac c)
+tcNotOp :: Loc -> TypeOrigin -> LExpr -> InferM TypeInfo
 tcNotOp opLoc torig e1 = do
   tinfo <- tcLExpr e1
   case ttype tinfo of
@@ -1249,7 +1237,7 @@ tcNotOp opLoc torig e1 = do
     eLoc = located e1
 
 -- | Helper for common pattern "Add constraint of two TypeInfos and return a TypeInfo"
-addConstrAndRetInfo :: LExpr as ac c -> TypeInfo as ac c -> (TypeInfo as ac c, TypeInfo as ac c) -> InferM as ac c (TypeInfo as ac c)
+addConstrAndRetInfo :: LExpr -> TypeInfo -> (TypeInfo, TypeInfo) -> InferM TypeInfo
 addConstrAndRetInfo le retInfo (expected, actual) =
   addConstr le expected actual >> return retInfo
 
@@ -1258,10 +1246,10 @@ addConstrAndRetInfo le retInfo (expected, actual) =
 -- Checking method preconditions
 --------------------------------------------------------------------------------
 
-tcPreconditions :: forall as ac c. (Ord as, Ord ac, Ord c) => Preconditions as ac c -> InferM as ac c ()
+tcPreconditions :: Preconditions -> InferM ()
 tcPreconditions (Preconditions ps) = mapM_ (tcPrecondition) ps
   where
-    tcPrecondition :: (Precondition, LExpr as ac c) -> InferM as ac c ()
+    tcPrecondition :: (Precondition, LExpr) -> InferM ()
     tcPrecondition (p,e) = addConstr e tyExpected =<< tcLExpr e
       where
         tyExpected = TypeInfo
@@ -1281,14 +1269,14 @@ tcPreconditions (Preconditions ps) = mapM_ (tcPrecondition) ps
 -- Contraint Generation
 -------------------------------------------------------------------------------
 
-data Constraint as ac c = Constraint
-  { mOrigLExpr :: Maybe (LExpr as ac c) -- ^ Maybe the expression from which the constraint originated
-  , expected :: TypeInfo as ac c
-  , actual   :: TypeInfo as ac c
+data Constraint = Constraint
+  { mOrigLExpr :: Maybe LExpr -- ^ Maybe the expression from which the constraint originated
+  , expected :: TypeInfo
+  , actual   :: TypeInfo
   } deriving (Show)
 
 -- | Add a constraint during the constraint generation phase
-addConstr :: LExpr as ac c -> TypeInfo as ac c -> TypeInfo as ac c -> InferM as ac c ()
+addConstr :: LExpr -> TypeInfo -> TypeInfo -> InferM ()
 addConstr lexpr expected' actual' = modify' $ \s ->
   s { constraints = constraints s ++ [c] }
   where
@@ -1298,14 +1286,14 @@ addConstr lexpr expected' actual' = modify' $ \s ->
       , actual   = actual'
       }
 
-instance (Eq as, Eq ac, Eq c, Pretty as, Pretty ac, Pretty c) => Pretty (Constraint as ac c) where
+instance Pretty Constraint where
   ppr (Constraint mLExpr ti1 ti2) =
     "Constraint:"
     <$$+> (maybe "" (ppr . locVal) mLExpr)
     <$$+> ppr ti1
     <$$+> ppr ti2
 
-instance (Eq as, Eq ac, Eq c, Pretty as, Pretty ac, Pretty c) => Pretty [Constraint as ac c] where
+instance Pretty [Constraint] where
   ppr [] = ""
   ppr (c:cs) = ppr c <$$> Script.Pretty.line <> ppr cs
 
@@ -1316,36 +1304,36 @@ instance (Eq as, Eq ac, Eq c, Pretty as, Pretty ac, Pretty c) => Pretty [Constra
 typeVars :: [Text]
 typeVars = [1..] >>= flip replicateM ['a'..'z'] >>= return . toS
 
-freshText :: InferM as ac c Text
+freshText :: InferM Text
 freshText = do
   inferState <- get
   put $ inferState { count = count inferState + 1 }
   return $ (typeVars `unsafeIndex` count inferState)
 
-freshTVar :: InferM as ac c Type
+freshTVar :: InferM Type
 freshTVar = TVar <$> freshTVar'
 
-freshTVar' :: InferM as ac c TVar
+freshTVar' :: InferM TVar
 freshTVar' = TV <$> freshText
 
-freshTAVar :: InferM as ac c Type
+freshTAVar :: InferM Type
 freshTAVar = TVar <$> freshTAVar'
 
-freshTAVar' :: InferM as ac c TVar
+freshTAVar' :: InferM TVar
 freshTAVar' = TAV <$> freshText
 
-freshTCVar :: InferM as ac c Type
+freshTCVar :: InferM Type
 freshTCVar = TVar <$> freshTCVar'
 
-freshTCVar' :: InferM as ac c TVar
+freshTCVar' :: InferM TVar
 freshTCVar' = TCV <$> freshText
 
-lookupVarType :: LName -> InferM as ac c (Maybe (TMeta, TypeInfo as ac c))
+lookupVarType :: LName -> InferM (Maybe (TMeta, TypeInfo))
 lookupVarType (Located loc name) = lookupContext name <$> gets context
 
 -- | Just like 'lookupVarType' but throws a type error if the variable doesn't
 -- exist in the typing env.
-lookupVarType' :: LName -> InferM as ac c (TMeta, TypeInfo as ac c)
+lookupVarType' :: LName -> InferM (TMeta, TypeInfo)
 lookupVarType' var@(Located loc name) = do
   mVarTypeInfo <- lookupVarType var
   case mVarTypeInfo of
@@ -1354,7 +1342,7 @@ lookupVarType' var@(Located loc name) = do
 
 -- | Checks if # args supplied to function match # args in Sig,
 -- returns a boolean indicating whether this is true or not.
-arityCheck :: LName -> [Type] -> [LExpr as ac c] -> InferM as ac c Bool
+arityCheck :: LName -> [Type] -> [LExpr] -> InferM Bool
 arityCheck (Located loc nm) typs args
   | lenTyps == lenArgs = pure True
   | otherwise = do
@@ -1377,9 +1365,7 @@ instance Substitutable Type where
       THV t' -> TVar $ THV $ apply s t'
       _ -> Map.findWithDefault t a (unSubst s)
   apply s TError      = TError
-  apply s TInt        = TInt
-  apply s TFloat      = TFloat
-  apply s (TFixed p)  = TFixed p
+  apply _ t@TNum{}    = t
   apply s TBool       = TBool
   apply s TAccount    = TAccount
   apply s (TAsset at) = TAsset at
@@ -1388,7 +1374,6 @@ instance Substitutable Type where
   apply s TVoid       = TVoid
   apply s TSig        = TSig
   apply s TAny        = TAny
-  apply s TAssetAny   = TAssetAny
   apply s TState      = TState
   apply s TDateTime   = TDateTime
   apply s (TFun ats rt) = TFun (map (apply s) ats) (apply s rt)
@@ -1404,7 +1389,7 @@ instance Substitutable TCollection where
 instance (Substitutable a, Substitutable b) => Substitutable (a,b) where
   apply s (a,b) = (apply s a, apply s b)
 
-instance Substitutable (TypeInfo as ac c) where
+instance Substitutable TypeInfo where
   apply s (TypeInfo t info tPos) = TypeInfo (apply s t) info tPos
 
 instance Substitutable TMeta where
@@ -1413,7 +1398,7 @@ instance Substitutable TMeta where
 instance Substitutable a => Substitutable [a] where
   apply = fmap . apply
 
-instance Substitutable (Constraint as ac c) where
+instance Substitutable Constraint where
   apply s (Constraint e t1 t2) = Constraint e (apply s t1) (apply s t2)
 
 newtype Subst = Subst { unSubst :: Map.Map TVar Type }
@@ -1439,32 +1424,32 @@ composeSubst s@(Subst s1) (Subst s2) =
 -- Unification & Solving
 -------------------------------------------------------------------------------
 
-data Unifier as ac c = Unifier Subst [Constraint as ac c]
+data Unifier = Unifier Subst [Constraint]
 
-instance Semigroup (Unifier as ac c) where
+instance Semigroup Unifier where
   (Unifier subst cs) <> (Unifier subst' cs') =
     Unifier (subst' `composeSubst` subst) (cs' ++ apply subst' cs)
 
-instance Monoid (Unifier as ac c) where
+instance Monoid Unifier where
   mempty = Unifier mempty mempty
 
-instance {-# OVERLAPS #-} Semigroup (Either a (Unifier as ac c)) where
+instance {-# OVERLAPS #-} Semigroup (Either a Unifier) where
   -- Note: Short circuits on Left, does not accumulate values.
   (Left e) <> _           = Left e
   _ <> (Left e)          = Left e
   (Right u) <> (Right u') = Right (u <> u')
 
-instance {-# OVERLAPS #-} Monoid (Either a (Unifier as ac c)) where
+instance {-# OVERLAPS #-} Monoid (Either a Unifier) where
   mempty = Right mempty
 
-instance (Eq as, Eq ac, Eq c, Pretty as, Pretty ac, Pretty c) => Pretty (Unifier as ac c) where
+instance Pretty Unifier where
   ppr (Unifier subst cs) = "Unifier:"
                <$$+> ("Subst:" <$$+> ppr subst)
                <$$+> ("Constraints:" <$$+> ppr cs)
 
-type SolverM as ac c = State [TypeError as ac c]
+type SolverM = State [TypeError]
 
-runSolverM :: forall as ac c. InferState as ac c -> Either (NonEmpty (TypeError as ac c)) Subst
+runSolverM :: InferState -> Either (NonEmpty TypeError) Subst
 runSolverM inferState = case holeErrs <> typeErrs of
     [] -> Right (Subst subst)
     e:es -> Left (e :| es)
@@ -1476,7 +1461,7 @@ runSolverM inferState = case holeErrs <> typeErrs of
     -- turn any holes into a type error
     holeErrs = map mkHoleError . toList . holes $ inferState
     -- look up the inferred type
-    mkHoleError :: Hole as ac c -> TypeError as ac c
+    mkHoleError :: Hole -> TypeError
     mkHoleError Hole{ holeLocation, holeContext, holeTyVar }
       = case Map.lookup holeTyVar subst of
           Nothing ->
@@ -1492,15 +1477,15 @@ runSolverM inferState = case holeErrs <> typeErrs of
                 . unContext
                 $ holeContext
 
-throwErrSolverM :: TypeError as ac c -> SolverM as ac c (Unifier as ac c)
+throwErrSolverM :: TypeError -> SolverM Unifier
 throwErrSolverM typeErr = do
   modify' $ flip (++) [typeErr]
   return mempty
 
-bind ::  TVar -> Type -> Unifier as ac c
+bind ::  TVar -> Type -> Unifier
 bind tv t = Unifier (Subst (Map.singleton tv t)) []
 
-unify :: forall as ac c. Constraint as ac c -> SolverM as ac c (Unifier as ac c)
+unify :: Constraint -> SolverM Unifier
 unify (Constraint mLExpr to1 to2) =
     case unify' t1 t2 of
       Left tErrInfo -> throwErrSolverM $ TypeError tErrInfo terrLoc
@@ -1511,63 +1496,68 @@ unify (Constraint mLExpr to1 to2) =
 
     terrLoc = maybe t2Pos located mLExpr
 
-    unify' :: Type -> Type -> Either (TypeErrInfo as ac c) (Unifier as ac c)
+    unificationFail = Left $ UnificationFail to1 to2
+
+    unify' :: Type -> Type -> Either TypeErrInfo Unifier
     unify' t1 t2 | t1 == t2          = Right mempty
     unify' TAny   _                  = Right mempty
     unify' _      TAny               = Right mempty
     unify' (TVar v) t                = unifyTVar t v
     unify' t (TVar v)                = unifyTVar t v
-    unify' TAssetAny (TAsset ta)     = Right mempty
-    unify' (TAsset ta) TAssetAny     = Right mempty
+    unify' (TAsset TAny) (TAsset ta) = Right mempty
+    unify' (TAsset ta) (TAsset TAny) = Right mempty
     unify' TError t                  = Right mempty
     unify' t TError                  = Right mempty
     unify' (TColl tc1) (TColl tc2)   = unifyTColl tc1 tc2
     unify' (TFun as r) (TFun as' r') = unifyTFun (as,r) (as',r')
-    unify' t1 t2                     = Left $ UnificationFail to1 to2
+    unify' (TNum p1) (TNum p2)       = unifyNumPrecision p1 p2
+    unify' t1 t2                     = unificationFail
 
     -- Generate unifiers for all arguments/return types for both functions. Here
     -- we do not generate constraints as per usual unification of functions for
     -- a bit more explicit type error (reporting that the function types don't
     -- unify, rather than the individual arg/ret type pairs don't unify).
-    unifyTFun :: ([Type], Type) -> ([Type], Type) -> Either (TypeErrInfo as ac c) (Unifier as ac c)
+    unifyTFun :: ([Type], Type) -> ([Type], Type) -> Either TypeErrInfo Unifier
     unifyTFun (as,r) (as',r')
       | length as == length as' =
           foldMap (uncurry unify') (zip (as ++ [r]) (as' ++ [r']))
         -- Right (mempty, constraints)
-      | otherwise = Left $ UnificationFail to1 to2 -- Fail because of arity mismatch
+      | otherwise = unificationFail -- Fail because of arity mismatch
 
-    unifyTColl :: TCollection -> TCollection -> Either (TypeErrInfo as ac c) (Unifier as ac c)
+    unifyTColl :: TCollection -> TCollection -> Either TypeErrInfo Unifier
     unifyTColl (TMap k1 v1) (TMap k2 v2) = unify' k1 k2 >> unify' v1 v2
     unifyTColl (TSet v1)    (TSet v2)    = unify' v1 v2
-    unifyTColl _            _            = Left $ UnificationFail to1 to2
+    unifyTColl _            _            = unificationFail
 
-    unifyTVar :: Type -> TVar -> Either (TypeErrInfo as ac c) (Unifier as ac c)
+    unifyTVar :: Type -> TVar -> Either TypeErrInfo Unifier
     -- TV (general type vars) unify with anything
     unifyTVar t            v@(TV _)  = Right $ v `bind` t
     unifyTVar t@(TVar (TV _)) v      = Right $ v `bind` t
 
    -- TAV (asset specific type vars) unify with only 3 types
-    unifyTVar TInt         v@(THV (TAsset TDiscrete)) = Right $ v `bind` TInt
-    unifyTVar TBool        v@(THV (TAsset TBinary)) = Right $ v `bind` TBool
-    unifyTVar t@(TFixed p) v@(THV (TAsset (TFractional p')))
-      | p == p' = Right $ v `bind` t
-      | otherwise = Left (UnificationFail to1 to2)
+    unifyTVar t@(TNum p1)  v@(THV (TAsset (TNum p2)))
+      = unifyNumPrecision p2 p1 <> Right (v `bind` t) -- the holdings can be more precise
+    unifyTVar TBool        v@(THV (TAsset TBool)) = Right $ v `bind` TBool
     unifyTVar t@(TVar (THV _)) v@(THV _) = Right $ v `bind` t -- THVar binds with THVar
-    unifyTVar _            v@(THV _) = Left $ UnificationFail to1 to2
+    unifyTVar _            v@(THV _) = unificationFail
 
-
+    unifyTVar (TAsset TAny) v@(TAV _) = Right mempty
     unifyTVar t@(TAsset ta) v@(TAV tavar) = Right $ v `bind` t
     unifyTVar t@(TVar (TAV _)) v@(TAV _) = Right $ v `bind` t -- TAVar binds with TAVar
-    unifyTVar TAssetAny     v@(TAV _) = Right mempty
-    unifyTVar _             v@(TAV _) = Left $ UnificationFail to1 to2
+    unifyTVar _             v@(TAV _) = unificationFail
 
     -- TCV (collection specific type vars)
     unifyTVar t@(TColl _)      v@(TCV c) = Right $ v `bind` t
     unifyTVar t@(TVar (TCV _)) v@(TCV c) = Right $ v `bind` t -- TCVar binds with TCVar
-    unifyTVar _                v@(TCV _) = Left $ UnificationFail to1 to2
+    unifyTVar _                v@(TCV _) = unificationFail
 
+    unifyNumPrecision :: NumPrecision -> NumPrecision -> Either TypeErrInfo Unifier
+    unifyNumPrecision p1 p2 = case (normaliseNumPrecision p1, normaliseNumPrecision p2) of
+        (NPDecimalPlaces i1, NPDecimalPlaces i2) | i1 >= i2 -> pure mempty
+        (NPArbitrary, _) -> pure mempty
+        (p1, p2) -> Left $ NumPrecisionMismatch to1 to2
 
-solver :: Unifier as ac c -> SolverM as ac c Subst
+solver :: Unifier -> SolverM Subst
 solver (Unifier subst initConstrs) =
   case initConstrs of
     [] -> return subst
@@ -1586,41 +1576,41 @@ instance Pretty Sig where
   ppr (Sig argtys TVoid) = tupleOf argtys <+> "->" <+> "()"
   ppr (Sig argtys retty) = tupleOf argtys <+> "->" <+> ppr retty
 
-instance (Eq as, Eq ac, Eq c, Pretty as, Pretty ac, Pretty c) => Pretty (TypeOrigin as ac c) where
+instance Pretty TypeOrigin where
   ppr torig = case torig of
     OutOfThinAir        -> "is a fresh type variable"
     ExpectedFromSeq -> "is the expected type of the statement"
     ExpectedFromMethodBody -> "is the expected type of the method body"
-    VariableDefn nm     -> "was inferred by top level definition for variable" <+> squotes (ppr nm)
-    InferredFromVar nm  -> "was inferred variable" <+> squotes (ppr nm)
-    InferredFromLit lit -> "was inferred from literal" <+> squotes (ppr lit)
-    InferredFromExpr e  -> "was inferred from expression" <+> squotes (ppr e)
-    InferredFromAssetType nm t -> "was inferred from the asset type" <+> squotes (ppr t) <+> "supplied as an argument to the primop" <+> squotes (ppr nm)
-    InferredFromHelperDef nm -> "was inferred from the helper function definition" <+> squotes (ppr nm)
-    InferredFromAssignment nm -> "was inferred from the assignment to variable" <+> squotes (ppr nm)
-    InferredFromMethodBody -> "was inferred from the body of method"
-    BinaryOperator op   -> "was inferred from use of binary operator" <+> squotes (ppr op)
-    UnaryOperator op    -> "was inferred from use of unary operator" <+> squotes (ppr op)
-    Assignment          -> "was inferred from variable assignment"
+    VariableDefn nm     -> "inferred by top level definition for variable" <+> squotes (ppr nm)
+    InferredFromVar nm  -> "inferred variable" <+> squotes (ppr nm)
+    InferredFromLit lit -> "inferred from literal" <+> squotes (ppr lit)
+    InferredFromExpr e  -> "inferred from expression" <+> squotes (ppr e)
+    InferredFromAssetType nm t -> "inferred from the asset type" <+> squotes (ppr t) <+> "supplied as an argument to the primop" <+> squotes (ppr nm)
+    InferredFromHelperDef nm -> "inferred from the helper function definition" <+> squotes (ppr nm)
+    InferredFromAssignment nm -> "inferred from the assignment to variable" <+> squotes (ppr nm)
+    InferredFromMethodBody -> "inferred from the body of method"
+    BinaryOperator op   -> "inferred from use of binary operator" <+> squotes (ppr op)
+    UnaryOperator op    -> "inferred from use of unary operator" <+> squotes (ppr op)
+    Assignment          -> "inferred from variable assignment"
     IfCondition         -> "must be a bool because of if statement"
     DateTimeGuardPred   -> "must be a datetime because it is a datetime guard predicate"
     DateTimeGuardBody   -> "must be a void because it is the body of a datetime guard"
-    FunctionArg n nm    -> "was inferred from the type signature of argument" <+> ppr n <+> "of function" <+> squotes (ppr nm)
-    FunctionRet nm      -> "was inferred from the return type of the function" <+> squotes (ppr nm)
-    CasePattern nm      -> "was inferred from type of case pattern" <+> squotes (ppr nm)
-    CaseBody e          -> "was inferred from type of case body" <+> squotes (ppr e)
-    InferredFromCollType nm t -> "was inferred from the collection type" <+> squotes (ppr t) <+> "supplied as an argument to the primop" <+> squotes (ppr nm)
-    EmptyCollection     -> "was inferred from an empty collection"
-    MapExpr             -> "was inferred from a map expression"
-    SetExpr             -> "was inferred from a set expression"
-    FromPrecondition p -> "was inferred from a precondition" <+> squotes (ppr p)
+    FunctionArg n nm    -> "inferred from the type signature of argument" <+> ppr n <+> "of function" <+> squotes (ppr nm)
+    FunctionRet nm      -> "inferred from the return type of the function" <+> squotes (ppr nm)
+    CasePattern nm      -> "inferred from type of case pattern" <+> squotes (ppr nm)
+    CaseBody e          -> "inferred from type of case body" <+> squotes (ppr e)
+    InferredFromCollType nm t -> "inferred from the collection type" <+> squotes (ppr t) <+> "supplied as an argument to the primop" <+> squotes (ppr nm)
+    EmptyCollection     -> "inferred from an empty collection"
+    MapExpr             -> "inferred from a map expression"
+    SetExpr             -> "inferred from a set expression"
+    FromPrecondition p -> "inferred from a precondition" <+> squotes (ppr p)
     FromHole            -> "coming from a hole in the program"
-    EmptyBlock          -> "was inferred from an empty block (e.g. if-statement without else-branch)"
+    EmptyBlock          -> "inferred from an empty block (e.g. if-statement without else-branch)"
+    FromRoundingPrecision -> "inferred from the precision of a rounding operation"
+instance Pretty TypeInfo where
+  ppr (TypeInfo t orig loc) = sqppr t <+> ppr orig <+> "on" <+> ppr loc
 
-instance (Eq as, Eq ac, Eq c, Pretty as, Pretty ac, Pretty c) => Pretty (TypeInfo as ac c) where
-  ppr (TypeInfo t orig loc) = "Type" <+> ppr t <+> ppr orig <+> "on" <+> ppr loc
-
-instance (Eq as, Eq ac, Eq c, Pretty as, Pretty ac, Pretty c) => Pretty (TypeErrInfo as ac c) where
+instance Pretty TypeErrInfo where
   ppr e = case e of
     UnboundVariable nm            -> "Unbound variable: " <+> ppr nm
     Shadow id meta (TypeInfo t _ loc)
@@ -1644,12 +1634,8 @@ instance (Eq as, Eq ac, Eq c, Pretty as, Pretty ac, Pretty c) => Pretty (TypeErr
                                   <$$+> "Expecting type" <+> ppr t1 <+> "but got" <+> ppr t2
     VarNotFunction nm t           -> "Variable" <+> squotes (ppr nm) <+> "is not a helper function"
                                   <$$+> "Expecting a function type, but got" <+> squotes (ppr t)
-    UnificationFail tinfo1 tinfo2 -> "Could not match expected type"
-                                  <+> squotes (ppr $ ttype tinfo1)
-                                  <+> "with actual type"
-                                  <+> squotes (ppr $ ttype tinfo2) <> ":"
-                                  <$$+> ppr tinfo1
-                                  <$$+> ppr tinfo2
+    UnificationFail tinfo1 tinfo2 -> "Expected:" <+> ppr tinfo1
+                                <$$> "But got: " <+> ppr tinfo2
     TransitionOnlyInTrueBranch cond
       -> "A transition occurs when the condition" <+> squotes (ppr cond)
         <+> "of the if-statement is true,"
@@ -1675,11 +1661,7 @@ instance (Eq as, Eq ac, Eq c, Pretty as, Pretty ac, Pretty c) => Pretty (TypeErr
                                   <$$+> vsep (map ((" - Missing case for:" <+>) . ppr) misses)
                                   <$$+> vsep (map ((" - Duplicate case for:" <+>) . ppr) dups)
     EmptyMatches                  -> "Case expression with no matches"
-    InvalidAccessRestriction e t  -> ("Invalid access restriction:" <$$+> ppr e)
-                                  <$$> "Expected type"
-                                  <+> ppr TAccount
-                                  <+> "but got"
-                                  <+> ppr t
+    InvalidPrecision              -> "Invalid precision argument; must be an integer (whole number) literal."
     Impossible msg                -> "The impossible happened:" <+> ppr msg
     UnknownHoleInProgram          -> "Expecting an expression or statement here."
     HoleInProgram{ inferredType, suggestions }
@@ -1689,27 +1671,38 @@ instance (Eq as, Eq ac, Eq c, Pretty as, Pretty ac, Pretty c) => Pretty (TypeErr
         where
           pprSuggestion (name, (tmeta, _)) = ppr tmeta <+> ppr name
           notNull = not . null
+    NumPrecisionMismatch typeInfo1 typeInfo2 ->
+        ("Implicit loss of numeric precision"
+            <$$+> (ppr typeInfo1
+              <$$> ppr typeInfo2))
+        <$$> "Possible fixes:"
+         <$$+> ( vcat $ map ("•" <+>)
+            [ "round the higher precision expression to match the lower precision"
+            , "use types with more (e.g. arbitrary) precision"])
 
-instance (Eq as, Eq ac, Eq c, Pretty as, Pretty ac, Pretty c) => Pretty (TypeError as ac c) where
-  ppr (TypeError h@HoleInProgram{} loc)
-    = "Hole at" <+> ppr loc <> ":"
-        <$$+> ppr h
-  ppr (TypeError h@UnknownHoleInProgram loc)
-    = "Hole at" <+> ppr loc <> ":"
-        <$$+> ppr h
-  ppr (TypeError tErrInfo tPos) = "Error at" <+> ppr tPos <> ":"
-                             <$$+> ppr tErrInfo
+instance Pretty TypeError where
+  ppr (TypeError tErrInfo tPos) = errName <+> "at" <+> ppr tPos <> ":"
+                                  <$$+> ppr tErrInfo
+    where
+      errName = case tErrInfo of
+        HoleInProgram{} -> "Hole"
+        UnknownHoleInProgram{} -> "Hole"
+        UnificationFail{} -> "Type error"
+        TransitionOnlyInTrueBranch{} -> "Transition error"
+        TransitionOnlyInOneBranch{} -> "Transition error"
+        UnreachableStatement{} -> "Transition error"
+        _ -> "Error"
 
-instance (Ord as, Ord ac, Ord c, Pretty as, Pretty ac, Pretty c) => Pretty [TypeError as ac c] where
+instance Pretty [TypeError] where
   ppr es = case map ppr (sort es) of
     [] -> ""
     (e:es) -> foldl' (<$$$>) (ppr e) $ map ppr es
 
-instance (Ord as, Ord ac, Ord c, Pretty as, Pretty ac, Pretty c) => Pretty (NonEmpty (TypeError as ac c)) where
+instance Pretty (NonEmpty TypeError) where
   ppr = ppr . NonEmpty.toList
 
 -- | Pretty print a type error
-ppError :: (Eq as, Eq ac, Eq c, Pretty as, Pretty ac, Pretty c) => TypeError as ac c -> LText
+ppError :: TypeError -> LText
 ppError = render . ppr
 
 -- | Pretty print a type signature

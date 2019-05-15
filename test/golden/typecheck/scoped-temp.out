@@ -1,4 +1,0 @@
- 
-Method arguments and effects:
-foo: () -> {}
-bar: () -> {read via now}

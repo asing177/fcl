@@ -1,4 +1,0 @@
-Error at Line 7, Column 55:
-   Could not match expected type 'holdings<assetDisc>' with actual type 'fixed3':
-      Type holdings<assetDisc> was inferred from the type signature of argument 3 of function 'transferHoldings' on Line 7, Column 55
-      Type fixed3 was inferred from the type signature of argument 1 of function 'swapAssets' on Line 6, Column 19

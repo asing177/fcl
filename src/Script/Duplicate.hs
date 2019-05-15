@@ -1,6 +1,6 @@
+{-# LANGUAGE TupleSections #-}
+{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE DeriveAnyClass #-}
-{-# LANGUAGE DeriveGeneric  #-}
-{-# LANGUAGE TupleSections  #-}
 
 {-|
 
@@ -16,32 +16,32 @@ module Script.Duplicate
   , VarSrc(..)
   ) where
 
-import           Protolude     hiding ((<>))
+import Protolude hiding ((<>))
 
-import qualified Data.Aeson    as A
-import qualified Data.Map      as Map
+import qualified Data.Aeson as A
+import qualified Data.Map as Map
 
-import           Script
-import           Script.Pretty
-import           Utils         (duplicates, duplicatesOn)
+import Script
+import Script.Pretty
+import Utils (duplicates, duplicatesOn)
 
 -- | Duplicate variable occurrence can be in either a top level definition or
 -- an argument to a method/helper function.
-data VarSrc as ac c = Defn | MethodArg Name (LExpr as ac c)
+data VarSrc = Defn | MethodArg Name LExpr
   deriving (Generic, A.ToJSON, A.FromJSON)
 
 -- | Ways we can have duplicate definitions of various kinds.
-data DuplicateError as ac c
-  = DuplicateMethod LName (LExpr as ac c)
+data DuplicateError
+  = DuplicateMethod LName LExpr
   | DuplicateFunction LName
   | DuplicateConstructor LEnumConstr
   | DuplicateEnumDef LName
-  | DuplicateVariable (VarSrc as ac c) (VarSrc as ac c) LName
+  | DuplicateVariable VarSrc VarSrc LName
   | DuplicateTransition Transition
-  | DuplicatePrecondition (Precondition, LExpr as ac c)
+  | DuplicatePrecondition (Precondition, LExpr)
   deriving (Generic, A.ToJSON, A.FromJSON)
 
-instance Pretty (DuplicateError as ac c) where
+instance Pretty DuplicateError where
   ppr (DuplicateMethod lname lexpr)
     = "Duplicate method:" <+> ppr (locVal lname) <+> "at" <+> ppr (located lname)
   ppr (DuplicateFunction lname)
@@ -70,7 +70,7 @@ instance Pretty (DuplicateError as ac c) where
   ppr (DuplicatePrecondition (pr,lexpr))
     = "Duplicate precondition" <+> squotes (ppr pr) <+> "at" <+> ppr (located lexpr)
 
-instance Pretty [DuplicateError as ac c] where
+instance Pretty [DuplicateError] where
   ppr errs
     = case errs of
         []
@@ -80,10 +80,10 @@ instance Pretty [DuplicateError as ac c] where
              $ "Duplicate errors:"
              : map (("•" <+>) . ppr) errs
 
-duplicateCheck :: Script as ac c -> Either [DuplicateError as ac c] (Script as ac c)
+duplicateCheck :: Script -> Either [DuplicateError] Script
 duplicateCheck scr@(Script enums defns transitions methods helpers)
   = case allErrs of
-      []   -> Right scr
+      [] -> Right scr
       errs -> Left errs
     where
       allErrs
@@ -141,7 +141,7 @@ duplicateCheck scr@(Script enums defns transitions methods helpers)
 -- | Duplicate variable checks for top level definitions and overlap with method
 -- arguments. Currently, shadowing of a top level variable with a method
 -- argument name is disallowed.
-defnAndMethodArgErrs :: [Def as ac c] -> [Method as ac c] -> [DuplicateError as ac c]
+defnAndMethodArgErrs :: [Def] -> [Method] -> [DuplicateError]
 defnAndMethodArgErrs defns methods = concatMap defnAndArgErrs methods
   where
     defnVars          = (,Defn) . defnLName <$> defns

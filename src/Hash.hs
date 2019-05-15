@@ -4,13 +4,13 @@ Hashing for bytestrings and data structures.
 
 -}
 
-{-# LANGUAGE DefaultSignatures          #-}
-{-# LANGUAGE DeriveGeneric              #-}
-{-# LANGUAGE FlexibleContexts           #-}
+{-# LANGUAGE StrictData #-}
+{-# LANGUAGE TypeOperators #-}
+{-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE DefaultSignatures #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE ScopedTypeVariables        #-}
-{-# LANGUAGE StrictData                 #-}
-{-# LANGUAGE TypeOperators              #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 
 module Hash (
   -- ** Types
@@ -41,25 +41,24 @@ module Hash (
   ripemd160Raw,
 ) where
 
-import           Prelude                 (Read (..), Show (..))
-import           Protolude               hiding (Hashable, hash, show)
-import           Unsafe                  (unsafeFromJust)
+import Protolude hiding (show, Hashable, hash)
+import Prelude (Show(..), Read(..))
+import Unsafe (unsafeFromJust)
 
-import           Control.Monad           (fail)
-import           Crypto.Hash             (Digest, RIPEMD160, SHA3_256,
-                                          digestFromByteString, hash)
-import           GHC.Generics            ((:*:) (..), (:+:) (..))
+import GHC.Generics ((:+:)(..), (:*:)(..))
+import Crypto.Hash (Digest, SHA3_256, RIPEMD160, hash, digestFromByteString)
+import Control.Monad (fail)
 
-import           Data.Aeson              (FromJSON (..), ToJSON (..))
-import           Data.Aeson.Types        (Parser, typeMismatch)
-import qualified Data.Binary             as B
-import qualified Data.ByteArray          as B
+import Data.Aeson (ToJSON(..), FromJSON(..))
+import Data.Aeson.Types (Parser, typeMismatch)
+import qualified Data.Map as Map
+import qualified Data.Set as Set
+import qualified Data.List.NonEmpty as NE
+import qualified Data.ByteArray as B
+import qualified Data.Binary as B
+import qualified Data.Serialize as S
+import qualified Data.ByteString as BS
 import qualified Data.ByteArray.Encoding as B
-import qualified Data.ByteString         as BS
-import qualified Data.List.NonEmpty      as NE
-import qualified Data.Map                as Map
-import qualified Data.Serialize          as S
-import qualified Data.Set                as Set
 
 import qualified Encoding
 
@@ -74,7 +73,7 @@ hashSize = 32
 -- | Newtype wrapper for a SHA256 digest. Can be converted to a bytestring
 -- using 'Data.ByteArray.convert'.
 newtype Hash a = Hash { rawHash :: Digest SHA3_256 }
-  deriving (Eq, Ord, B.ByteArrayAccess, NFData, Generic)
+  deriving (Eq, Ord, B.ByteArrayAccess, Generic)
 
 instance Encoding.ByteStringEncoding a => Show (Hash a) where
   show = show . getRawHash
@@ -101,7 +100,7 @@ instance (B.Binary a, S.Serialize a, Encoding.ByteStringEncoding a) => B.Binary 
   get = do
     bs <- B.get
     case S.decode bs of
-      (Right h)  -> return h
+      (Right h) -> return h
       (Left err) -> fail err
 
 instance (Encoding.ByteStringEncoding a) => ToJSON (Hash a) where
@@ -168,6 +167,9 @@ instance Hashable Bool where
 instance Hashable Integer where
   toHash = Hash . hash . showHash
 
+instance Hashable Rational where
+  toHash = Hash . hash . showHash
+
 instance Hashable ByteString where
   toHash = Hash . hash
   toBS = identity
@@ -190,10 +192,10 @@ instance Hashable () where
 
 instance Hashable a => Hashable (Maybe a) where
   toHash (Just x) = toHash x
-  toHash Nothing  = emptyHash
+  toHash Nothing = emptyHash
 
 instance (Hashable a, Hashable b) => Hashable (Either a b) where
-  toHash (Left x)  = toHash x
+  toHash (Left x) = toHash x
   toHash (Right x) = toHash x
 
 instance (Hashable a, Hashable b) => Hashable (a,b)
@@ -303,7 +305,7 @@ parseRawHash
   => ByteString -> Either Text (Hash.Hash a)
 parseRawHash bs =
   case Encoding.parseEncodedBS bs of
-    Left err           -> Left (toS $ show err)
+    Left err    -> Left (toS $ show err)
     Right (encBS :: a) -> parseHash encBS
 
 -------------------------------------------------------------------------------

@@ -1,9 +1,0 @@
-@initial
-lookupTest(msg m) {
------------^
-  v = lookup(m,shares);
-  terminate();
-
-"<stdin>" (line 21, column 12):
-unexpected "m"
-expecting comma seperated list or ")"

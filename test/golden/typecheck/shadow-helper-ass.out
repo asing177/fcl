@@ -1,4 +1,0 @@
-Error at Line 5, Column 3:
-   The binding 'helper1' shadows the helper function
-      of the same name, of type '() -> int',
-      bound at Line 10, Column 1.

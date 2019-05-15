@@ -1,1 +1,0 @@
-This folder contains example reconciliation workflows (a.k.a. "smart contracts").

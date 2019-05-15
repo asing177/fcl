@@ -59,25 +59,19 @@ data PrimOp
   | NextBusinessDayNYSE -- ^ @nextBusinessDayNYSE(datetime)@                  : Returns the next business day after the supplied datetime
   | Between             -- ^ @between(datetime,datetime,datetime)@            : Returns (True/False) if the first datetime is within the latter two
   | TimeDiff            -- ^ @timeDiff(datetime,datetime)@                    : Returns the differences in time between two datetimes
-  | Fixed1ToFloat       -- ^ @fixed1ToFloat(fixed1)@                          : Coerce a fixed point number into a floating point number
-  | Fixed2ToFloat       -- ^ @fixed2ToFloat(fixed2)@                          : Coerce a fixed point number into a floating point number
-  | Fixed3ToFloat       -- ^ @fixed3ToFloat(fixed3)@                          : Coerce a fixed point number into a floating point number
-  | Fixed4ToFloat       -- ^ @fixed4ToFloat(fixed4)@                          : Coerce a fixed point number into a floating point number
-  | Fixed5ToFloat       -- ^ @fixed5ToFloat(fixed5)@                          : Coerce a fixed point number into a floating point number
-  | Fixed6ToFloat       -- ^ @fixed6ToFloat(fixed6)@                          : Coerce a fixed point number into a floating point number
-  | FloatToFixed1       -- ^ @floatToFixed1(float)@                           : Coerce a floating point number into a fixed point number
-  | FloatToFixed2       -- ^ @floatToFixed2(float)@                           : Coerce a floating point number into a fixed point number
-  | FloatToFixed3       -- ^ @floatToFixed3(float)@                           : Coerce a floating point number into a fixed point number
-  | FloatToFixed4       -- ^ @floatToFixed4(float)@                           : Coerce a floating point number into a fixed point number
-  | FloatToFixed5       -- ^ @floatToFixed5(float)@                           : Coerce a floating point number into a fixed point number
-  | FloatToFixed6       -- ^ @floatToFixed6(float)@                           : Coerce a floating point number into a fixed point number
+  | Round               -- ^ @round(n: int, num<m>): num<n>@                  : Round away from zero the second argument to precision given by first argument
+  | RoundUp             -- ^ @roundUp(n: int, num<m>): num<n>@                : Round up the second argument to precision given by first argument
+  | RoundDown           -- ^ @roundDown(n: int, num<m>): num<n>@              : Round down the second argument to precision given by first argument
+  | RoundRem            -- ^ @roundRem(n: int, num<m>): num<m>@               : The remainder of rounding away from zero the second argument to precision given by first argument
+  | RoundUpRem          -- ^ @roundUpRem(n: int, num<m>): num<m>@             : The remainder of rounding up the second argument to precision given by first argument
+  | RoundDownRem        -- ^ @roundDownRem(n: int, num<m>): num<m>@           : The remainder of rounding down the second argument to precision given by first argument
   | ContractValue       -- ^ @contractValue(addr,varName)@                    : Query a value in the contract's global storage
   | Stay                -- ^ @stay()@                                         : Self-transition
   | AssetPrimOp AssetPrimOp
   | MapPrimOp MapPrimOp
   | SetPrimOp SetPrimOp
   | CollPrimOp CollPrimOp
-  deriving (Eq, Show, Generic, Ord, Hashable, Serialize, NFData, FromJSON, ToJSON)
+  deriving (Eq, Show, Generic, Ord, Hashable, Serialize, FromJSON, ToJSON)
 
 -- | These prim ops are "polymorphic" in the sense that their argument or return
 -- types vary based on the type of asset that is passed as an argument
@@ -87,7 +81,7 @@ data AssetPrimOp
   | TransferFrom        -- ^ @transferFrom(asset,amount,acc)@                 : Transfer n asset holdings from contract to account
   | CirculateSupply     -- ^ @circulate(asset,amount)@                        : Circulate n asset supply to issuer's holdings
   | TransferHoldings    -- ^ @transferHoldings(from,asset,amount,to)@         : Transfer asset holdings from account to account
-  deriving (Eq, Show, Generic, Ord, Hashable, Serialize, NFData, FromJSON, ToJSON)
+  deriving (Eq, Show, Generic, Ord, Hashable, Serialize, FromJSON, ToJSON)
 
 -- | These primops are polymorphic over the key and value type parameters of the
 -- map supplied as an argument.
@@ -140,18 +134,12 @@ primName = \case
   NextBusinessDayNYSE -> "nextBusinessDayNYSE"
   Between             -> "isBetween"
   TimeDiff            -> "timeDiff"
-  Fixed1ToFloat       -> "fixed1ToFloat"
-  Fixed2ToFloat       -> "fixed2ToFloat"
-  Fixed3ToFloat       -> "fixed3ToFloat"
-  Fixed4ToFloat       -> "fixed4ToFloat"
-  Fixed5ToFloat       -> "fixed5ToFloat"
-  Fixed6ToFloat       -> "fixed6ToFloat"
-  FloatToFixed1       -> "floatToFixed1"
-  FloatToFixed2       -> "floatToFixed2"
-  FloatToFixed3       -> "floatToFixed3"
-  FloatToFixed4       -> "floatToFixed4"
-  FloatToFixed5       -> "floatToFixed5"
-  FloatToFixed6       -> "floatToFixed6"
+  Round               -> "round"
+  RoundUp             -> "roundUp"
+  RoundDown           -> "roundDown"
+  RoundRem            -> "roundRem"
+  RoundUpRem          -> "roundUpRem"
+  RoundDownRem        -> "roundDownRem"
   Stay                -> "stay"
   AssetPrimOp a       -> assetPrimName a
   MapPrimOp m         -> mapPrimName m
@@ -215,18 +203,12 @@ prims =
   , NextBusinessDayNYSE
   , Between
   , TimeDiff
-  , Fixed1ToFloat
-  , Fixed2ToFloat
-  , Fixed3ToFloat
-  , Fixed4ToFloat
-  , Fixed5ToFloat
-  , Fixed6ToFloat
-  , FloatToFixed1
-  , FloatToFixed2
-  , FloatToFixed3
-  , FloatToFixed4
-  , FloatToFixed5
-  , FloatToFixed6
+  , Round
+  , RoundUp
+  , RoundDown
+  , RoundRem
+  , RoundUpRem
+  , RoundDownRem
   , Stay
   ]) ++ map (second AssetPrimOp) assetPrims
      ++ map (second MapPrimOp) mapPrims
@@ -260,35 +242,6 @@ collPrims =
 
 lookupPrim :: (Eq s, IsString s) => s -> Maybe PrimOp
 lookupPrim p = Data.List.lookup p prims
-
-
-assetPrimArity :: AssetPrimOp -> Int
-assetPrimArity = \case
-  TransferTo       -> 2
-  TransferFrom     -> 3
-  CirculateSupply  -> 2
-  TransferHoldings -> 4
-  HolderBalance    -> 2
-
-mapPrimArity :: MapPrimOp -> Int
-mapPrimArity = \case
-  MapInsert -> 3
-  MapDelete -> 2
-  MapLookup -> 2
-  MapModify -> 3
-
-setPrimArity :: SetPrimOp -> Int
-setPrimArity = \case
-  SetInsert -> 2
-  SetDelete -> 2
-
-collPrimArity :: CollPrimOp -> Int
-collPrimArity = \case
-  Aggregate -> 3
-  Transform -> 2
-  Filter    -> 2
-  Element   -> 2
-  IsEmpty   -> 1
 
 instance Pretty PrimOp where
   ppr = ppr . (primName :: PrimOp -> Text)

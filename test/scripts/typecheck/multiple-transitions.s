@@ -1,5 +1,0 @@
-@initial
-f () {
-  terminate();
-  terminate();
-}

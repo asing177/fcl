@@ -11,41 +11,34 @@ TODO:
 
 module Script.Graphviz where
 
-import           Protolude
+import Protolude
 
-import           Control.Arrow            ((>>>))
-import qualified Data.Set                 as Set
-import           Data.Text                (unlines)
-import           System.FilePath          (replaceExtension)
-import           System.Process.Text      (readProcessWithExitCode)
+import Control.Arrow ((>>>))
+import qualified Data.Set as Set
+import Data.Text (unlines)
+import System.FilePath (replaceExtension)
+import System.Process.Text (readProcessWithExitCode)
 
-import           Script
-import           Script.Analysis          (actualTransitions)
-import           Script.Parser            (AddrParsers (..), parseFile)
-import           Script.Pretty            (Pretty (..), hsep, panicppr, ppr,
-                                           prettyPrint)
-import           Script.ReachabilityGraph (allPlaces)
-import           Utils                    ((?))
+import Script
+import Script.Analysis (actualTransitions)
+import Script.Parser (parseFile)
+import Script.Pretty (hsep, prettyPrint, ppr, panicppr)
+import Script.ReachabilityGraph (allPlaces)
+import Utils ((?))
 
 type SVG = Text
 type Graphviz = Text
 
-fileToGraphviz
-  :: (Ord as, Ord ac, Ord c, Pretty as, Pretty ac, Pretty c)
-  => AddrParsers as ac c -> FilePath -> IO Graphviz
-fileToGraphviz addrParsers fp = scriptToGraphviz <$> parseFile addrParsers fp
+fileToGraphviz :: FilePath -> IO Graphviz
+fileToGraphviz fp = scriptToGraphviz <$> parseFile fp
 
-fileToSVG :: (Ord as, Ord ac, Ord c, Pretty as, Pretty ac, Pretty c)
-  => AddrParsers as ac c -> FilePath -> IO SVG
-fileToSVG addrParsers = parseFile addrParsers >=> scriptToSVG
+fileToSVG :: FilePath -> IO SVG
+fileToSVG = parseFile >=> scriptToSVG
 
-scriptToGraphviz
-  :: (Eq as, Eq ac, Eq c, Pretty as, Pretty ac, Pretty c) => Script as ac c-> Graphviz
+scriptToGraphviz :: Script -> Graphviz
 scriptToGraphviz = scriptMethods >>> methodsToGraphviz
 
-scriptToSVG
-  :: (Eq as, Eq ac, Eq c, Pretty as, Pretty ac, Pretty c)
-  => Script as ac c -> IO SVG
+scriptToSVG :: Script -> IO SVG
 scriptToSVG = scriptToGraphviz >>> callDot
 
 callDot :: Graphviz -> IO SVG
@@ -53,22 +46,17 @@ callDot g = do
   (_, out, err) <- readProcessWithExitCode "dot" ["-Tsvg"] g
   if err == "" then pure out else panicppr err
 
-fileWriteGraphviz
-  :: (Ord as, Ord ac, Ord c, Pretty as, Pretty ac, Pretty c)
-  => AddrParsers as ac c -> FilePath -> IO ()
-fileWriteGraphviz addrParsers path = fileToGraphviz addrParsers path >>= writeFile (replaceExtension path ".dot")
+fileWriteGraphviz :: FilePath -> IO ()
+fileWriteGraphviz path = fileToGraphviz path >>= writeFile (replaceExtension path ".dot")
 
-fileWriteSVG
-  :: (Ord as, Ord ac, Ord c, Pretty as, Pretty ac, Pretty c)
-  => AddrParsers as ac c -> FilePath -> IO ()
-fileWriteSVG addrParsers path = fileToSVG addrParsers path >>= writeFile (replaceExtension path ".svg")
+fileWriteSVG :: FilePath -> IO ()
+fileWriteSVG path = fileToSVG path >>= writeFile (replaceExtension path ".svg")
 
 type Label = Name
--- type Id = Text
+type Id = Text
 
 -- | Given a list of methods, produce their corresponding graphviz graph.
-methodsToGraphviz
-  :: forall as ac c. (Eq as, Eq ac, Eq c, Pretty as, Pretty ac, Pretty c) => [Method as ac c] -> Graphviz
+methodsToGraphviz :: [Method] -> Graphviz
 methodsToGraphviz methods = digraph $ unlines
     [ options
     , graphvizPlaces
@@ -103,7 +91,7 @@ methodsToGraphviz methods = digraph $ unlines
     graphvizTransitions :: Graphviz
     graphvizTransitions = unlines . map mkTransition $ labelledTransitions
       where
-        mkTransition :: (Method as ac c, Transition, Text) -> Graphviz
+        mkTransition :: (Method, Transition, Id) -> Graphviz
         mkTransition (method, _, id) = mconcat
             [ id
             , "[label=<"
@@ -115,14 +103,14 @@ methodsToGraphviz methods = digraph $ unlines
             , "shape=box; fontname=\"Arial\"; style=filled; color=black; fillcolor=gray75;]"
             ]
           where
-          graphvizPreconditions :: Preconditions as ac c -> Graphviz
+          graphvizPreconditions :: Preconditions -> Graphviz
           graphvizPreconditions (Preconditions ps) = mconcat $ map go ps
             where go (p,e) = "<BR/>" <> prettyPrint p <> ": " <> prettyPrint e
 
     graphvizArrows :: Graphviz
     graphvizArrows = unlines . map mkArrow $ labelledTransitions
       where
-        mkArrow :: (Method as ac c, Transition, Text) -> Graphviz
+        mkArrow :: (Method, Transition, Id) -> Graphviz
         mkArrow (_, Arrow src dst, id)
           = prettyPrint $ hsep
             [ ppr src
@@ -134,12 +122,10 @@ methodsToGraphviz methods = digraph $ unlines
             , ppr dst
             ]
 
-
-    labelledTransitions :: [(Method as ac c, Transition, Text)]
+    labelledTransitions :: [(Method, Transition, Id)]
     labelledTransitions = zipWith mkUnique (actualTransitions methods) [1..]
       where
-        mkUnique :: (Method as ac c, Transition) -> Int -> (Method as ac c, Transition, Text)
-        mkUnique (meth, tr) n = (meth, tr, "")
+        mkUnique (meth, tr) n = (meth, tr, show n)
 
     -- make ranks to hopefully bring some sanity to the layout of AND-splits
     graphvizRanks :: Graphviz
@@ -162,5 +148,8 @@ methodsToGraphviz methods = digraph $ unlines
       , False ? "rankdir=LR;" -- lay out horizontally
       ]
 
+    thd3 :: (a,b,c) -> c
     thd3 (_,_,z) = z
+
+    snd3 :: (a,b,c) -> b
     snd3 (_,y,_) = y

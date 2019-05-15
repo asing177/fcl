@@ -4,10 +4,10 @@ ByteString types with serializers that consume finite, bounded data.
 
 -}
 
-{-# LANGUAGE DeriveGeneric              #-}
+{-# LANGUAGE Strict #-}
+{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE OverloadedStrings          #-}
-{-# LANGUAGE Strict                     #-}
+{-# LANGUAGE DeriveGeneric #-}
 
 module SafeString (
   SafeString,
@@ -28,23 +28,23 @@ module SafeString (
   testSafeString,
 ) where
 
-import           GHC.Show                (Show (..), show)
-import           Protolude               hiding (Show, get, put, show)
+import GHC.Show (Show(..), show)
+import Protolude hiding (Show, show, put, get)
 
-import           Control.Exception       (throw)
-import           Control.Monad           (fail)
+import Control.Monad (fail)
+import Control.Exception (throw)
 
-import           Crypto.Number.Serialize (i2ospOf_, os2ip)
+import Crypto.Number.Serialize (os2ip, i2ospOf_)
 
-import           Data.Aeson              hiding (encode)
-import qualified Data.Aeson              as A
-import           Data.Aeson.Types        (typeMismatch)
-import qualified Data.Binary             as BI
-import           Data.ByteString.Char8   as B
-import           Data.Serialize          as S
+import Data.Serialize as S
+import Data.ByteString.Char8 as B
+import Data.Aeson hiding (encode)
+import Data.Aeson.Types (typeMismatch)
 import qualified Hash
+import qualified Data.Aeson as A
+import qualified Data.Binary as BI
 
-import           Script.Pretty           (Pretty (..))
+import Script.Pretty (Pretty(..))
 
 -- | Maximum number of bytes to read from wire for this field.
 maxSize :: Int
@@ -52,7 +52,7 @@ maxSize = 10000
 
 -- | Strings safe for network serialization
 newtype SafeString = SafeString ByteString
-  deriving (Read, Eq, Ord, IsString, Generic, NFData, BI.Binary)
+  deriving (Read, Eq, Ord, IsString, Generic, BI.Binary)
 
 -- Exceptions for handling invalid string construction
 data HugeString = HugeString

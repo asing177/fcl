@@ -49,29 +49,27 @@ module Utils (
   (?),
 ) where
 
-import           Protolude
+import Protolude
 
-import           Control.Monad        (fail)
+import Control.Monad (fail)
 
-import qualified Data.Binary          as B
-import qualified Data.Binary.Get      as B
-import qualified Data.Binary.Put      as B
-import qualified Data.ByteArray       as BA
-import qualified Data.ByteString      as BS
+import qualified Data.Binary as B
+import qualified Data.Binary.Get as B
+import qualified Data.Binary.Put as B
+import qualified Data.ByteArray as BA
+import qualified Data.ByteString as BS
 import qualified Data.ByteString.Lazy as BSL
-import           Data.List            (partition)
-import qualified Data.List            as List
-import           Data.Map             (Map)
-import qualified Data.Map             as Map
-import qualified Data.Serialize       as S
+import Data.List (partition)
+import qualified Data.List as List
+import Data.Map (Map)
+import qualified Data.Map as Map
+import qualified Data.Serialize as S
 
-import           Text.Printf          (printf)
-import qualified Text.Show.Pretty     (ppShow)
+import Text.Printf (printf)
+import qualified Text.Show.Pretty (ppShow)
 
-import           System.Console.ANSI
-import           System.Directory
-
--- import qualified Time
+import System.Console.ANSI
+import System.Directory
 
 showHex :: Word8 -> [Char]
 showHex = printf "%02x"
@@ -228,7 +226,7 @@ getBinaryViaSerialize = do
   bs <- B.getByteString len
   case S.decode bs of
     Left err -> fail $ show err
-    Right v  -> pure v
+    Right v -> pure v
 
 putBinaryViaSerialize :: S.Serialize a => a -> B.Put
 putBinaryViaSerialize v = do
@@ -240,12 +238,8 @@ putBinaryViaSerialize v = do
 -- Impossible Errors
 -------------------------------------------------------------------------------
 
-panicImpossible :: Maybe Text -> a
-panicImpossible mText = panic $
-  (<>) "The impossible happened" $
-    case mText of
-      Nothing  -> "!"
-      Just txt -> ": " <> txt <> "!"
+panicImpossible :: Text -> a
+panicImpossible msg = panic $ "The impossible happened: " <> msg <> "!"
 
 
 -------------------------------------------------------------------------------

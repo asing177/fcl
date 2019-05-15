@@ -71,6 +71,12 @@ dependencies:
 
   # Cryptography
   - cryptonite
+  - memory
+  - pem
+  - x509
+  - asn1-types
+  - asn1-encoding
+  - arithmoi
 
 library:
   source-dirs: src
@@ -118,7 +124,6 @@ library:
     - Delta
     - Contract
     - Encoding
-    - Fixed
     - Hash
     - Key
     - Ledger
@@ -169,27 +174,27 @@ executables:
     - fcl
     - optparse-applicative
 
-tests:
-  fcl-repo-test:
-    main:                Main.hs
-    source-dirs:         test
-    default-extensions:
-    - LambdaCase
-    - RecordWildCards
-    - OverloadedStrings
-    - NoImplicitPrelude
-    - FlexibleInstances
-    - FlexibleContexts
-    - ScopedTypeVariables
-    - RankNTypes
-    ghc-options:
-    - -threaded
-    - -rtsopts
-    - -with-rtsopts=-N
-    dependencies:
-    - fcl
-    - cryptonite
-    - tasty
-    - tasty-hunit
-    - tasty-golden
-    - tasty-quickcheck
+# tests:
+#   fcl-repo-test:
+#     main:                Main.hs
+#     source-dirs:         test
+#     default-extensions:
+#     - LambdaCase
+#     - RecordWildCards
+#     - OverloadedStrings
+#     - NoImplicitPrelude
+#     - FlexibleInstances
+#     - FlexibleContexts
+#     - ScopedTypeVariables
+#     - RankNTypes
+#     ghc-options:
+#     - -threaded
+#     - -rtsopts
+#     - -with-rtsopts=-N
+#     dependencies:
+#     - fcl
+#     - cryptonite
+#     - tasty
+#     - tasty-hunit
+#     - tasty-golden
+#     - tasty-quickcheck

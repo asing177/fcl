@@ -15,27 +15,14 @@ default (Text)
 global   = "global"
 local    = "local"
 asset    = "asset"
-assetBin = "assetBin"
-assetDis = "assetDisc"
-assetFrac1 = "assetFrac1"
-assetFrac2 = "assetFrac2"
-assetFrac3 = "assetFrac3"
-assetFrac4 = "assetFrac4"
-assetFrac5 = "assetFrac5"
-assetFrac6 = "assetFrac6"
 account  = "account"
 contract = "contract"
-true     = "True"
-false    = "False"
+true     = "true"
+false    = "false"
 void     = "void"
 int      = "int"
-float    = "float"
-fixed1   = "fixed1"
-fixed2   = "fixed2"
-fixed3   = "fixed3"
-fixed4   = "fixed4"
-fixed5   = "fixed5"
-fixed6   = "fixed6"
+num      = "num"
+decimal  = "decimal"
 bool     = "bool"
 ref      = "ref"
 sig      = "sig"
@@ -97,28 +84,16 @@ boolUnops  = [not]
 keywords = [
     global
   , local
-  , assetBin
-  , assetDis
-  , assetFrac1
-  , assetFrac2
-  , assetFrac3
-  , assetFrac4
-  , assetFrac5
-  , assetFrac6
+  , asset
   , contract
   , account
   , sig
   , text
   , true
   , false
-  , float
   , int
-  , fixed1
-  , fixed2
-  , fixed3
-  , fixed4
-  , fixed5
-  , fixed6
+  , num
+  , decimal
   , bool
   , void
   , datetime

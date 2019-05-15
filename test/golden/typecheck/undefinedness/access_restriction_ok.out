@@ -1,4 +1,0 @@
- 
-Method arguments and effects:
-init: () -> {read bob, read reallyAlice, write alice}
-go: () -> {write via terminate, read alice}

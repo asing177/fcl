@@ -1,6 +1,0 @@
- 
-Method arguments and effects:
-go: () -> {}
-init: () -> {read via deployer, read via sender, write a}
-exitOne: () -> {write via terminate, read a, write b}
-exitTwo: () -> {write via terminate, write b}

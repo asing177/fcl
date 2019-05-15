@@ -1,8 +1,0 @@
- 
-Method arguments and effects:
-start: () -> {write x}
-one: () -> {write y}
-two: () -> {write z}
-three: () -> {write z}
-four: (int) -> {read x, read y, read z, write x, write y, write z}
-exit: () -> {write via terminate}

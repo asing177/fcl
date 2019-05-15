@@ -4,12 +4,12 @@ Storage for deployed contracts.
 
 --}
 
-{-# LANGUAGE DeriveGeneric              #-}
+{-# LANGUAGE StrictData #-}
+{-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE TupleSections #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE LambdaCase                 #-}
-{-# LANGUAGE ScopedTypeVariables        #-}
-{-# LANGUAGE StrictData                 #-}
-{-# LANGUAGE TupleSections              #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 {-# OPTIONS_GHC -funbox-strict-fields #-}
 
@@ -35,135 +35,122 @@ module Storage (
 
 ) where
 
-import           Protolude               hiding (Type)
+import Protolude hiding (Type)
 
-import           Script                  (DateTime (..), Value (..))
-import qualified Script.Parser           as Parser
-import           Script.Pretty           (Pretty (..), prettyPrint)
+import Script (Value(..), DateTime(..))
+import Script.Pretty (Pretty(..), prettyPrint)
+import qualified Script.Parser as Parser
 
-import           Control.Monad           (fail)
-import           Crypto.Number.Serialize (os2ip)
+import Control.Monad (fail)
+import Crypto.Number.Serialize (os2ip)
 
 import qualified Encoding
 import qualified Hash
 
-import           Datetime.Types
+import Datetime.Types
 
-import           Data.Aeson              (FromJSON (..), FromJSONKey (..),
-                                          ToJSON (..), ToJSONKey (..), object,
-                                          (.:), (.=))
-import qualified Data.Aeson              as A
-import           Data.Aeson.Types        (toJSONKeyText, typeMismatch)
-import qualified Data.Map                as Map
-import           Data.Scientific
-import           Data.Serialize          as S (Serialize, decode, encode, get,
-                                               put)
+import Data.Serialize as S (Serialize, encode, decode, put, get)
+import Data.Aeson (FromJSONKey(..), ToJSONKey(..), ToJSON(..), FromJSON(..), object, (.=), (.:))
+import Data.Aeson.Types (typeMismatch, toJSONKeyText)
+import qualified Data.Aeson as A
+import qualified Data.Map as Map
+
 
 -------------------------------------------------------------------------------
 -- Types
 -------------------------------------------------------------------------------
 
 newtype Key = Key { unKey :: Text }
-  deriving (Eq, Show, Generic, Ord, NFData, IsString)
+  deriving (Eq, Show, Generic, Ord, IsString)
 
-type Storage as ac c = Map.Map Key (Value as ac c)
+type Storage = Map.Map Key Value
 
-newtype GlobalStorage as ac c = GlobalStorage { unGlobalStorage :: Storage as ac c }
-  deriving (Eq, Show, Generic, NFData, Hash.Hashable)
+newtype GlobalStorage = GlobalStorage { unGlobalStorage :: Storage }
+  deriving (Eq, Show, Generic, Hash.Hashable)
 
-instance Semigroup (GlobalStorage as ac c) where
+instance Semigroup GlobalStorage where
   (GlobalStorage m1) <> (GlobalStorage m2) = GlobalStorage (m1 <> m2)
 
-instance Monoid (GlobalStorage as ac c) where
+instance Monoid GlobalStorage where
   mempty = GlobalStorage Map.empty
 
 instance Pretty Key where
   ppr (Key key) = ppr key
 
-newtype LocalStorage as ac c= LocalStorage { unLocalStorage :: Storage as ac c }
-  deriving (Eq, Show, Generic, NFData, Hash.Hashable)
+newtype LocalStorage = LocalStorage { unLocalStorage :: Storage }
+  deriving (Eq, Show, Generic, Hash.Hashable)
 
-instance Semigroup (LocalStorage as ac c) where
+instance Semigroup LocalStorage where
   (LocalStorage m1) <> (LocalStorage m2) = LocalStorage (m1 <> m2)
 
-instance Monoid (LocalStorage as ac c) where
+instance Monoid LocalStorage where
   mempty = LocalStorage Map.empty
 
-storageSize :: Storage as ac c -> Int
+storageSize :: Storage -> Int
 storageSize = Map.size
 
 -- XXX
-validateStorage :: Storage as ac c-> IO Bool
+validateStorage :: Storage -> IO Bool
 validateStorage storage = return True
 
 -------------------------------------------------------------------------------
 -- Serialization
 -------------------------------------------------------------------------------
 
-decodeStorage
-  :: (Ord as, Ord ac, Ord c, Serialize as, Serialize ac, Serialize c)
-  => ByteString -> Either [Char] (Storage as ac c)
+decodeStorage :: ByteString -> Either [Char] Storage
 decodeStorage = decode
 
-encodeStorage
-  :: (Ord as, Ord ac, Ord c, Serialize as, Serialize ac, Serialize c)
-  => Storage as ac c -> ByteString
+encodeStorage :: Storage -> ByteString
 encodeStorage = encode
 
-decodeLocalStorage
-  :: (Ord as, Ord ac, Ord c, Serialize as, Serialize ac, Serialize c)
-  => ByteString -> Either [Char] (LocalStorage as ac c)
+decodeLocalStorage :: ByteString -> Either [Char] LocalStorage
 decodeLocalStorage = decode
 
 instance Serialize Key where
   put (Key bs) = S.put bs
   get = Key <$> S.get
 
-instance (Ord as, Ord ac, Ord c, Serialize as, Serialize ac, Serialize c)
-  => Serialize (GlobalStorage as ac c) where
+instance Serialize GlobalStorage where
   put (GlobalStorage storage) = S.put storage
   get = GlobalStorage <$> S.get
 
-instance (Ord as, Ord ac, Ord c, Serialize as, Serialize ac, Serialize c)
-  => Serialize (LocalStorage as ac c) where
+instance Serialize LocalStorage where
   put (LocalStorage storage) = S.put storage
   get = LocalStorage <$> S.get
 
-instance (ToJSON as, ToJSON ac, ToJSON c) => ToJSON (GlobalStorage as ac c) where
+instance ToJSON GlobalStorage where
   toJSON = toJSON . unGlobalStorage
 
-instance (ToJSON as, ToJSON ac, ToJSON c) => ToJSON (LocalStorage as ac c) where
+instance ToJSON LocalStorage where
   toJSON = toJSON . unLocalStorage
 
-instance (ToJSON as, ToJSON ac, ToJSON c) => ToJSONKey (Value as ac c) where
+instance ToJSONKey Value where
 
-instance (ToJSON as, ToJSON ac, ToJSON c) => ToJSON (Value as ac c) where
+instance ToJSON Value where
   toJSON = \case
-     VInt n       -> object ["tag" .= ("VInt" :: Text), "contents" .= toJSON n]
-     VFloat n     -> object ["tag" .= ("VFloat" :: Text), "contents" .= toJSON n]
-     VFixed f     -> object ["tag" .= ("VFixed" :: Text), "contents" .= A.toJSON f]
-     VBool n      -> object ["tag" .= ("VBool" :: Text), "contents" .= toJSON n]
-     VVoid        -> object ["tag" .= ("VVoid" :: Text), "contents" .= A.Null]
-     VSig sig     -> object ["tag" .= ("VSig" :: Text), "contents" .= A.toJSON sig]
-     VText n       -> object ["tag" .= ("VText" :: Text), "contents" .= A.toJSON n]
-     VAccount n   -> object ["tag" .= ("VAccount" :: Text), "contents" .= toJSON n]
-     VAsset n     -> object ["tag" .= ("VAsset" :: Text), "contents" .= toJSON n]
-     VContract n  -> object ["tag" .= ("VContract" :: Text), "contents" .= toJSON n]
-     VDateTime n  -> object ["tag" .= ("VDateTime" :: Text), "contents" .= toJSON n]
-     VTimeDelta n -> object ["tag" .= ("VTimeDelta" :: Text), "contents" .= toJSON n]
-     VState n     -> object ["tag" .= ("VState" :: Text), "contents" .= toJSON (prettyPrint n)]
-     VEnum c      -> object ["tag" .= ("VEnum" :: Text), "contents" .= toJSON c]
-     VMap vmap    -> object ["tag" .= ("VMap" :: Text), "contents" .= toJSON vmap]
-     VSet vset    -> object ["tag" .= ("VSet" :: Text), "contents" .= toJSON vset]
-     VUndefined   -> object ["tag" .= ("VUndefined" :: Text), "contents" .= A.Null]
+    VNum n       -> object ["tag" .= ("VNum" :: Text), "contents" .= toJSON n]
+    VBool n      -> object ["tag" .= ("VBool" :: Text), "contents" .= toJSON n]
+    VVoid        -> object ["tag" .= ("VVoid" :: Text), "contents" .= A.Null]
+    VSig sig     -> object ["tag" .= ("VSig" :: Text), "contents" .= A.toJSON sig]
+    VText n      -> object ["tag" .= ("VText" :: Text), "contents" .= A.toJSON n]
+    VAccount n   -> object ["tag" .= ("VAccount" :: Text), "contents" .= toJSON n]
+    VAsset n     -> object ["tag" .= ("VAsset" :: Text), "contents" .= toJSON n]
+    VContract n  -> object ["tag" .= ("VContract" :: Text), "contents" .= toJSON n]
+    VDateTime n  -> object ["tag" .= ("VDateTime" :: Text), "contents" .= toJSON n]
+    VTimeDelta n -> object ["tag" .= ("VTimeDelta" :: Text), "contents" .= toJSON n]
+    VState n     -> object ["tag" .= ("VState" :: Text), "contents" .= toJSON (prettyPrint n)]
+    VEnum c      -> object ["tag" .= ("VEnum" :: Text), "contents" .= toJSON c]
+    VMap vmap    -> object ["tag" .= ("VMap" :: Text), "contents" .= toJSON vmap]
+    VSet vset    -> object ["tag" .= ("VSet" :: Text), "contents" .= toJSON vset]
+    VUndefined   -> object ["tag" .= ("VUndefined" :: Text), "contents" .= A.Null]
 
-instance (Ord as, Ord ac, Ord c, FromJSON as, FromJSON ac, FromJSON c) => FromJSON (GlobalStorage as ac c) where
+instance FromJSON GlobalStorage where
   parseJSON = fmap GlobalStorage . parseJSON
 
-instance (Ord as, Ord ac, Ord c, FromJSON as, FromJSON ac, FromJSON c) => FromJSON (LocalStorage as ac c) where
+instance FromJSON LocalStorage where
   parseJSON = fmap LocalStorage . parseJSON
 
-instance (Ord as, Ord ac, Ord c, FromJSON as, FromJSON ac, FromJSON c) => FromJSON (Value as ac c) where
+instance FromJSON Value where
   parseJSON v = case v of
     A.Array _  -> typeMismatch "Cannot parse array." v
     A.String _ -> typeMismatch "Please pass tagged objects, not json values" v
@@ -173,16 +160,7 @@ instance (Ord as, Ord ac, Ord c, FromJSON as, FromJSON ac, FromJSON c) => FromJS
     A.Object o -> do
       constr :: Text <- o .: "tag"
       case constr of
-        "VInt"      -> do
-          c <- toBoundedInteger <$> (o .: "contents")
-          case c of
-            Just n  -> pure (VInt n)
-            Nothing -> typeMismatch "Cannot parse unbounded integer." v
-        "VFloat"      -> do
-          c <- toBoundedRealFloat <$> (o .: "contents")
-          case c of
-            Right n -> pure (VFloat n)
-            Left _  -> typeMismatch "Cannot parse unbounded float." v
+        "VNum"      -> VNum <$> (o .: "contents")
         "VBool"     -> VBool     <$> o .: "contents"
         "VAccount"  -> VAccount  <$> o .: "contents"
         "VAsset"    -> VAsset    <$> o .: "contents"
@@ -194,8 +172,7 @@ instance (Ord as, Ord ac, Ord c, FromJSON as, FromJSON ac, FromJSON c) => FromJS
               Nothing -> typeMismatch "Invalid date format, expecting ISO8601, given:" v
         "VTimeDelta" -> VTimeDelta  <$> o .: "contents"
         "VSig"      -> VSig      <$> o .: "contents"
-        "VFixed"    -> VFixed    <$> o .: "contents"
-        "VText"      -> VText      <$> o .: "contents"
+        "VText"     -> VText     <$> o .: "contents"
         "VEnum"     -> VEnum     <$> o .: "contents"
         "VMap"      -> VMap      <$> o .: "contents"
         "VSet"      -> VSet      <$> o .: "contents"
@@ -206,7 +183,7 @@ instance (Ord as, Ord ac, Ord c, FromJSON as, FromJSON ac, FromJSON c) => FromJS
     where
       parseWorkflowStateJSON inp =
         case Parser.parseWorkflowState inp of
-          Left err  -> fail $ show err
+          Left err -> fail $ show err
           Right wfs -> pure wfs
 
 instance ToJSONKey Key where
@@ -222,10 +199,9 @@ instance FromJSON Key where
   parseJSON v =
     case v of
       A.String s -> pure  $ Key s
-      _          -> typeMismatch "Key" v
+      _ -> typeMismatch "Key" v
 
-instance (Ord as, Ord ac, Ord c, FromJSON as, FromJSON ac, FromJSON c) => FromJSONKey (Value as ac c) where
-
+instance FromJSONKey Value where
 
 -------------------------------------------------------------------------------
 -- Hashing
@@ -237,5 +213,5 @@ instance Hash.Hashable Key where
 base16HashToInteger :: Hash.Hash Encoding.Base16ByteString -> Integer
 base16HashToInteger = os2ip
 
-hashStorage :: (Hash.Hashable as, Hash.Hashable ac, Hash.Hashable c) => Storage as ac c -> Integer
+hashStorage :: Storage -> Integer
 hashStorage = base16HashToInteger . Hash.toHash

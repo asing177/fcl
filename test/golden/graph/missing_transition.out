@@ -1,5 +1,0 @@
-The declared and actual transitions do not match up:
-• Unused: 'transition initial -> terminal', which is declared but not implemented by any method.
-
-Inferred Transitions:
-transition initial -> initial;

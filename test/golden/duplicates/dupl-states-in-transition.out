@@ -1,8 +1,0 @@
-transition initial -> a;
-transition a -> {a, a}; // should fail duplication check
-----------------------^
-transition a -> end;
-
-"<stdin>" (line 2, column 23):
-unexpected ";"
-Duplicate places: a

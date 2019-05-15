@@ -1,3 +1,0 @@
- 
-Method arguments and effects:
-init: () -> {write via terminate, read bob}

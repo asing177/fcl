@@ -18,6 +18,7 @@ module Delta (
 
 import Protolude hiding ((<>))
 
+import Asset (Balance)
 import Script
 import Script.Pretty
 import Script.Error (EvalFail(..))
@@ -30,54 +31,54 @@ import Script.Error (EvalFail(..))
 -- alters some aspect of the ledger world state. When a block is mined, all
 -- deltas are computed for all transactions and applied to the end-result
 -- world-state of the block.
-data Delta as ac c
+data Delta
   -- Contract state changes
-  = ModifyGlobal Name (Value as ac c)       -- ^ Modify a contract state variable
-  | ModifyAsset (AssetOp as ac c)           -- ^ Modify an asset
+  = ModifyGlobal Name Value       -- ^ Modify a contract state variable
+  | ModifyAsset AssetOp           -- ^ Modify an asset
   | ModifyState WorkflowState     -- ^ Set a new workflow state
 
   -- Transactions
-  | Atomic (Delta as ac c) (Delta as ac c)       -- ^ Combine two operations as atomic (swap)
+  | Atomic Delta Delta       -- ^ Combine two operations as atomic (swap)
   | Terminate                -- ^ Terminate the contract
 
   -- Evaluation failures
-  | Failure (EvalFail as ac c)
-  deriving (Eq, Show, Generic, NFData)
+  | Failure EvalFail
+  deriving (Eq, Show, Generic)
 
-data AssetOp as ac c
+data AssetOp
   = TransferTo {
-      asset    :: as    -- ^ Asset to transfer
-    , amount   :: Int64             -- ^ Amount
-    , holder   :: ac  -- ^ Holder of the asset
-    , contract :: c -- ^ Contract address
+      asset    :: Addr    -- ^ Asset to transfer
+    , amount   :: Balance           -- ^ Amount
+    , holder   :: Addr  -- ^ Holder of the asset
+    , contract :: Addr -- ^ Contract address
    } -- ^ Transfer holdings to contract
 
   | TransferFrom {
-      asset    :: as    -- ^ Asset to transfer
-    , amount   :: Int64             -- ^ Amount
-    , to       :: ac  -- ^ Receipient
-    , contract :: c  -- ^ Contract address
+      asset    :: Addr    -- ^ Asset to transfer
+    , amount   :: Balance             -- ^ Amount
+    , to       :: Addr  -- ^ Receipient
+    , contract :: Addr -- ^ Contract address
   } -- ^ Transfer holdings from contract to account
 
   | TransferHoldings {
-      from   :: ac  -- ^ Sender
-    , asset  :: as    -- ^ Asset to transfer
-    , amount :: Int64             -- ^ Amount
-    , to     :: ac  -- ^ Receipient
+      from   :: Addr  -- ^ Sender
+    , asset  :: Addr    -- ^ Asset to transfer
+    , amount :: Balance             -- ^ Amount
+    , to     :: Addr  -- ^ Receipient
   } -- ^ Transfer holdings from account to account
 
   | Revert {
-      asset   :: as  -- ^ Asset to transfer-
+      asset   :: Addr  -- ^ Asset to transfer-
   } -- ^ Revert holdings to issuer
 
-  deriving (Eq, Ord, Show, Generic, NFData)
+  deriving (Eq, Ord, Show, Generic)
 
 -------------------------------------------------------------------------------
 -- Printing
 -------------------------------------------------------------------------------
 
 -- | Pretty print delta
-instance (Show as, Show ac, Show c, Pretty as, Pretty ac, Pretty c) => Pretty (Delta as ac c) where
+instance Pretty Delta where
   ppr = \case
     ModifyGlobal nm val -> "global" <+> ppr nm <+> "=" <+> ppr val
     ModifyState st -> "state" <+> "=" <+> ppr st
@@ -97,5 +98,5 @@ instance (Show as, Show ac, Show c, Pretty as, Pretty ac, Pretty c) => Pretty (D
     Failure mode -> "failure" <> parens (ppr (show mode :: Text))
 
 -- | Pretty print delta list
-dumpDeltas :: (Show as, Show ac, Show c, Pretty as, Pretty ac, Pretty c) => [Delta as ac c] -> Doc
+dumpDeltas :: [Delta] -> Doc
 dumpDeltas deltas = indent 8 $ vcat (fmap ppr deltas)

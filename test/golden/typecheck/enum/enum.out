@@ -1,3 +1,0 @@
- 
-Method arguments and effects:
-run: (enum myEnum) -> {write via terminate, write foo}

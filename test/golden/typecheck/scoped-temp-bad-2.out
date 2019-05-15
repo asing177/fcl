@@ -1,4 +1,0 @@
-Error at Line 8, Column 13:
-   Could not match expected type 'bool' with actual type 'text':
-      Type bool was inferred from the assignment to variable 'tmp' on Line 8, Column 13
-      Type text was inferred from literal '"bla"' on Line 8, Column 13

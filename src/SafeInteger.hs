@@ -4,8 +4,8 @@ GMP integer types with serializers that consume finite, bounded data.
 
 -}
 
+{-# LANGUAGE Strict #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE Strict                     #-}
 
 {-# OPTIONS_GHC -fwarn-name-shadowing #-}
 
@@ -26,22 +26,24 @@ module SafeInteger (
   unroll
 ) where
 
-import qualified Prelude             (show)
-import           Protolude           hiding (get, put)
+import qualified Prelude (show)
+import Protolude hiding (put, get)
 
-import           Control.Exception   (Exception, throw)
+import Control.Exception (Exception, throw)
 
-import           Crypto.Number.Basic (numBits)
+import Crypto.Number.Basic (numBits)
 
-import           Data.Aeson          as A
-import           Data.Aeson.Types    as A
-import           Data.Serialize      as S (Serialize (..), getWord16be,
-                                           getWord8, putWord16be, putWord8,
-                                           runPut)
-import           Data.Text.Read      (decimal, signed)
+import Data.Aeson as A
+import Data.Aeson.Types as A
+import Data.Serialize as S
+  (Serialize(..), runPut
+  , getWord8, putWord8
+  , getWord16be, putWord16be
+  )
+import Data.Text.Read (signed, decimal)
 
+import Script.Pretty
 import qualified Hash
-import           Script.Pretty
 
 maxBits :: Int
 maxBits = 4096
@@ -66,7 +68,7 @@ instance Exception HugeInteger
 
 -- | Integers safe for serialization
 newtype SafeInteger = SafeInteger Integer
-  deriving (Eq, Ord, Read, NFData)
+  deriving (Eq, Ord, Read)
 
 instance Bounded SafeInteger where
   maxBound = SafeInteger maxBound'
@@ -80,7 +82,6 @@ instance Show SafeInteger where
 
 instance Pretty SafeInteger where
   ppr (SafeInteger x) = ppr x
-
 -- | Must encode as String because JSON/Javascript only supports up to 64 bit
 -- integers.
 instance ToJSON SafeInteger where
