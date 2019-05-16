@@ -1,3 +1,4 @@
+{-# LANGUAGE DataKinds #-}
 {-|
 
 Script evaluation errors.
@@ -18,7 +19,7 @@ import Data.Serialize (Serialize)
 
 import Language.FCL.Address
 import Language.FCL.Pretty hiding ((<>))
-import Contract (InvalidMethodName)
+import Language.FCL.Contract (InvalidMethodName)
 import Language.FCL.AST
 
 -- | Scripts either run to completion or fail with a named error.
@@ -40,12 +41,6 @@ data EvalFail
   | NoSuchPrimOp Name                   -- ^ Prim op name lookup fail
   | LookupFail Text                     -- ^ Foldable/Traversable type lookup fail
   | ModifyFail Text                     -- ^ Map modify fail
-  | CallPrimOpFail Loc (Maybe Value) Text -- ^ Prim op call failed
-  | NoTransactionContext Loc Text       -- ^ Asked for a bit of transaction context without a transaction context
-  -- Precondition errors, all of the form `PrecNotSatX Method <expected> <actual>`
-  | PrecNotSatAfter Method DateTime DateTime
-  | PrecNotSatBefore Method DateTime DateTime
-  | PrecNotSatCaller Method (Set (Address AAccount)) (Address AAccount)
   deriving (Eq, Show, Generic, Serialize)
 
 instance Pretty EvalFail where
@@ -71,22 +66,22 @@ instance Pretty EvalFail where
     NoSuchPrimOp nm                    -> "No such primop:" <+> ppr nm
     LookupFail k                       -> "Lookup fail with key:" <+> ppr k
     ModifyFail k                       -> "Modify map failure, no value with key:" <+> ppr k
-    CallPrimOpFail loc mval msg        -> "Evaluation error at" <+> ppr loc <> ":"
-                                       <$$+> case mval of
-                                               Nothing -> ppr msg
-                                               Just v  -> "Invalid value" <+> ppr v
-                                                          <$$+> ppr msg
-    NoTransactionContext loc msg       -> "Invalid transaction context info request at" <+> ppr loc <> ":"
-                                       <$$+> ppr msg
-    PrecNotSatAfter m dtExpected dtActual ->
-      "Temporal precondition for calling method" <+> ppr (methodName m) <+> "not satisfied."
-      <$$+> "Method only callable after: " <+> ppr (VDateTime dtExpected)
-        <+> ". Actual date-time:" <+> ppr (VDateTime dtActual)
-    PrecNotSatBefore m dtExpected dtActual ->
-      "Temporal precondition for calling method" <+> ppr (methodName m) <+> "not satisfied."
-      <$$+> "Method only callable before: " <+> ppr (VDateTime dtExpected)
-        <+> ". Actual date-time:" <+> ppr (VDateTime dtActual)
-    PrecNotSatCaller m setAccExpected accActual ->
-      "Unauthorized to call method" <+> ppr (methodName m) <+> "."
-      <$$+> "Authorized accounts: " <+> setOf setAccExpected
-        <+> ". Transaction issuer: " <+> ppr accActual
+    -- CallPrimOpFail loc mval msg        -> "Evaluation error at" <+> ppr loc <> ":"
+    --                                    <$$+> case mval of
+    --                                            Nothing -> ppr msg
+    --                                            Just v  -> "Invalid value" <+> ppr v
+    --                                                       <$$+> ppr msg
+    -- NoTransactionContext loc msg       -> "Invalid transaction context info request at" <+> ppr loc <> ":"
+    --                                    <$$+> ppr msg
+    -- PrecNotSatAfter m dtExpected dtActual ->
+    --   "Temporal precondition for calling method" <+> ppr (methodName m) <+> "not satisfied."
+    --   <$$+> "Method only callable after: " <+> ppr (VDateTime dtExpected)
+    --     <+> ". Actual date-time:" <+> ppr (VDateTime dtActual)
+    -- PrecNotSatBefore m dtExpected dtActual ->
+    --   "Temporal precondition for calling method" <+> ppr (methodName m) <+> "not satisfied."
+    --   <$$+> "Method only callable before: " <+> ppr (VDateTime dtExpected)
+    --     <+> ". Actual date-time:" <+> ppr (VDateTime dtActual)
+    -- PrecNotSatCaller m setAccExpected accActual ->
+    --   "Unauthorized to call method" <+> ppr (methodName m) <+> "."
+    --   <$$+> "Authorized accounts: " <+> setOf setAccExpected
+    --     <+> ". Transaction issuer: " <+> ppr accActual

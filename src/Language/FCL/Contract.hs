@@ -1,3 +1,4 @@
+{-# LANGUAGE DataKinds #-}
 {-|
 
 Contract datatypes, signing and operations.
@@ -31,21 +32,20 @@ module Language.FCL.Contract (
   signContract,
 ) where
 
-import Protolude hiding (state)
+import Protolude hiding (state, Type(..))
 
 import Language.FCL.Time (Timestamp)
-import Language.FCL.Address (Address, AAccount, AContract, unAddress)
-import Storage (GlobalStorage)
+import Language.FCL.Address
+import Language.FCL.Storage (GlobalStorage)
 import Control.Monad
 
-import qualified Key
-import qualified Hash
-import qualified Storage
+import qualified Language.FCL.Key as Key
+import qualified Language.FCL.Hash as Hash
+import qualified Language.FCL.Storage as Storage
 import qualified Language.FCL.Utils as Utils
 
-import Language.FCL.AST (Method, Name, Script, WorkflowState, isSubWorkflow, lookupMethod, methodInputPlaces, scriptMethods)
+import Language.FCL.AST
 import Language.FCL.Pretty ((<+>), ppr)
-import qualified Script
 import qualified Language.FCL.Pretty as Pretty
 import qualified Language.FCL.Parser as Parser
 import qualified Language.FCL.Typecheck as Typecheck
@@ -69,11 +69,11 @@ data Contract = Contract
   { timestamp        :: Timestamp             -- ^ Timestamp of issuance
   , script           :: Script                -- ^ Underlying contract logic
   , globalStorage    :: GlobalStorage         -- ^ Initial state of the contract
-  , methods          :: [Language.FCL.Name]         -- ^ Public methods
+  , methods          :: [Name]         -- ^ Public methods
   , state            :: WorkflowState         -- ^ State of Contract
   , owner            :: Address AAccount      -- ^ Creator of the contract
   , address          :: Address AContract     -- ^ Contract Address, derived during creation
-  } deriving (Show, Generic, NFData, Serialize, Hash.Hashable)
+  } deriving (Show, Generic, Serialize)
 
 -- | Two Contracts are equal if their addresses are equal
 instance Eq Contract where
@@ -90,7 +90,7 @@ validateContract Contract {..} =
 signContract :: MonadRandom m => Key.PrivateKey -> Contract -> m Key.Signature
 signContract = Key.signS
 
-lookupVarGlobalStorage :: Text -> Contract -> Maybe Language.FCL.Value
+lookupVarGlobalStorage :: Text -> Contract -> Maybe Value
 lookupVarGlobalStorage k c = Map.lookup (Storage.Key k) gs
   where
     gs = Storage.unGlobalStorage $ globalStorage c
@@ -99,7 +99,7 @@ lookupVarGlobalStorage k c = Map.lookup (Storage.Key k) gs
 -- current contract state. Restrictions are not taken into account.
 callableMethods :: Contract -> [Method]
 callableMethods c =
-  callableMethods' (Contract.state c) (Contract.script c)
+  callableMethods' (state c) (script c)
 
 callableMethods' :: WorkflowState -> Script -> [Method]
 callableMethods' wfs s =
@@ -120,12 +120,12 @@ callersJSON callers =
       Anyone -> []
       Restricted rs -> sortCallers rs
   where
-    addrHash = decodeUtf8 . Hash.getRawHash . unAddress
-    sortCallers = sort . map addrHash . toList
+    -- addrHash = decodeUtf8 . Hash.getRawHash . unAddress
+    sortCallers = sort . toList
 
 -- | Datatype used by Eval.hs to report callable methods after evaluating the
 -- access restriction expressions associated with contract methods.
-type CallableMethods = Map.Map Name (PermittedCallers, [(Name, Language.FCL.Type)])
+type CallableMethods = Map.Map Name (PermittedCallers, [(Name, Type)])
 
 callableMethodsJSON :: CallableMethods -> A.Value
 callableMethodsJSON = toJSON
@@ -137,15 +137,15 @@ callableMethodsJSON = toJSON
 data InvalidMethodName
   = MethodDoesNotExist Name
   | MethodNotCallable  Name WorkflowState
-  deriving (Eq, Show, Generic, NFData, Serialize, Hash.Hashable)
+  deriving (Eq, Show, Generic, Serialize)
 
 -- | Looks up a method with a given name in a Contract, taking into account the
 -- current contract state. I.e. if a contract is in "terminal" state, no methods
 -- will be returned.
 lookupContractMethod
-  :: Language.FCL.Name
+  :: Name
   -> Contract
-  -> Either InvalidMethodName Language.FCL.Method
+  -> Either InvalidMethodName Method
 lookupContractMethod nm c =
   case lookupMethod nm (script c) of
     Nothing     -> Left $ MethodDoesNotExist nm

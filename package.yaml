@@ -121,7 +121,6 @@ library:
 
   exposed-modules:
     - Language.FCL.Contract
-    - Language.FCL.TxLog
     - Language.FCL.AST
     - Language.FCL.Delta
     - Numeric.Lossless.Decimal

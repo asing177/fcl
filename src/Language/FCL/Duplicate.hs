@@ -23,7 +23,7 @@ import qualified Data.Map as Map
 
 import Language.FCL.AST
 import Language.FCL.Pretty
-import Utils (duplicates, duplicatesOn)
+import Language.FCL.Utils (duplicates, duplicatesOn)
 
 -- | Duplicate variable occurrence can be in either a top level definition or
 -- an argument to a method/helper function.

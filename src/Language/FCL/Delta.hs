@@ -3,7 +3,7 @@
 Ledger deltas , atomic operations on the ledger state as a result of block evaluation.
 
 -}
-
+{-# LANGUAGE DataKinds #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE DeriveAnyClass #-}
 
@@ -18,9 +18,9 @@ module Language.FCL.Delta (
 
 import Protolude hiding ((<>))
 
-import Asset (Balance)
+import Language.FCL.Asset (Balance)
 import Language.FCL.AST
-import Language.FCL.Address (Address, AAccount, AAsset, AContract, shortAddr)
+import Language.FCL.Address
 import Language.FCL.Pretty
 import Language.FCL.Error (EvalFail(..))
 
@@ -86,13 +86,13 @@ instance Pretty Delta where
 
     ModifyAsset op -> case op of
       TransferTo asset amt holder contract       ->
-        "transferTo" <+> ppr (shortAddr asset)
+        "transferTo" <+> ppr asset
       TransferFrom asset amt holder contract     ->
-        "transferFrom" <+> ppr (shortAddr asset)
+        "transferFrom" <+> ppr asset
       TransferHoldings asset amt holder contract ->
-        "transferHoldings" <+> ppr (shortAddr asset)
+        "transferHoldings" <+> ppr asset
       Revert asset                               ->
-        "revert" <+> ppr (shortAddr asset)
+        "revert" <+> ppr asset
 
     Atomic a1 a2 -> "atomic" <+> "{" <+> ppr a1 <+> "," <+> ppr a2 <+> "}"
     Terminate -> "terminate"

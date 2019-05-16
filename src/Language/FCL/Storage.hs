@@ -31,7 +31,7 @@ module Language.FCL.Storage (
   validateStorage,
 
   -- ** Hashing
-  hashStorage,
+  -- hashStorage,
 
 ) where
 
@@ -45,7 +45,7 @@ import Control.Monad (fail)
 import Crypto.Number.Serialize (os2ip)
 
 import qualified Language.FCL.Encoding as Encoding
-import qualified Hash
+import qualified Language.FCL.Hash as Hash
 
 import Datetime.Types
 
@@ -65,7 +65,7 @@ newtype Key = Key { unKey :: Text }
 type Storage = Map.Map Key Value
 
 newtype GlobalStorage = GlobalStorage { unGlobalStorage :: Storage }
-  deriving (Eq, Show, Generic, Hash.Hashable)
+  deriving (Eq, Show, Generic)
 
 instance Semigroup GlobalStorage where
   (GlobalStorage m1) <> (GlobalStorage m2) = GlobalStorage (m1 <> m2)
@@ -77,7 +77,7 @@ instance Pretty Key where
   ppr (Key key) = ppr key
 
 newtype LocalStorage = LocalStorage { unLocalStorage :: Storage }
-  deriving (Eq, Show, Generic, Hash.Hashable)
+  deriving (Eq, Show, Generic)
 
 instance Semigroup LocalStorage where
   (LocalStorage m1) <> (LocalStorage m2) = LocalStorage (m1 <> m2)
@@ -212,5 +212,5 @@ instance Hash.Hashable Key where
 base16HashToInteger :: Hash.Hash Encoding.Base16ByteString -> Integer
 base16HashToInteger = os2ip
 
-hashStorage :: Storage -> Integer
-hashStorage = base16HashToInteger . Hash.toHash
+-- hashStorage :: Storage -> Integer
+-- hashStorage = base16HashToInteger . Hash.toHash

@@ -18,6 +18,7 @@ Asset data types.
 module Language.FCL.Asset (
   -- ** Assets
   Asset(..),
+  Asset'(..),
   AssetError(..),
   AssetType(..),
 
@@ -80,7 +81,6 @@ import qualified Data.ByteString as BS
 import qualified Data.ByteString.Lazy as BSL
 import qualified Data.Aeson.Encode.Pretty as A
 
-import Language.FCL.Hash as Hash (Hashable(..))
 import Numeric.Lossless.Number (Decimal(..))
 import Language.FCL.Pretty (Pretty(..))
 
@@ -101,7 +101,6 @@ data Holder
               , EitherAccountContract a
               , Ord a
               , Serialize a
-              , Hashable a
               , Pretty a
               , Coercible a (Address AAccount)
               , Coercible a (Address AContract)
@@ -126,9 +125,6 @@ instance Serialize Holder where
 instance B.Binary Holder where
   put = Utils.putBinaryViaSerialize
   get = Utils.getBinaryViaSerialize
-
-instance Hash.Hashable Holder where
-  toHash (Holder a) = Hash.toHash a
 
 instance Pretty Holder where
   ppr (Holder a) = ppr a
@@ -189,6 +185,9 @@ data Asset = Asset
   , metadata  :: Metadata -- ^ Asset address
   } deriving (Show, Generic, B.Binary, Serialize)
 
+class Asset' a where
+  assetType' :: a -> AssetType
+  
 -- | Two Assets are equal if their addresses are equal
 instance Eq Asset where
   (==) a a' = address a == address a'
@@ -202,7 +201,7 @@ data Ref
   | CHF               -- ^ Swiss Francs
   | Token             -- ^ Abstract token
   | Security          -- ^ Security
-  deriving (Eq, Ord, Show, Read, Enum, Bounded, Generic, ToJSON, FromJSON, Hash.Hashable)
+  deriving (Eq, Ord, Show, Read, Enum, Bounded, Generic, ToJSON, FromJSON)
 
 -- | Type of an asset's value. Underlying value is always a Int64, but this
 -- informs the representation and range of valid values.
@@ -210,7 +209,7 @@ data AssetType
   = Discrete               -- ^ Discrete (Non-zero integer value)
   | Fractional Integer     -- ^ Fractional (Fixed point decimal value)
   | Binary                 -- ^ Binary (Held/Not-Held) (supply is +1 for held, 0 for not-held)
-  deriving (Eq, Ord, Show, Read, Generic, Hash.Hashable)
+  deriving (Eq, Ord, Show, Read, Generic)
 
 -- | Initial holdings, all allocated to issuer.
 emptyHoldings :: Holdings
