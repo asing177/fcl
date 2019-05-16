@@ -23,7 +23,7 @@ import Language.FCL.AST
 import Language.FCL.Analysis (actualTransitions)
 import Language.FCL.Pretty (hsep, prettyPrint, ppr)
 import Language.FCL.ReachabilityGraph (allPlaces)
-import Utils ((?), dieRed)
+import Language.FCL.Utils ((?), dieRed)
 
 -- | Given a script and its filepath, pipe the graphviz representation of the
 -- transitions into @dot@ to produce a visualisation.

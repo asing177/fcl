@@ -84,35 +84,35 @@ actualTransitions :: [Method] -> [(Method, Transition)]
 actualTransitions methods = do
     (method, dsts) <- branches methods
     dst <- Set.toList dsts
-    pure $ (method, (Language.FCL.Arrow (methodInputPlaces method) dst))
+    pure $ (method, (Arrow (methodInputPlaces method) dst))
   where
     -- Fish out the actual transitions, as we get them from methods and
     -- their "transitionTo" statements, grouped by method name and source
     -- state.
-    branches :: [Method] -> [(Method, Set.Set Language.FCL.WorkflowState)]
+    branches :: [Method] -> [(Method, Set.Set WorkflowState)]
     branches = fmap extractBranch
       where
-        extractBranch :: Method -> (Method, Set Language.FCL.WorkflowState)
+        extractBranch :: Method -> (Method, Set WorkflowState)
         extractBranch bm@Method{..}
           = ( bm
             , branchesMethod bm
             )
 
-        branchesMethod :: Method -> Set Language.FCL.WorkflowState
-        branchesMethod method = Set.unions . fmap getWFState . Language.FCL.unseq . methodBody $ method
+        branchesMethod :: Method -> Set WorkflowState
+        branchesMethod method = Set.unions . fmap getWFState . unseq . methodBody $ method
           where
-            getWFState :: Language.FCL.LExpr -> Set Language.FCL.WorkflowState
-            getWFState (Language.FCL.Located _ (Language.FCL.ECall (Left Prim.TransitionTo) args))
-              = Set.fromList . fmap unwrap . Language.FCL.argLits . fmap Language.FCL.unLoc $ args
-            getWFState (Language.FCL.Located _ (Language.FCL.ECall (Left Prim.Terminate) args))
-              = Set.singleton Language.FCL.endState
+            getWFState :: LExpr -> Set WorkflowState
+            getWFState (Located _ (ECall (Left Prim.TransitionTo) args))
+              = Set.fromList . fmap unwrap . argLits . fmap unLoc $ args
+            getWFState (Located _ (ECall (Left Prim.Terminate) args))
+              = Set.singleton endState
             getWFState (Located _ (ECall (Left Prim.Stay) []))
               = Set.singleton (methodInputPlaces method)
             getWFState _ = mempty
 
             -- Safe only if run on typechecked programs.
-            unwrap :: Language.FCL.LLit -> Language.FCL.WorkflowState
-            unwrap (Language.FCL.Located _ (Language.FCL.LState st)) = st
+            unwrap :: LLit -> WorkflowState
+            unwrap (Located _ (LState st)) = st
             unwrap _ = panic "Malformed program."
 
 

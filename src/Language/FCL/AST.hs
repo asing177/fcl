@@ -106,8 +106,8 @@ module Language.FCL.AST (
 
 ) where
 
-import Protolude hiding (put, get, (<>), show, Show, putByteString, Type)
-import Prelude (show, Show(..))
+import Protolude hiding (put, get, (<>), Show, putByteString, Type)
+import Prelude (Show(..))
 
 import Control.Monad (fail)
 
@@ -132,6 +132,7 @@ import Data.Serialize.Text()
 import Language.FCL.Address
 import Language.FCL.Utils (duplicates)
 import Language.FCL.SafeString
+import Language.FCL.SafeInteger
 
 -------------------------------------------------------------------------------
 -- Core Language
@@ -243,7 +244,7 @@ data Lit
   | LAsset     (Address AAsset)
   | LContract  (Address AContract)
   | LText       SafeString
-  | LSig       (Integer,Integer)
+  | LSig       (SafeInteger, SafeInteger)
   | LDateTime  DateTime
   | LTimeDelta TimeDelta
   | LConstr    EnumConstr
@@ -258,7 +259,7 @@ data Value
   | VAsset (Address AAsset)        -- ^ Asset Address
   | VContract (Address AContract)  -- ^ Contract Address
   | VText SafeString                -- ^ Msgs (ASCII)
-  | VSig (Integer,Integer) -- ^ ESDSA Sig
+  | VSig (SafeInteger, SafeInteger) -- ^ ESDSA Sig
   | VVoid                          -- ^ Void
   | VDateTime DateTime             -- ^ A datetime with a timezone
   | VTimeDelta TimeDelta           -- ^ A difference in time

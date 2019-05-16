@@ -4,6 +4,7 @@ FCL interpreter and expression evaluation.
 
 -}
 
+{-# LANGUAGE DataKinds #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE DeriveAnyClass #-}
@@ -31,32 +32,34 @@ module Language.FCL.Eval (
   -- ** Evaluation context
   TransactionCtx(..),
   EvalCtx(..),
+
+  -- ** Evaluation storage
+  initStorage,
 ) where
 
 import Protolude hiding (DivideByZero, Overflow, Underflow, StateT, execStateT, runStateT, modify, get, gets)
+import Control.Monad.Fail
 
 import Numeric.Lossless.Number
 import Language.FCL.AST
-import SafeInteger
-import SafeString as SS
-import Key (PrivateKey)
+import Language.FCL.SafeString as SS
 import Language.FCL.Time (Timestamp, posixMicroSecsToDatetime)
-import Ledger (World)
-import Storage
-import Account (Account,  address, publicKey)
+import Language.FCL.Storage
 import Language.FCL.Error as Error
 import Language.FCL.Prim (PrimOp(..))
-import Language.FCL.Address (Address, AContract, AAccount, AAsset, rawAddr)
+import Language.FCL.Address as Addr
 import Language.FCL.ReachabilityGraph (applyTransition)
 import Language.FCL.Utils (panicImpossible)
-import qualified Asset
-import qualified Delta
-import qualified Contract
-import qualified Hash
-import qualified Key
-import qualified Ledger
-import qualified Language.FCL.Pretty as Pretty
+import Language.FCL.Asset as Asset
+import qualified Language.FCL.Delta as Delta
+import qualified Language.FCL.Contract as Contract
+import qualified Language.FCL.Hash as Hash
+import qualified Language.FCL.Key as Key
+import Language.FCL.World as World
+import Language.FCL.Pretty as Pretty
 import qualified Language.FCL.Prim as Prim
+import Language.FCL.SafeInteger as SI
+
 import Language.FCL.Utils (traverseWithKey')
 
 import qualified Datetime as DT
@@ -85,14 +88,14 @@ data TransactionCtx = TransactionCtx
   { transactionHash     :: Hash.Hash Encoding.Base16ByteString -- ^ Hash of the transaction
   , transactionIssuer   :: Address AAccount                    -- ^ Issuer of the transaction
   , transactionBlockIdx :: Int64                               -- ^ Index of the block in which the transaction is contained
-  , transactionBlockTs  :: Time.Timestamp                      -- ^ The timestamp of the block in which the transaction is contained
+  , transactionBlockTs  :: Timestamp                      -- ^ The timestamp of the block in which the transaction is contained
   } deriving (Generic)
 
 -- | Evaluation context used during remote evaluation in a validating engine.
 data EvalCtx = EvalCtx
   { currentValidator   :: Address AAccount   -- ^ Referencing an account
   , currentTxCtx       :: Maybe TransactionCtx -- ^ Information about the current transaction
-  , currentCreated     :: Time.Timestamp    -- ^ When the contract was deployed
+  , currentCreated     :: Timestamp    -- ^ When the contract was deployed
   , currentDeployer    :: Address AAccount  -- ^ Referencing an account
   , currentAddress     :: Address AContract -- ^ Address of current Contract
   , currentPrivKey     :: Key.PrivateKey    -- ^ Private key of Validating node
@@ -101,12 +104,12 @@ data EvalCtx = EvalCtx
 
 type LocalStorages = Map.Map (Address AAccount) Storage
 
-data EvalState = EvalState
+data EvalState world = EvalState
   { tempStorage      :: Storage          -- ^ Tmp variable env
   , globalStorage    :: Storage          -- ^ Global variable env
   , workflowState    :: WorkflowState    -- ^ Current state of contract
   , currentMethod    :: Maybe Method     -- ^ Which method we're currently in, if any
-  , worldState       :: World            -- ^ Current world state
+  , worldState       :: world            -- ^ Current world state
   , deltas           :: [Delta.Delta]
   } deriving (Generic)
 
@@ -128,10 +131,10 @@ data EvalState = EvalState
  -   > address
  -}
 
-initEvalState :: Contract.Contract -> World -> EvalState
+initEvalState :: Contract.Contract -> world -> EvalState world
 initEvalState c w = EvalState
   { tempStorage      = mempty
-  , globalStorage    = Storage.unGlobalStorage (Contract.globalStorage c)
+  , globalStorage    = unGlobalStorage (Contract.globalStorage c)
   , workflowState    = Contract.state c
   , currentMethod    = Nothing
   , worldState       = w
@@ -142,17 +145,17 @@ initEvalState c w = EvalState
 -- Interpreter Steps
 -------------------------------------------------------------------------------
 
-lookupGlobalVar :: Name -> EvalM (Maybe Value)
+lookupGlobalVar :: Name -> (EvalM world) (Maybe Value)
 lookupGlobalVar (Name var) = do
   globalStore <- gets globalStorage
   return $ Map.lookup (Key var) globalStore
 
-lookupTempVar :: Name -> EvalM (Maybe Value)
+lookupTempVar :: Name -> (EvalM world) (Maybe Value)
 lookupTempVar (Name var) = do
   tmpStore <- gets tempStorage
   return $ Map.lookup (Key var) tmpStore
 
-insertTempVar :: Name -> Value -> EvalM ()
+insertTempVar :: Name -> Value -> (EvalM world) ()
 insertTempVar (Name var) val = modify' $ \evalState ->
     evalState { tempStorage = insertVar (tempStorage evalState) }
   where
@@ -161,7 +164,7 @@ insertTempVar (Name var) val = modify' $ \evalState ->
 -- | Extends the temp storage with temporary variable updates. Emulates a
 -- closure environment for evaluating the body of helper functions by
 -- assigning values to argument names. Effectively ad-hoc substitution.
-localTempStorage :: [(Name,Value)] -> EvalM a -> EvalM a
+localTempStorage :: [(Name,Value)] -> (EvalM world) a -> (EvalM world) a
 localTempStorage varVals evalM = do
   currTempStorage <- tempStorage <$> get
   let store = Map.fromList (map (first (Key . unName)) varVals)
@@ -175,7 +178,7 @@ localTempStorage varVals evalM = do
 
 -- | Warning: This function will throw an exception on a non-existent helper, as
 -- this indicates the typechecker failed to spot an undefined function name.
-lookupHelper :: LName -> EvalM Helper
+lookupHelper :: LName -> (EvalM world) Helper
 lookupHelper lhnm = do
   helpers <- currentHelpers <$> ask
   case List.find ((==) lhnm . helperName) helpers of
@@ -183,61 +186,61 @@ lookupHelper lhnm = do
     Just helper -> pure helper
 
 -- | Emit a delta updating  the state of a global reference.
-updateGlobalVar :: Name -> Value -> EvalM ()
+updateGlobalVar :: Name -> Value -> (EvalM world) ()
 updateGlobalVar (Name var) val = modify' $ \evalState ->
     evalState { globalStorage = updateVar (globalStorage evalState) }
   where
     updateVar = Map.update (\_ -> Just val) (Key var)
 
-setWorld :: World -> EvalM ()
+setWorld :: world -> (EvalM world) ()
 setWorld w = modify' $ \evalState -> evalState { worldState = w }
 
 -- | Update the evaluate state.
-updateState :: WorkflowState -> EvalM ()
+updateState :: WorkflowState -> (EvalM world) ()
 updateState newState = modify' $ \s -> s { workflowState = newState }
 
 -- | Get the evaluation state
-getState :: EvalM WorkflowState
+getState :: (EvalM world) WorkflowState
 getState = gets workflowState
 
-setCurrentMethod :: Method -> EvalM ()
+setCurrentMethod :: Method -> (EvalM world) ()
 setCurrentMethod m = modify' $ \s -> s { currentMethod = Just m }
 
 -- | Emit a delta
-emitDelta :: Delta.Delta -> EvalM ()
+emitDelta :: Delta.Delta -> (EvalM world) ()
 emitDelta delta = modify' $ \s -> s { deltas = deltas s ++ [delta] }
 
 -- | Lookup variable in scope
-lookupVar :: Name -> EvalM (Maybe Value)
+lookupVar :: Name -> (EvalM world) (Maybe Value)
 lookupVar var = do
   gVar <- lookupGlobalVar var
   case gVar of
     Nothing  -> lookupTempVar var
     Just val -> return $ Just val
 
-transactionCtxField :: Loc -> Text -> (TransactionCtx -> a) -> EvalM a
+transactionCtxField :: Loc -> Text -> (TransactionCtx -> a) -> (EvalM world) a
 transactionCtxField loc errMsg getField = do
   mfield <- fmap getField . currentTxCtx <$> ask
   case mfield of
     Nothing -> throwError $ NoTransactionContext loc errMsg
     Just field -> pure field
 
-currBlockTimestamp :: Loc -> EvalM Time.Timestamp
+currBlockTimestamp :: Loc -> (EvalM world) Timestamp
 currBlockTimestamp loc = do
   let errMsg = "Cannot get timestamp without a transaction context"
   transactionCtxField loc errMsg transactionBlockTs
 
-currentBlockIdx :: Loc -> EvalM Int64
+currentBlockIdx :: Loc -> (EvalM world) Int64
 currentBlockIdx loc = do
   let errMsg = "Cannot get block index without a transaction context"
   transactionCtxField loc errMsg transactionBlockIdx
 
-currentTxHash :: Loc -> EvalM (Hash.Hash Encoding.Base16ByteString)
+currentTxHash :: Loc -> (EvalM world) (Hash.Hash Encoding.Base16ByteString)
 currentTxHash loc = do
   let errMsg = "Cannot get current transaction hash without a transaction context"
   transactionCtxField loc errMsg transactionHash
 
-currentTxIssuer :: Loc -> EvalM (Address AAccount)
+currentTxIssuer :: Loc -> (EvalM world) (Address AAccount)
 currentTxIssuer loc = do
   let errMsg = "Cannot get current transaction issuer without a transaction context"
   transactionCtxField loc errMsg transactionIssuer
@@ -247,6 +250,8 @@ currentTxIssuer loc = do
 -------------------------------------------------------------------------------
 
 type RandomM = Crypto.MonadPseudoRandom Crypto.SystemDRG
+-- TODO: Fix the MonadFail issues
+instance MonadFail RandomM where
 
 -- | Initialize the random number generator and run the monadic
 -- action.
@@ -255,14 +260,14 @@ runRandom m = do
   gen <- Crypto.getSystemDRG
   return . fst . Crypto.withDRG gen $ m
 
--- | EvalM monad
-type EvalM = ReaderT EvalCtx (StateT EvalState (ExceptT Error.EvalFail RandomM))
+-- | (EvalM world) monad
+type EvalM world = ReaderT EvalCtx (StateT (EvalState world) (ExceptT Error.EvalFail RandomM))
 
-instance Crypto.MonadRandom EvalM where
+instance Crypto.MonadRandom (EvalM world) where
   getRandomBytes = lift . lift . lift . Crypto.getRandomBytes
 
 -- | Run the evaluation monad.
-execEvalM :: EvalCtx -> EvalState -> EvalM a -> IO (Either Error.EvalFail EvalState)
+execEvalM :: EvalCtx -> EvalState world -> (EvalM world) a -> IO (Either Error.EvalFail (EvalState world))
 execEvalM evalCtx evalState
   = handleArithError
   . runRandom
@@ -271,7 +276,7 @@ execEvalM evalCtx evalState
   . flip runReaderT evalCtx
 
 -- | Run the evaluation monad.
-runEvalM :: EvalCtx -> EvalState -> EvalM a -> IO (Either Error.EvalFail (a, EvalState))
+runEvalM :: EvalCtx -> EvalState world -> (EvalM world) a -> IO (Either Error.EvalFail (a, EvalState world))
 runEvalM evalCtx evalState
   = handleArithError
   . runRandom
@@ -293,7 +298,7 @@ handleArithError m = do
 -------------------------------------------------------------------------------
 
 -- | Evaluator for expressions
-evalLExpr :: LExpr -> EvalM Value
+evalLExpr :: (World world) => LExpr -> (EvalM world) Value
 evalLExpr (Located loc e) = case e of
 
   ESeq a b        -> evalLExpr a >> evalLExpr b
@@ -319,7 +324,7 @@ evalLExpr (Located loc e) = case e of
     case valA of
       VBool a' -> return $
         case op of
-          Language.FCL.Not -> VBool $ not a'
+          Not -> VBool $ not a'
       _ -> panicImpossible $ Just "EUnOp"
 
   -- This logic handles the special cases of operating over homomorphic
@@ -331,81 +336,81 @@ evalLExpr (Located loc e) = case e of
     case (valA, valB) of
       (VNum a', VNum b') ->
         case op of
-          Language.FCL.Add     -> pure $ VNum (a' + b')
-          Language.FCL.Sub     -> pure $ VNum (a' - b')
-          Language.FCL.Mul     -> pure $ VNum (a' * b')
-          Language.FCL.Div
+          Add     -> pure $ VNum (a' + b')
+          Sub     -> pure $ VNum (a' - b')
+          Mul     -> pure $ VNum (a' * b')
+          Div
             | b' == 0    -> throwError DivideByZero
             | otherwise  -> pure $ VNum (a' / b')
-          Language.FCL.Equal   -> pure $ VBool $ a' == b'
-          Language.FCL.NEqual  -> pure $ VBool $ a' /= b'
-          Language.FCL.LEqual  -> pure $ VBool $ a' <= b'
-          Language.FCL.GEqual  -> pure $ VBool $ a' >= b'
-          Language.FCL.Lesser  -> pure $ VBool $ a' < b'
-          Language.FCL.Greater -> pure $ VBool $ a' > b'
+          Equal   -> pure $ VBool $ a' == b'
+          NEqual  -> pure $ VBool $ a' /= b'
+          LEqual  -> pure $ VBool $ a' <= b'
+          GEqual  -> pure $ VBool $ a' >= b'
+          Lesser  -> pure $ VBool $ a' < b'
+          Greater -> pure $ VBool $ a' > b'
           _ -> binOpFail
       (VDateTime (DateTime dt), VTimeDelta (TimeDelta d)) ->
         case op of
-          Language.FCL.Add -> pure $ VDateTime $ DateTime $ add dt d
-          Language.FCL.Sub -> pure $ VDateTime $ DateTime $ sub dt d
+          Add -> pure $ VDateTime $ DateTime $ add dt d
+          Sub -> pure $ VDateTime $ DateTime $ sub dt d
           _ -> binOpFail
       (VTimeDelta (TimeDelta d), VDateTime (DateTime dt)) ->
         case op of
-          Language.FCL.Add -> pure $ VDateTime $ DateTime $ add dt d
-          Language.FCL.Sub -> pure $ VDateTime $ DateTime $ sub dt d
+          Add -> pure $ VDateTime $ DateTime $ add dt d
+          Sub -> pure $ VDateTime $ DateTime $ sub dt d
           _ -> binOpFail
       (VTimeDelta (TimeDelta d1), VTimeDelta (TimeDelta d2)) ->
         case op of
-          Language.FCL.Add -> pure $ VTimeDelta $ TimeDelta $ d1 <> d2
-          Language.FCL.Sub -> pure $ VTimeDelta $ TimeDelta $ subDeltas d1 d2
+          Add -> pure $ VTimeDelta $ TimeDelta $ d1 <> d2
+          Sub -> pure $ VTimeDelta $ TimeDelta $ subDeltas d1 d2
           _ -> binOpFail
       (VTimeDelta (TimeDelta d), VNum (NumDecimal (Decimal 0 n))) ->
         case op of
-          Language.FCL.Mul ->
+          Mul ->
             case scaleDelta (fromIntegral n) d of
               Nothing -> binOpFail -- XXX More descriptive error
               Just newDelta -> pure $ VTimeDelta $ TimeDelta newDelta
           _ -> binOpFail
       (VBool a', VBool b') -> return $
         case op of
-          Language.FCL.And -> VBool (a' && b')
-          Language.FCL.Or  -> VBool (a' || b')
-          Language.FCL.Equal -> VBool $ a' == b'
-          Language.FCL.NEqual -> VBool $ a' /= b'
+          And -> VBool (a' && b')
+          Or  -> VBool (a' || b')
+          Equal -> VBool $ a' == b'
+          NEqual -> VBool $ a' /= b'
           _ -> binOpFail
       (VAccount a', VAccount b') -> return $
         case op of
-          Language.FCL.Equal -> VBool $ a' == b'
-          Language.FCL.NEqual -> VBool $ a' /= b'
+          Equal -> VBool $ a' == b'
+          NEqual -> VBool $ a' /= b'
           _ -> binOpFail
       (VAsset a', VAsset b') -> return $
         case op of
-          Language.FCL.Equal -> VBool $ a' == b'
-          Language.FCL.NEqual -> VBool $ a' /= b'
+          Equal -> VBool $ a' == b'
+          NEqual -> VBool $ a' /= b'
           _ -> binOpFail
       (VContract a', VContract b') -> return $
         case op of
-          Language.FCL.Equal -> VBool $ a' == b'
-          Language.FCL.NEqual -> VBool $ a' /= b'
+          Equal -> VBool $ a' == b'
+          NEqual -> VBool $ a' /= b'
           _ -> binOpFail
       (VDateTime a', VDateTime b') -> return $
         case op of
-          Language.FCL.Equal -> VBool $ a' == b'
-          Language.FCL.NEqual -> VBool $ a' /= b'
-          Language.FCL.LEqual -> VBool $ a' <= b'
-          Language.FCL.GEqual -> VBool $ a' >= b'
-          Language.FCL.Lesser -> VBool $ a' < b'
-          Language.FCL.Greater -> VBool $ a' > b'
+          Equal -> VBool $ a' == b'
+          NEqual -> VBool $ a' /= b'
+          LEqual -> VBool $ a' <= b'
+          GEqual -> VBool $ a' >= b'
+          Lesser -> VBool $ a' < b'
+          Greater -> VBool $ a' > b'
           _ -> binOpFail
       (VText a', VText b') -> return $
         case op of
-          Language.FCL.Equal -> VBool $ a' == b'
-          Language.FCL.NEqual -> VBool $ a' /= b'
-          Language.FCL.LEqual -> VBool $ a' <= b'
-          Language.FCL.GEqual -> VBool $ a' >= b'
-          Language.FCL.Lesser -> VBool $ a' < b'
-          Language.FCL.Greater -> VBool $ a' > b'
-          Language.FCL.Add -> VText $ a' <> b'
+          Equal -> VBool $ a' == b'
+          NEqual -> VBool $ a' /= b'
+          LEqual -> VBool $ a' <= b'
+          GEqual -> VBool $ a' >= b'
+          Lesser -> VBool $ a' < b'
+          Greater -> VBool $ a' > b'
+          Add -> VText $ a' <> b'
           _ -> binOpFail
       (v1, v2) -> panicImpossible $ Just $
         "evalLExpr EBinOp: (" <> show v1 <> ", " <> show v2 <> ")"
@@ -481,22 +486,24 @@ match ps c
   $ ps
 
 -- | Evaluate a binop and two Fractional Num args
-evalBinOpF :: (Fractional a, Ord a) => BinOp -> (a -> Value) -> a -> a -> EvalM Value
-evalBinOpF Language.FCL.Add constr a b = pure $ constr (a + b)
-evalBinOpF Language.FCL.Sub constr a b = pure $ constr (a - b)
-evalBinOpF Language.FCL.Mul constr a b = pure $ constr (a * b)
-evalBinOpF Language.FCL.Div constr a b
+evalBinOpF :: (Fractional a, Ord a) => BinOp -> (a -> Value) -> a -> a -> (EvalM world) Value
+evalBinOpF Add constr a b = pure $ constr (a + b)
+evalBinOpF Sub constr a b = pure $ constr (a - b)
+evalBinOpF Mul constr a b = pure $ constr (a * b)
+evalBinOpF Div constr a b
   | b == 0 = throwError DivideByZero
   | otherwise = pure $ constr (a / b)
-evalBinOpF Language.FCL.Equal constr a b = pure $ VBool (a == b)
-evalBinOpF Language.FCL.NEqual constr a b = pure $ VBool (a /= b)
-evalBinOpF Language.FCL.LEqual constr a b = pure $ VBool (a <= b)
-evalBinOpF Language.FCL.GEqual constr a b = pure $ VBool (a >= b)
-evalBinOpF Language.FCL.Lesser constr a b = pure $ VBool (a < b)
-evalBinOpF Language.FCL.Greater constr a b = pure $ VBool (a > b)
+evalBinOpF Equal constr a b = pure $ VBool (a == b)
+evalBinOpF NEqual constr a b = pure $ VBool (a /= b)
+evalBinOpF LEqual constr a b = pure $ VBool (a <= b)
+evalBinOpF GEqual constr a b = pure $ VBool (a >= b)
+evalBinOpF Lesser constr a b = pure $ VBool (a < b)
+evalBinOpF Greater constr a b = pure $ VBool (a > b)
 evalBinOpF bop c a b = panicInvalidBinOp bop (c a) (c b)
 
-evalPrim :: Loc -> PrimOp -> [LExpr] -> EvalM Value
+evalPrim
+  :: (World world)
+  => Loc -> PrimOp -> [LExpr] -> (EvalM world) Value
 evalPrim loc ex args = case ex of
   Now               -> do
     currDatetime <- posixMicroSecsToDatetime <$> currBlockTimestamp loc
@@ -507,7 +514,7 @@ evalPrim loc ex args = case ex of
   Created           -> do
     createdDatetime <- posixMicroSecsToDatetime . currentCreated <$> ask
     pure $ VDateTime $ DateTime createdDatetime
-  Address           -> VContract . currentAddress <$> ask
+  Prim.Address           -> VContract . currentAddress <$> ask
   Validator         -> VAccount . currentValidator <$> ask
 
   Round -> do
@@ -596,19 +603,19 @@ evalPrim loc ex args = case ex of
     let [varExpr] = args
     accAddr <- extractAddrAccount <$> evalLExpr varExpr
     world <- gets worldState
-    return $ VBool $ Ledger.accountExists accAddr world
+    return $ VBool $ isRight $ World.lookupAccount accAddr world
 
   AssetExists    -> do
     let [varExpr] = args
     assetAddr <- extractAddrAsset <$> evalLExpr varExpr
     world <- gets worldState
-    return $ VBool $ Ledger.assetExists assetAddr world
+    return $ VBool $ isRight $ World.lookupAsset assetAddr world
 
   ContractExists -> do
     let [varExpr] = args
     contractAddr <- extractAddrContract <$> evalLExpr varExpr
     world <- gets worldState
-    return $ VBool $ Ledger.contractExists contractAddr world
+    return $ VBool $ isRight $ World.lookupContract contractAddr world
 
   Verify         -> do
     let [accExpr,sigExpr,msgExpr] = args
@@ -619,7 +626,7 @@ evalPrim loc ex args = case ex of
     acc <- getAccount accExpr
     let sig = bimap fromSafeInteger fromSafeInteger safeSig
     return $ VBool $
-      Key.verify (publicKey acc) (Key.mkSignatureRS sig) $ SS.toBytes msg
+      Key.verify (World.publicKey acc ledgerState) (Key.mkSignatureRS sig) $ SS.toBytes msg
 
   TxHash -> do
     txHash <- currentTxHash loc
@@ -631,7 +638,7 @@ evalPrim loc ex args = case ex of
     let [contractExpr, msgExpr] = args
     contractAddr <- extractAddrContract <$> evalLExpr contractExpr
     world <- gets worldState
-    case Ledger.lookupContract contractAddr world of
+    case World.lookupContract contractAddr world of
       Left err -> throwError $ ContractIntegrity $ show err
       Right contract -> do
         (VText varSS) <- evalLExpr msgExpr
@@ -651,7 +658,7 @@ evalPrim loc ex args = case ex of
     let [contractExpr] = args
     contractAddr <- extractAddrContract <$> evalLExpr contractExpr
     world <- gets worldState
-    case Ledger.lookupContract contractAddr world of
+    case World.lookupContract contractAddr world of
       Left err -> throwError . ContractIntegrity $ show err
       Right contract -> pure . VState $ Contract.state contract
 
@@ -693,27 +700,28 @@ evalPrim loc ex args = case ex of
   SetPrimOp m   -> evalSetPrim m args
   CollPrimOp c  -> evalCollPrim c args
 
-evalAssetPrim :: Loc -> Prim.AssetPrimOp -> [LExpr] -> EvalM Value
+evalAssetPrim :: World world => Loc -> Prim.AssetPrimOp -> [LExpr] -> (EvalM world) Value
 evalAssetPrim loc assetPrimOp args =
   case assetPrimOp of
 
     Prim.HolderBalance -> do
+      world <- gets worldState
       let [assetExpr, accExpr] = args
       asset <- getAsset assetExpr
       accAddr <- getAccountAddr accExpr
-      case Asset.assetType asset of
+      case World.assetType asset world of
         Asset.Discrete  ->
-          case Asset.balance asset (Asset.Holder accAddr) of
+          case World.assetBalance asset (Asset.AccountHolder accAddr) world of
             Nothing  -> return $ VNum 0
-            Just bal -> return . VNum . NumDecimal $ bal
+            Just bal -> return . VNum . NumDecimal $ Asset.unBalance bal
 
         Asset.Fractional n ->
-          case Asset.balance asset (Asset.Holder accAddr) of
+          case World.assetBalance asset (Asset.AccountHolder accAddr) world of
             Nothing  -> return $ VNum 0
-            Just bal -> return . VNum . NumDecimal $ bal
+            Just bal -> return . VNum . NumDecimal $ Asset.unBalance bal
 
         Asset.Binary ->
-          case Asset.balance asset (Asset.Holder accAddr) of
+          case Asset.unBalance <$> World.assetBalance asset (Asset.AccountHolder accAddr) world of
             Nothing  -> return $ VBool False
             Just 0 -> return $ VBool False
             Just 1 -> return $ VBool True
@@ -734,10 +742,10 @@ evalAssetPrim loc assetPrimOp args =
       -- Modify the world (perform the transfer)
       world <- gets worldState
       case
-        Ledger.transferAsset
+        World.transferAsset
           assetAddr
-          (Asset.Holder senderAddr)
-          (Asset.Holder contractAddr)
+          (Asset.AccountHolder senderAddr)
+          (Asset.ContractHolder contractAddr)
           holdings
           world
        of
@@ -765,10 +773,10 @@ evalAssetPrim loc assetPrimOp args =
       -- Modify the world (perform the transfer)
       world <- gets worldState
       case
-        Ledger.transferAsset
+        World.transferAsset
           assetAddr
-          (Asset.Holder contractAddr)
-          (Asset.Holder accAddr)
+          (Asset.ContractHolder contractAddr)
+          (Asset.AccountHolder accAddr)
           holdings
           world
        of
@@ -794,7 +802,7 @@ evalAssetPrim loc assetPrimOp args =
       -- Perform the circulation
       world <- gets worldState
       txIssuer <- currentTxIssuer loc
-      case Ledger.circulateAsset assetAddr txIssuer amount world of
+      case World.circulateAsset assetAddr txIssuer amount world of
         Left err -> throwError $ AssetIntegrity $ show err
         Right newWorld -> setWorld newWorld
 
@@ -815,10 +823,10 @@ evalAssetPrim loc assetPrimOp args =
       -- Modify the world (perform the transfer)
       world <- gets worldState
       case
-        Ledger.transferAsset
+        World.transferAsset
           assetAddr
-          (Asset.Holder fromAddr)
-          (Asset.Holder toAddr)
+          (Asset.AccountHolder fromAddr)
+          (Asset.AccountHolder toAddr)
           holdings
           world
        of
@@ -834,13 +842,13 @@ evalAssetPrim loc assetPrimOp args =
   where
     holdingsValToBalance :: Value -> Asset.Balance
     holdingsValToBalance = \case
-      VNum (NumDecimal d) -> d
-      VBool False         -> 0
-      VBool True          -> 1
+      VNum (NumDecimal d) -> Balance d
+      VBool False         -> Balance 0
+      VBool True          -> Balance 1
       x                   -> panicInvalidHoldingsVal x
 
 
-evalMapPrim :: Prim.MapPrimOp -> [LExpr] -> EvalM Value
+evalMapPrim :: World world => Prim.MapPrimOp -> [LExpr] -> (EvalM world) Value
 evalMapPrim mapPrimOp args =
   case mapPrimOp of
     Prim.MapInsert -> do
@@ -867,7 +875,7 @@ evalMapPrim mapPrimOp args =
           newVal <- localTempStorage [(harg,v)] $ evalLExpr (helperBody helper)
           pure $ VMap (Map.insert k newVal mapVal)
 
-evalSetPrim :: Prim.SetPrimOp -> [LExpr] -> EvalM Value
+evalSetPrim :: World world => Prim.SetPrimOp -> [LExpr] -> (EvalM world) Value
 evalSetPrim setPrimOp args =
   case setPrimOp of
     Prim.SetInsert -> do
@@ -877,7 +885,7 @@ evalSetPrim setPrimOp args =
       [v, VSet setVal] <- mapM evalLExpr args
       pure $ VSet (Set.delete v setVal)
 
-evalCollPrim :: Prim.CollPrimOp -> [LExpr] -> EvalM Value
+evalCollPrim :: forall world. World world => Prim.CollPrimOp -> [LExpr] -> (EvalM world) Value
 evalCollPrim collPrimOp args =
   case collPrimOp of
     Prim.Aggregate -> do
@@ -937,12 +945,12 @@ evalCollPrim collPrimOp args =
       CallPrimOpFail loc (Just v) "Cannot call a collection primop on a non-collection value"
 
     -- Map over a collection type (which happen to all implement Traversable)
-    mapColl :: Traversable f => LExpr -> Name -> f Value -> EvalM (f Value)
+    mapColl :: Traversable f => LExpr -> Name -> f Value -> (EvalM world) (f Value)
     mapColl body nm coll =
       forM coll $ \val ->
         localTempStorage [(nm, val)] (evalLExpr body)
 
-    filterPred :: LExpr -> (Name, Value) -> EvalM Bool
+    filterPred :: LExpr -> (Name, Value) -> (EvalM world) Bool
     filterPred body var = do
       res <- localTempStorage [var] (evalLExpr body)
       pure $ case res of
@@ -950,7 +958,7 @@ evalCollPrim collPrimOp args =
         VBool False -> False
         otherwise -> panicImpossible $ Just "Body of helper function used in filter primop did not return Bool"
 
-    foldColl :: LExpr -> (Name, Value) -> Name -> [Value] -> EvalM Value
+    foldColl :: LExpr -> (Name, Value) -> Name -> [Value] -> (EvalM world) Value
     foldColl fbody (accNm, initVal) argNm vals =
         foldM accum initVal vals
       where
@@ -959,34 +967,36 @@ evalCollPrim collPrimOp args =
             [(accNm, accVal), (argNm, v)]
             (evalLExpr fbody)
 
-getAccountAddr :: LExpr -> EvalM (Address AAccount)
-getAccountAddr accExpr =
-  Account.address <$> getAccount accExpr
+getAccountAddr :: World world => LExpr -> (EvalM world) (Address AAccount)
+getAccountAddr accExpr = do
+  world <- gets worldState
+  flip accountToAddr world <$> getAccount accExpr
 
-getAccount :: LExpr -> EvalM Account.Account
+getAccount :: World world => LExpr -> (EvalM world) (Account world)
 getAccount accExpr = do
   ledgerState <- gets worldState
   accAddr <- extractAddrAccount <$> evalLExpr accExpr
-  case Ledger.lookupAccount accAddr ledgerState of
+  case World.lookupAccount accAddr ledgerState of
     Left err  -> throwError $
       AccountIntegrity ("No account with address: " <> show accAddr)
     Right acc -> pure acc
 
-getAssetAddr :: LExpr -> EvalM (Address AAsset)
-getAssetAddr assetExpr =
-  Asset.address <$> getAsset assetExpr
+getAssetAddr :: World world => LExpr -> (EvalM world) (Address AAsset)
+getAssetAddr assetExpr = do
+  world <- gets worldState
+  flip assetToAddr world <$> getAsset assetExpr
 
-getAsset :: LExpr -> EvalM Asset.Asset
+getAsset :: World world => LExpr -> (EvalM world) (Asset world)
 getAsset assetExpr = do
   ledgerState <- gets worldState
   assetAddr   <- extractAddrAsset <$> evalLExpr assetExpr
-  case Ledger.lookupAsset assetAddr ledgerState of
+  case World.lookupAsset assetAddr ledgerState of
     Left err    -> throwError $
       AssetIntegrity ("No asset with address: " <> show assetAddr)
     Right asset -> pure asset
 
 -- | Check that the method state precondition is a substate of the actual state.
-checkGraph :: EvalM ()
+checkGraph :: (EvalM world) ()
 checkGraph = do
   Just m <- gets currentMethod
   actualState <- getState
@@ -996,7 +1006,7 @@ checkGraph = do
 -- | Does not perform typechecking on args supplied, eval should only happen
 -- after typecheck. We don't check whether the input places are satisfied, since
 -- this is done by 'Contract.callableMethods'
-evalMethod :: Method -> [Value] -> EvalM Value
+evalMethod :: World world => Method -> [Value] -> (EvalM world) Value
 evalMethod meth@(Method _ _ nm argTyps body) args = do
     setCurrentMethod meth
     checkPreconditions meth
@@ -1014,13 +1024,13 @@ evalMethod meth@(Method _ _ nm argTyps body) args = do
 -- Methods will only ever be evaluated in the context of a contract on the
 -- ledger. If script methods should be evaluated outside of the context of a
 -- contract, call `evalMethod`.
-eval :: Contract.Contract -> Name -> [Value] -> EvalM Value
+eval :: World world => Contract.Contract -> Name -> [Value] -> (EvalM world) Value
 eval c nm args =
   case Contract.lookupContractMethod nm c of
     Right method -> evalMethod method args
     Left err -> throwError (InvalidMethodName err)
 
-noop :: EvalM Value
+noop :: (EvalM world) Value
 noop = pure VVoid
 
 
@@ -1050,7 +1060,7 @@ data PreconditionsV = PreconditionsV
 
 -- | Succeeds when all preconditions are fulfilled and throws an error otherwise
 -- NB: We assume that we are given a type checked AST
-evalPreconditions :: Method -> EvalM PreconditionsV
+evalPreconditions :: forall world. World world => Method -> (EvalM world) PreconditionsV
 evalPreconditions m = do
   let Preconditions ps = methodPreconditions m
   PreconditionsV
@@ -1058,23 +1068,23 @@ evalPreconditions m = do
     <*> sequence (evalBefore <$> List.lookup PrecBefore ps)
     <*> sequence (evalRole <$> List.lookup PrecRoles ps)
   where
-    evalAfter :: LExpr -> EvalM DateTime
+    evalAfter :: LExpr -> (EvalM world) DateTime
     evalAfter expr = do
       VDateTime dt <- evalLExpr expr
       pure dt
 
-    evalBefore :: LExpr -> EvalM DateTime
+    evalBefore :: LExpr -> (EvalM world) DateTime
     evalBefore expr = do
       VDateTime dt <- evalLExpr expr
       pure dt
 
-    evalRole :: LExpr -> EvalM (Set (Address AAccount))
+    evalRole :: LExpr -> (EvalM world) (Set (Address AAccount))
     evalRole expr = do
       VSet vAccounts <- evalLExpr expr
       let accounts = Set.map (\(VAccount a) -> a) vAccounts
       pure accounts
 
-checkPreconditions :: Method -> EvalM ()
+checkPreconditions :: World world => Method -> (EvalM world) ()
 checkPreconditions m = do
   PreconditionsV afterV beforeV roleV <- evalPreconditions m
   sequence_
@@ -1101,7 +1111,7 @@ checkPreconditions m = do
         (issuer `elem` accounts)
         (throwError $ PrecNotSatCaller m accounts issuer)
 
-evalCallableMethods :: Contract.Contract -> EvalM Contract.CallableMethods
+evalCallableMethods :: World world => Contract.Contract -> (EvalM world) Contract.CallableMethods
 evalCallableMethods contract =
     foldM insertCallableMethod mempty (Contract.callableMethods contract)
   where
@@ -1129,15 +1139,15 @@ evalCallableMethods contract =
 -------------------------------------------------------------------------------
 
 {-# INLINE hashValue #-}
-hashValue :: Value -> EvalM ByteString
+hashValue :: Value -> (EvalM world) ByteString
 hashValue = \case
   VText msg      -> pure $ SS.toBytes msg
   VNum n         -> pure (show n)
   VBool n        -> pure (show n)
   VState n       -> pure (show n)
-  VAccount a     -> pure (rawAddr a)
-  VContract a    -> pure (rawAddr a)
-  VAsset a       -> pure (rawAddr a)
+  VAccount (Addr.Address a)     -> pure a
+  VContract (Addr.Address a)    -> pure a
+  VAsset (Addr.Address a)       -> pure a
   VVoid          -> pure ""
   VDateTime dt   -> pure $ S.encode dt
   VTimeDelta d   -> pure $ S.encode d
@@ -1162,3 +1172,74 @@ panicInvalidUnOp op x = panicImpossible $ Just $
 panicInvalidHoldingsVal :: Value -> a
 panicInvalidHoldingsVal v = panicImpossible $ Just $
   "Only numbers and booleans can be values of asset holdings. Instead, saw: "  <> show v
+
+
+-------------------------------------
+-- Storage
+-------------------------------------
+
+initGlobalStorage :: Script -> Storage
+initGlobalStorage (Script _ defns _ _ _)
+  = foldl' buildStores mempty defns
+  where
+    buildStores :: Storage -> Def -> Storage
+    buildStores gstore = \case
+
+      GlobalDef type_ _ (Name nm) expr ->
+        Map.insert (Key nm) VUndefined gstore
+
+      GlobalDefNull _ _ (Located _ (Name nm)) ->
+        Map.insert (Key nm) VUndefined gstore
+
+initStorage
+  :: forall world. (World world)
+  => EvalCtx    -- ^ Context to evaluate the top-level definitions in
+  -> world      -- ^ World to evaluate the top-level definitions in
+  -> Script     -- ^ Script
+  -> IO GlobalStorage
+initStorage evalCtx world s@(Script _ defns _ _ _)
+  = do
+  res <- execEvalM evalCtx emptyEvalState $ mapM_ assignGlobal defns
+  case res of
+    Left err -> die $ show err
+    Right state -> pure . GlobalStorage . globalStorage $ state
+  where
+    assignGlobal :: Def -> (EvalM world) ()
+    assignGlobal = \case
+      GlobalDef type_ _ nm expr -> do
+        val <- evalLExpr expr
+        modify' (insertVar nm val)
+      _ -> pure ()
+
+    insertVar (Name nm) val st
+      = st { globalStorage =
+               Map.insert (Key nm) val (globalStorage st)
+           }
+
+    emptyEvalState :: EvalState world
+    emptyEvalState = EvalState
+      { tempStorage      = mempty
+      , globalStorage    = initGlobalStorage s
+      , workflowState    = startState
+      , currentMethod    = Nothing
+      , worldState       = world
+      , deltas           = []
+      }
+
+-- | Pretty print storage map
+dumpStorage :: EnumInfo -> Map Key Value -> Pretty.Doc
+dumpStorage enumInfo store =
+  if Map.null store
+    then indent 8 "<empty>"
+    else
+      indent 8 $
+      vcat [
+          ppr k                         -- variable
+          <+> ":" <+> pprTy v  -- type
+          <+> "=" <+> ppr v             -- value
+          | (k,v) <- Map.toList store
+        ]
+  where
+    pprTy v = case mapType enumInfo v of
+                Nothing -> "<<unknown constructor>>"
+                Just ty -> ppr ty

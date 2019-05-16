@@ -22,9 +22,12 @@ data AddrType
   deriving (Eq, Ord, Show, Generic, Serialize, Binary, FromJSON, ToJSON)
 
 -- | An address is something that implements 'IsAddress'.
-data Address (t :: AddrType)
+newtype Address (t :: AddrType)
   = Address ByteString
   deriving (Eq, Ord, Show, Generic, Hash.Hashable, Binary, Serialize)
+
+-- class ToAddress o where
+--   toAddress :: o -> Address a
 
 instance FromJSON (Address a) where
   parseJSON = notImplemented
@@ -49,3 +52,4 @@ instance ToJSONKey (Address a) where
 
 instance Pretty (Address a) where
   ppr = notImplemented
+

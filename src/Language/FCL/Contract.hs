@@ -40,7 +40,6 @@ import Language.FCL.Storage (GlobalStorage)
 import Control.Monad
 
 import qualified Language.FCL.Key as Key
-import qualified Language.FCL.Hash as Hash
 import qualified Language.FCL.Storage as Storage
 import qualified Language.FCL.Utils as Utils
 

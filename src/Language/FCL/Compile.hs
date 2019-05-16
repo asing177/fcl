@@ -1,3 +1,4 @@
+{-# LANGUAGE DataKinds #-}
 {-|
 
 Compiler entry points and disk serialization for scripts.
@@ -48,9 +49,8 @@ module Language.FCL.Compile (
 import Protolude hiding (Type, TypeError)
 
 import qualified Language.FCL.Utils as Utils
-import qualified Storage
-import qualified Address
-import Language.FCL.Address (AContract)
+import qualified Language.FCL.Storage as Storage
+import Language.FCL.Address
 import qualified Language.FCL.Encoding as Encoding
 
 import Data.Bifunctor (first)
@@ -63,8 +63,7 @@ import qualified Data.Map as Map
 import qualified Data.Set as Set (fromList, toList)
 import Control.Monad (fail)
 
-import Language.FCL.AST (Script, Name(..), Transition, Type, scriptTransitions)
-import qualified Script
+import Language.FCL.AST
 import qualified Language.FCL.Analysis as Analysis
 import Language.FCL.Typecheck (Sig, TypeError)
 import Language.FCL.Pretty (Pretty(..), (<>), (<+>), intersperse, ppr, vsep)
@@ -76,7 +75,7 @@ import qualified Language.FCL.Typecheck as Typecheck
 import qualified Language.FCL.ReachabilityGraph as Reachability
 import qualified Language.FCL.Undefinedness as Undef
 import Language.FCL.Warning (Warning(..))
-import Utils ((?))
+import Language.FCL.Utils ((?))
 
 -------------------------------------------------------------------------------
 -- FCL Compilation
@@ -208,7 +207,7 @@ matchTypes a b  = Map.mapMaybe identity $ Map.intersectionWith matchTypes' a b
 
 -- | Empty compiler artifact
 emptyTarget :: IO (Either Text ([(Name,Sig,Effect.Effects)], Script))
-emptyTarget = pure (Right ([], Language.FCL.emptyScript))
+emptyTarget = pure (Right ([], emptyScript))
 
 -------------------------------------------------------------------------------
 -- Binary Serialization
@@ -237,7 +236,7 @@ maxStorage :: Int16
 maxStorage = maxBound
 
 -- | Serialize a script to disk.
-putScript :: Script -> Maybe Storage.Storage -> Address.Address AContract -> PutM ()
+putScript :: Script -> Maybe Storage.Storage -> Address AContract -> PutM ()
 putScript script store addr = do
   -- Header
   S.putByteString magicNumber
@@ -252,12 +251,12 @@ putScript script store addr = do
     Nothing -> putWord16be 0
 
   -- Address
-  Address.putAddress addr
+  S.put addr
 
    -- Script
   S.put $ Encoding.encodeBase64 (encode script)
 
-getScript :: Get (Script, Maybe Storage.Storage, Address.Address AContract)
+getScript :: Get (Script, Maybe Storage.Storage, Address AContract)
 getScript = do
   -- Storage
   storeLen <- fromIntegral <$> getWord16be
@@ -271,12 +270,12 @@ getScript = do
            Right s -> return $ Just s
 
   -- Address
-  addr <- Address.getAddress
+  addr <- S.get
 
   -- Script
   scriptBS <- Encoding.decodeBase <$> (S.get :: Get Encoding.Base64ByteString)
   case S.decode (Encoding.unbase scriptBS) of
-    Left err -> fail "Could not decode Language.FCL."
+    Left err -> fail $ "Could not decode " <> show err
     Right script ->
       pure (script, storage, addr)
 
@@ -285,7 +284,7 @@ getScript = do
 -------------------------------------------------------------------------------
 
 -- | Read a script from disk.
-readScript :: ByteString -> Either [Char] (Script, Maybe Storage.Storage, Address.Address AContract)
+readScript :: ByteString -> Either [Char] (Script, Maybe Storage.Storage, Address AContract)
 readScript s = case BS.splitAt (BS.length magicNumber) s of
   (header, contents) ->
     if header == magicNumber
@@ -293,7 +292,7 @@ readScript s = case BS.splitAt (BS.length magicNumber) s of
       else Left "Header does not match"
 
 -- | Write a script to disk.
-writeScript :: Script -> Maybe Storage.Storage -> Address.Address AContract -> ByteString
+writeScript :: Script -> Maybe Storage.Storage -> Address AContract -> ByteString
 writeScript script store addr = snd (runPutM (putScript script store addr))
 
 -------------------------------------------------------------------------------
