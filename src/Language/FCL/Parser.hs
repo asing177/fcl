@@ -201,42 +201,16 @@ boolLit =
  <|> LBool True  <$ try ((reserved Token.true)  <|> (() <$ string "True"  <* whiteSpace))
  <?> "boolean literal"
 
-
--- This fails
-test1 :: ByteString -> Address AAccount
-test1 s = case byteStringToAddress s of
-  Left err -> panic "Failed"
-  Right addr -> Address addr
-
--- This is OK
-test2 :: Address AAccount -> ByteString
-test2 (Address a1) = addressToByteString a1
-
 rawAddress :: forall (a :: AddrType). Parser (Address a)
-rawAddress = do
-  bsE <- byteStringToAddress . BS8.pack <$> between (symbol "\'") (symbol "\'") (many1 alphaNum)
-  case bsE of
-    Left err -> parserFail $ show err
-    Right addr -> pure $ Address addr
+rawAddress =
+  Address . BS8.pack <$> between (symbol "\'") (symbol "\'") (many1 alphaNum)
 
 addressLit :: Parser Lit
 addressLit = try $ do
   type_ <- char 'c' <|> char 'a' <|> char 'u'
-  if | type_ == 'c' -> LContract <$> do
-         bsE <- byteStringToAddress . BS8.pack <$> between (symbol "\'") (symbol "\'") (many1 alphaNum)
-         case bsE of
-           Left err -> parserFail $ show err
-           Right addr -> pure $ Address addr
-     | type_ == 'a' -> LAsset <$> do
-         bsE <- byteStringToAddress . BS8.pack <$> between (symbol "\'") (symbol "\'") (many1 alphaNum)
-         case bsE of
-           Left err -> parserFail $ show err
-           Right addr -> pure $ Address addr
-     | type_ == 'u' -> LAccount <$> do
-         bsE <- byteStringToAddress . BS8.pack <$> between (symbol "\'") (symbol "\'") (many1 alphaNum)
-         case bsE of
-           Left err -> parserFail $ show err
-           Right addr -> pure $ Address addr
+  if | type_ == 'c' -> LContract <$> rawAddress
+     | type_ == 'a' -> LAsset <$> rawAddress
+     | type_ == 'u' -> LAccount <$> rawAddress
      | otherwise    -> parserFail "Cannot parse address literal"
 
 datetimeParser :: Parser DateTime

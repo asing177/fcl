@@ -14,16 +14,6 @@ import Data.Aeson (ToJSON(..), FromJSON(..), ToJSONKey(..), FromJSONKey(..))
 import Data.Serialize as S (Serialize(..))
 import Data.Binary (Binary(..))
 
--- | Address conversion error, indexed by a type, to allow custom @Pretty@
--- instances.
-data AddrConvErr a = ParseError
-  deriving (Show)
-
--- | A class that allows us to be parametric over different notions of Address.
-class IsAddress a where
-  byteStringToAddress :: ByteString -> Either (AddrConvErr a) a
-  addressToByteString :: a -> ByteString
-
 -- | Type level tags of address type.
 data AddrType
   = AAccount
@@ -33,7 +23,8 @@ data AddrType
 
 -- | An address is something that implements 'IsAddress'.
 data Address (t :: AddrType)
-  = forall a. (IsAddress a) => Address a
+  = Address ByteString
+  deriving (Eq, Ord, Show, Generic, Hash.Hashable, Binary, Serialize)
 
 instance FromJSON (Address a) where
   parseJSON = notImplemented
@@ -47,34 +38,14 @@ instance FromJSONKey (Address a) where
 instance ToJSONKey (Address a) where
   toJSONKey = notImplemented
 
-instance Serialize (Address a) where
-  put = notImplemented
-  get = notImplemented
+-- instance Serialize (Address a) where
+--   put = notImplemented
+--   get = notImplemented
 
-instance Binary (Address a) where
-  put = notImplemented
-  get = notImplemented
+-- instance Binary (Address a) where
+--   put = notImplemented
+--   get = notImplemented
 
-instance Eq (Address a) where
-  Address a1 == Address a2 = addressToByteString a1 == addressToByteString a2
-
-instance Ord (Address a) where
-  compare (Address a1) (Address a2)
-    = compare (addressToByteString a1) (addressToByteString a2)
-
-instance Show (Address AAccount) where
-  show (Address a) = "u'" <> toS (addressToByteString a) <> "'"
-instance Show (Address AAsset) where
-  show (Address a) = "a'" <> toS (addressToByteString a) <> "'"
-instance Show (Address AContract) where
-  show (Address a) = "c'" <> toS (addressToByteString a) <> "'"
-
-instance Hash.Hashable (Address AAccount) where
-  toHash = notImplemented
-instance Hash.Hashable (Address AAsset) where
-  toHash = notImplemented
-instance Hash.Hashable (Address AContract) where
-  toHash = notImplemented
 
 instance Pretty (Address a) where
   ppr = notImplemented
