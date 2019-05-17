@@ -7,8 +7,6 @@ import Protolude
 import Test.Tasty
 
 import qualified KeyTests
--- import qualified TestBinary
--- import qualified TestJson
 import qualified TestScript
 import qualified TestUndefinedness
 import qualified TestNumber
@@ -32,9 +30,6 @@ suite
     -- Cryptography Tests
     KeyTests.keyTests
 
-    -- JSON Serialize Tests
-    -- , TestJson.jsonTests
-
     -- Undefinedness tests
     , TestUndefinedness.undefinednessTests
 
@@ -46,14 +41,6 @@ suite
 
     -- Workflow checker and graphviz output tests
     , workflowTests
-    -- Binary Serialization Tests
-    -- , TestBinary.binaryTests
-
-    -- Contract Storage Tests
-    -- , TestStorage.storageTests
-
-    -- Transaction Serialization Tests
-    -- , TestTx.cerealTests
 
     -- Non-lossy arithmetic tests
     , TestNumber.numberTests

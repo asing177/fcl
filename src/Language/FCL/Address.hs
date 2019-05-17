@@ -26,9 +26,6 @@ newtype Address (t :: AddrType)
   = Address ByteString
   deriving (Eq, Ord, Show, Generic, Hash.Hashable, Binary, Serialize)
 
--- class ToAddress o where
---   toAddress :: o -> Address a
-
 instance FromJSON (Address a) where
   parseJSON = notImplemented
 
@@ -50,6 +47,11 @@ instance ToJSONKey (Address a) where
 --   get = notImplemented
 
 
-instance Pretty (Address a) where
-  ppr = notImplemented
+instance Pretty (Address 'AAccount) where
+  ppr (Address bs) = ppr bs
 
+instance Pretty (Address 'AAsset) where
+  ppr (Address bs) = ppr bs
+
+instance Pretty (Address 'AContract) where
+  ppr (Address bs) = ppr bs

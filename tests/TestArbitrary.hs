@@ -52,8 +52,7 @@ instance Arbitrary SS.SafeString where
   arbitrary = SS.fromBytes' . toS <$> (arbitrary :: Gen Text)
 
 instance Arbitrary (Address a) where
-  -- fromB58Hash
-  arbitrary = Address <$> genByteString
+  arbitrary = Address . Hash.getRawHash . (Hash.toHash :: ByteString -> Hash.Hash Encoding.Base58ByteString) <$> genByteString
 
 instance (Encoding.ByteStringEncoding a) => Arbitrary (Hash.Hash a) where
   arbitrary = Hash.toHash <$> genByteString
