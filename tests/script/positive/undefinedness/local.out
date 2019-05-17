@@ -1,0 +1,3 @@
+ 
+Method arguments and effects:
+init: () -> {write via terminate, read a}

@@ -1,0 +1,7 @@
+Warnings:
+• Unused variable 'neverUsed'.
+ 
+Method arguments and effects:
+init1: () -> {write alwaysUsed}
+init2: () -> {write alwaysUsed, write sometimesUsed}
+end: () -> {write via terminate}

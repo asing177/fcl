@@ -1,0 +1,3 @@
+ 
+Method arguments and effects:
+init: () -> {read m, write n1, write n2}

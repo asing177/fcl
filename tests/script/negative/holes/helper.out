@@ -1,0 +1,9 @@
+global map<account,fixed2> m = ();
+
+-------------------^
+
+@initial
+
+"<stdin>" (line 1, column 20):
+unexpected "f"
+expecting type

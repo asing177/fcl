@@ -145,6 +145,16 @@ library:
     - Language.FCL.Analysis
     - Language.FCL.Graphviz
     - Language.FCL.Hash
+    - Language.FCL.Key
+    - Language.FCL.Address
+    - Language.FCL.Encoding
+    - Language.FCL.Metadata
+    - Language.FCL.Asset
+    - Language.FCL.SafeString
+    - Language.FCL.SafeInteger
+    - Language.FCL.Utils
+    - Language.FCL.Time
+    - Language.FCL.World
     - Language.FCL.Warning
 
 # executables:
@@ -168,27 +178,31 @@ library:
 #     - fcl
 #     - optparse-applicative
 
-# tests:
-#   fcl-repo-test:
-#     main:                Main.hs
-#     source-dirs:         test
-#     default-extensions:
-#     - LambdaCase
-#     - RecordWildCards
-#     - OverloadedStrings
-#     - NoImplicitPrelude
-#     - FlexibleInstances
-#     - FlexibleContexts
-#     - ScopedTypeVariables
-#     - RankNTypes
-#     ghc-options:
-#     - -threaded
-#     - -rtsopts
-#     - -with-rtsopts=-N
-#     dependencies:
-#     - fcl
-#     - cryptonite
-#     - tasty
-#     - tasty-hunit
-#     - tasty-golden
-#     - tasty-quickcheck
+tests:
+  fcl-repo-test:
+    main:                Main.hs
+    source-dirs:         tests
+    default-extensions:
+    - LambdaCase
+    - RecordWildCards
+    - OverloadedStrings
+    - NoImplicitPrelude
+    - FlexibleInstances
+    - FlexibleContexts
+    - ScopedTypeVariables
+    - RankNTypes
+    ghc-options:
+    - -threaded
+    - -rtsopts
+    - -with-rtsopts=-N
+    dependencies:
+    - fcl
+    - Diff
+    - strict
+    - cryptonite
+    - file-embed
+    - tasty
+    - tasty-hunit
+    - tasty-golden
+    - tasty-quickcheck
+    - QuickCheck

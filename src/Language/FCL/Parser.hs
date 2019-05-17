@@ -103,11 +103,10 @@ parseText input = first (mkParseErrInfo input)
   $ parse (contents script) mempty input
 
 -- | Parse a file into a Language.FCL.
-parseFile :: MonadIO m => FilePath -> m (Either ParseErrInfo Script)
-parseFile filename = do
-  program <- liftIO $ TIO.readFile filename
-  return $ first (mkParseErrInfo program)
-    $ parse (contents script <* eof) filename program
+parseFile :: FilePath -> IO Script
+parseFile path = do
+  eScript <- parseScript <$> readFile path
+  either panicppr pure eScript
 
 parseDefn :: Text -> Either ParseErrInfo Def
 parseDefn input = first (mkParseErrInfo input)

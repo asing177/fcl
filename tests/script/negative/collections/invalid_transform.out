@@ -1,0 +1,6 @@
+The declared and actual transitions do not match up:
+• Undeclared: 'transition initial -> initial', implemented by method 'applyInterest''.
+
+Inferred Transitions:
+transition initial -> initial;
+transition initial -> terminal;

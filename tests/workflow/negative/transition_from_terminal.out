@@ -1,0 +1,3 @@
+Workflow soundness errors:
+• Transition from end: 'transition terminal -> a'.
+• Unreachable: 'transition terminal -> a'.

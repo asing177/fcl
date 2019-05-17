@@ -1,0 +1,3 @@
+ 
+Method arguments and effects:
+foo: (int) -> {write via terminate, write via transferHoldings, read via sender, read myMap}

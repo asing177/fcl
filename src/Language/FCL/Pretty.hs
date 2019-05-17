@@ -62,6 +62,7 @@ module Language.FCL.Pretty (
   punctuate,
   intersperse,
   sqppr,
+  panicppr,
 
   -- ** Testing
   testPpr,
@@ -206,6 +207,15 @@ print = render . ppr
 
 printList :: Pretty a => [a] -> LText
 printList xs = render (vcat (fmap ppr xs))
+
+
+-- | Pretty print to stdout. Declare @default (Text)@ in the file if you get
+-- an "ambiguous type variable" error.
+putppr :: Pretty a => a -> IO ()
+putppr = putText . prettyPrint
+
+panicppr :: Pretty a => a -> b
+panicppr = panic . prettyPrint
 
 -------------------------------------------------------------------------------
 -- Testing

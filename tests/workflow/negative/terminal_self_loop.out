@@ -1,0 +1,3 @@
+Workflow soundness errors:
+• Dead-end state: 'initial'.
+• Unreachable: 'transition terminal -> terminal'.

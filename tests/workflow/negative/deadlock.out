@@ -1,0 +1,4 @@
+Workflow soundness errors:
+• Dead-end state: 'a'.
+• Dead-end state: 'b'.
+• Unreachable: 'transition {a, b} -> terminal'.

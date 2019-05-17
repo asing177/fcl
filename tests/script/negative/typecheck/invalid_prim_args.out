@@ -1,0 +1,3 @@
+Error at Line 5, Column 9:
+   Arity mismatch in function call holderBalance:
+      Expecting 2 arguments, but got 0

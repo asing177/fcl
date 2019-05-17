@@ -1,0 +1,3 @@
+Type error at Line 1, Column 13:
+   Expected: 'set<account>' inferred from a precondition 'roles' on Line 1, Column 13
+   But got:  'set<text>' inferred from a set expression on Line 1, Column 13

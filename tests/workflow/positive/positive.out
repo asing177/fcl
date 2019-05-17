@@ -1,0 +1,9 @@
+ 
+Method arguments and effects:
+toA: () -> {}
+toB: () -> {write via stay, read via now}
+toCorD: () -> {read via now}
+toEorF: () -> {}
+toEfromD: () -> {}
+toEfromF: () -> {}
+finish: () -> {write via terminate}

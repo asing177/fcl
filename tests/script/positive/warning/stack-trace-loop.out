@@ -1,0 +1,11 @@
+ 
+Method arguments and effects:
+init: (account, account) -> {write alice, write bob}
+setValueAlice: (int) -> {read alice, write valueAlice}
+setValueBob: (int) -> {read bob, write valueBob}
+calculateTotal: () -> {read valueAlice, read valueBob, write total}
+end: () -> {write via terminate}
+proposeNewTotal: (int) -> {write proposedNewTotal}
+agreeAlice: (bool) -> {read alice, write agreesAlice}
+agreeBob: (bool) -> {read bob, write agreesBob}
+setNewTotalIfBothAgree: () -> {read agreesAlice, read agreesBob, read proposedNewTotal, write total}

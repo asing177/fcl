@@ -1,0 +1,4 @@
+@initial
+init() {
+  terminate();
+}

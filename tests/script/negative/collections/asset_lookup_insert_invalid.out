@@ -1,0 +1,7 @@
+Error at Line 7, Column 49:
+   Implicit loss of numeric precision
+      'holdings<asset<int>>' inferred from the type signature of argument 3 of function 'transferHoldings' on Line 7, Column 49
+      'decimal<3>' inferred from the type signature of argument 1 of function 'swapAssets' on Line 6, Column 23
+   Possible fixes:
+      • round the higher precision expression to match the lower precision
+      • use types with more (e.g. arbitrary) precision

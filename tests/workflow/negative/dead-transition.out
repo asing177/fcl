@@ -1,0 +1,2 @@
+Workflow soundness errors:
+• Unreachable: 'transition b -> terminal'.

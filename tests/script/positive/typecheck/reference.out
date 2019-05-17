@@ -1,0 +1,17 @@
+Warnings:
+• Unused variable 'v'.
+ 
+Method arguments and effects:
+setDate: () -> {write via terminate, write dt}
+initialize: () -> {}
+confirm: () -> {}
+settle: () -> {}
+finalize: () -> {}
+setX: (int, num) -> {read f3, read x, read y, write f3, write x, write y}
+fixX: () -> {}
+fixY: () -> {}
+update: () -> {read x, write q}
+f: (int, bool) -> {write via terminate}
+g: (asset<int>, account) -> {write via terminate, write via transferTo, write via transferFrom, read via accountExists, read via assetExists}
+circulate: (asset<decimal<2>>, decimal<2>) -> {write via circulate}
+transfer: (asset<bool>, account, account, bool) -> {write via terminate, write via transferHoldings}

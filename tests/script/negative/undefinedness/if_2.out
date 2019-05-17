@@ -1,0 +1,14 @@
+Variable "a" undefined at:
+  - line 33:7
+  - line 34:17
+Variable "b" undefined at:
+  - line 33:3
+  - line 35:17
+Variable "shaA" undefined at:
+  - line 34:3
+Variable "shaB" undefined at:
+  - line 35:3
+Stack trace leading up to error:
+   go : {initial} -> {myInitial}
+   init : {myInitial} -> {stateB}
+   exitTwo : {stateB} -> {terminal}

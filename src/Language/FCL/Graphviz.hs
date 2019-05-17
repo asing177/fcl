@@ -7,51 +7,58 @@ TODO:
 
 -}
 
+
 {-# LANGUAGE ScopedTypeVariables #-}
 
 module Language.FCL.Graphviz where
 
 import Protolude
 
+import Control.Arrow ((>>>))
 import qualified Data.Set as Set
 import Data.Text (unlines)
-import System.FilePath ((-<.>))
-import System.IO (BufferMode(NoBuffering), hSetBuffering, hClose)
-import System.Process (StdStream(CreatePipe), createProcess, std_in, proc)
+import System.FilePath (replaceExtension)
+import System.Process.Text (readProcessWithExitCode)
 
 import Language.FCL.AST
 import Language.FCL.Analysis (actualTransitions)
-import Language.FCL.Pretty (hsep, prettyPrint, ppr)
+import Language.FCL.Parser (parseFile)
+import Language.FCL.Pretty (hsep, prettyPrint, ppr, panicppr)
 import Language.FCL.ReachabilityGraph (allPlaces)
-import Language.FCL.Utils ((?), dieRed)
+import Language.FCL.Utils ((?))
 
--- | Given a script and its filepath, pipe the graphviz representation of the
--- transitions into @dot@ to produce a visualisation.
-doGraphviz :: FilePath -> Script -> IO FilePath
-doGraphviz path script = do
-    dotE <- try $ createProcess $
-      (proc "dot"  ["-T" <> format, "-o", outfile]) { std_in = CreatePipe }
-    case dotE of
-      Left (_ :: IOException) ->
-        dieRed "Couldn't launch `dot`. You probably need to install Graphviz."
-      Right (Just hDotIn,_,_,_) -> do
-        hSetBuffering hDotIn NoBuffering
-        hPutStrLn hDotIn $ graphviz (scriptMethods script)
-        hClose hDotIn
-        pure outfile
-      Right (Nothing,_,_,_) ->
-        dieRed "Couldn't open a pipe to `dot`. Please open an issue."
-  where
-    outfile = (path -<.> format)
-    format = "svg"
-
+type SVG = Text
 type Graphviz = Text
+
+fileToGraphviz :: FilePath -> IO Graphviz
+fileToGraphviz fp = scriptToGraphviz <$> parseFile fp
+
+fileToSVG :: FilePath -> IO SVG
+fileToSVG = parseFile >=> scriptToSVG
+
+scriptToGraphviz :: Script -> Graphviz
+scriptToGraphviz = scriptMethods >>> methodsToGraphviz
+
+scriptToSVG :: Script -> IO SVG
+scriptToSVG = scriptToGraphviz >>> callDot
+
+callDot :: Graphviz -> IO SVG
+callDot g = do
+  (_, out, err) <- readProcessWithExitCode "dot" ["-Tsvg"] g
+  if err == "" then pure out else panicppr err
+
+fileWriteGraphviz :: FilePath -> IO ()
+fileWriteGraphviz path = fileToGraphviz path >>= writeFile (replaceExtension path ".dot")
+
+fileWriteSVG :: FilePath -> IO ()
+fileWriteSVG path = fileToSVG path >>= writeFile (replaceExtension path ".svg")
+
 type Label = Name
 type Id = Text
 
 -- | Given a list of methods, produce their corresponding graphviz graph.
-graphviz :: [Method] -> Graphviz
-graphviz methods = digraph $ unlines
+methodsToGraphviz :: [Method] -> Graphviz
+methodsToGraphviz methods = digraph $ unlines
     [ options
     , graphvizPlaces
     , graphvizTransitions
@@ -60,7 +67,12 @@ graphviz methods = digraph $ unlines
     ]
   where
     digraph :: Graphviz -> Graphviz
-    digraph body = "digraph workflow {\n" <> body <> "\n}"
+    digraph body = unlines
+      [ "digraph workflow {"
+      , "edge [color=\"#000000\"]"
+      , body
+      , "}"
+      ]
 
     graphvizPlaces :: Graphviz
     graphvizPlaces = unlines . map mkPlace $ places
@@ -70,9 +82,11 @@ graphviz methods = digraph $ unlines
 
         mkPlace :: Place -> Graphviz
         mkPlace p@(Place _) = prettyPrint p
-            <> " [shape=ellipse; fontname=\"Arial\"; fontsize=16; style=filled; color=gray75;]"
-        mkPlace p@(PlaceEnd) = prettyPrint p <> " [shape=point; width=0.3; peripheries=2; style=filled; color=gray75; label=\"\"]"
-        mkPlace p@(PlaceStart) = prettyPrint p <> " [shape=point; width=0.3; style=filled; color=gray75; label=\"\"]"
+          <> " [shape=ellipse; fontname=\"Arial\"; fontsize=16; style=filled; color=black; fillcolor=white;]"
+        mkPlace p@(PlaceEnd) = prettyPrint p
+          <> " [shape=point; width=0.3; peripheries=2; style=filled; color=\"#d11010\"; label=\"\"]"
+        mkPlace p@(PlaceStart) = prettyPrint p
+          <> " [shape=point; width=0.3; style=filled; color=\"#0e64ce\"; label=\"\"]"
 
 
     graphvizTransitions :: Graphviz
@@ -87,7 +101,7 @@ graphviz methods = digraph $ unlines
             , graphvizPreconditions (methodPreconditions method)
             , "</FONT>"
             , ">"
-            , "shape=box; fontname=\"Arial\"; style=filled; color=black; fillcolor=white;]"
+            , "shape=box; fontname=\"Arial\"; style=filled; color=black; fillcolor=gray75;]"
             ]
           where
           graphvizPreconditions :: Preconditions -> Graphviz
@@ -128,6 +142,7 @@ graphviz methods = digraph $ unlines
           [_] -> Nothing
           ps -> Just $ "{rank=same " <> (prettyPrint . hsep . map ppr) ps <> "}"
 
+    -- These options can be toggled via the boolean
     options :: Graphviz
     options = unlines
       [ True  ? "graph [bgcolor=transparent]" -- transparent background

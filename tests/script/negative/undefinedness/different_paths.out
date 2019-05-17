@@ -1,0 +1,5 @@
+Variable "x" undefined at:
+  - line 20:3
+Stack trace leading up to error:
+   dontSetX : {initial} -> {inc}
+   inc : {inc} -> {inc}
