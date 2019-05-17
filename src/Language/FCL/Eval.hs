@@ -252,6 +252,7 @@ currentTxIssuer loc = do
 type RandomM = Crypto.MonadPseudoRandom Crypto.SystemDRG
 -- TODO: Fix the MonadFail issues
 instance MonadFail RandomM where
+  fail s = panic ("Monad RandomM Fail " <> toS s)
 
 -- | Initialize the random number generator and run the monadic
 -- action.
@@ -418,7 +419,7 @@ evalLExpr (Located loc e) = case e of
   EVar (Located _ var) -> do
     mVal <- lookupVar var
     case mVal of
-      Nothing -> panicImpossible $ Just "evalLExpr: EVar"
+      Nothing -> panicImpossible $ Just $ "evalLExpr: EVar" <> show var
       Just val -> return val
 
   ECall ef args   ->
@@ -930,7 +931,7 @@ evalCollPrim collPrimOp args =
       val <- evalLExpr vExpr
       collVal <- evalLExpr collExpr
       case collVal of
-        VMap vmap -> pure (VBool (val `elem` vmap))
+        VMap vmap -> pure (VBool (val `Map.member` vmap))
         VSet vset -> pure (VBool (val `elem` vset))
         otherwise -> throwInvalidCollErr (located collExpr) collVal
     Prim.IsEmpty -> do
@@ -1080,9 +1081,12 @@ evalPreconditions m = do
 
     evalRole :: LExpr -> (EvalM world) (Set (Address AAccount))
     evalRole expr = do
-      VSet vAccounts <- evalLExpr expr
-      let accounts = Set.map (\(VAccount a) -> a) vAccounts
-      pure accounts
+      e <- evalLExpr expr
+      case e of
+        VSet vAccounts -> do
+          let accounts = Set.map (\(VAccount a) -> a) vAccounts
+          pure accounts
+        VAccount addr -> pure $ Set.singleton addr
 
 checkPreconditions :: World world => Method -> (EvalM world) ()
 checkPreconditions m = do

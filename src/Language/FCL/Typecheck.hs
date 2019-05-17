@@ -878,7 +878,7 @@ tcPrim le eLoc prim argExprs = do
                 TypeInfo (TColl tcoll) torigCol tlocCol -> do
                   let expectedValType =
                         case tcoll of
-                          TMap _ vType -> vType
+                          TMap k _ -> k
                           TSet vType   -> vType
                       tinfoValExpected = TypeInfo expectedValType (InferredFromCollType primNm tcoll) tlocCol
                   -- Add a constraint for the type of value in question to match the type of values

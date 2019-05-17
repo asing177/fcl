@@ -13,12 +13,12 @@
     (VMap
        (fromList
           [ ( VAccount
-                (Address "fwBVDsVh8SYQy98CzYpNPcbyTRczVUZ96HszhNRB8Ve")
-            , VNum (NumDecimal 100)
-            )
-          , ( VAccount
                 (Address "Fw68hsis6JPW4ed3ER1VC959TTf9DqberLxrq5uECKxh")
             , VNum (NumDecimal 10)
+            )
+          , ( VAccount
+                (Address "fwBVDsVh8SYQy98CzYpNPcbyTRczVUZ96HszhNRB8Ve")
+            , VNum (NumDecimal 100)
             )
           ]))
 , ModifyGlobal
@@ -26,10 +26,6 @@
     (VMap
        (fromList
           [ ( VAccount
-                (Address "fwBVDsVh8SYQy98CzYpNPcbyTRczVUZ96HszhNRB8Ve")
-            , VNum (NumDecimal 100)
-            )
-          , ( VAccount
                 (Address "4Stv5gWGt78D3p919HFcKEschSmyGKGrAX2G35xJgdhw")
             , VNum (NumDecimal 100)
             )
@@ -37,18 +33,22 @@
                 (Address "Fw68hsis6JPW4ed3ER1VC959TTf9DqberLxrq5uECKxh")
             , VNum (NumDecimal 10)
             )
+          , ( VAccount
+                (Address "fwBVDsVh8SYQy98CzYpNPcbyTRczVUZ96HszhNRB8Ve")
+            , VNum (NumDecimal 100)
+            )
           ]))
 , ModifyGlobal
     Name { unName = "shares" }
     (VMap
        (fromList
           [ ( VAccount
-                (Address "fwBVDsVh8SYQy98CzYpNPcbyTRczVUZ96HszhNRB8Ve")
-            , VNum (NumDecimal 100)
-            )
-          , ( VAccount
                 (Address "Fw68hsis6JPW4ed3ER1VC959TTf9DqberLxrq5uECKxh")
             , VNum (NumDecimal 10)
+            )
+          , ( VAccount
+                (Address "fwBVDsVh8SYQy98CzYpNPcbyTRczVUZ96HszhNRB8Ve")
+            , VNum (NumDecimal 100)
             )
           ]))
 , ModifyGlobal
@@ -65,25 +65,25 @@
     (VMap
        (fromList
           [ ( VAccount
+                (Address "Fw68hsis6JPW4ed3ER1VC959TTf9DqberLxrq5uECKxh")
+            , VNum (NumDecimal 10)
+            )
+          , ( VAccount
                 (Address "fwBVDsVh8SYQy98CzYpNPcbyTRczVUZ96HszhNRB8Ve")
             , VNum (NumDecimal 110)
             )
-          , ( VAccount
-                (Address "Fw68hsis6JPW4ed3ER1VC959TTf9DqberLxrq5uECKxh")
-            , VNum (NumDecimal 10)
-            )
           ]))
 , ModifyGlobal
     Name { unName = "shares" }
     (VMap
        (fromList
           [ ( VAccount
-                (Address "fwBVDsVh8SYQy98CzYpNPcbyTRczVUZ96HszhNRB8Ve")
-            , VNum (NumDecimal 0)
-            )
-          , ( VAccount
                 (Address "Fw68hsis6JPW4ed3ER1VC959TTf9DqberLxrq5uECKxh")
             , VNum (NumDecimal 10)
+            )
+          , ( VAccount
+                (Address "fwBVDsVh8SYQy98CzYpNPcbyTRczVUZ96HszhNRB8Ve")
+            , VNum (NumDecimal 0)
             )
           ]))
 , ModifyGlobal
@@ -91,12 +91,12 @@
     (VMap
        (fromList
           [ ( VAccount
-                (Address "fwBVDsVh8SYQy98CzYpNPcbyTRczVUZ96HszhNRB8Ve")
-            , VNum (NumDecimal 210)
-            )
-          , ( VAccount
                 (Address "Fw68hsis6JPW4ed3ER1VC959TTf9DqberLxrq5uECKxh")
             , VNum (NumDecimal 10)
+            )
+          , ( VAccount
+                (Address "fwBVDsVh8SYQy98CzYpNPcbyTRczVUZ96HszhNRB8Ve")
+            , VNum (NumDecimal 210)
             )
           ]))
 ]
@@ -107,12 +107,12 @@ fromList
     , VMap
         (fromList
            [ ( VAccount
-                 (Address "fwBVDsVh8SYQy98CzYpNPcbyTRczVUZ96HszhNRB8Ve")
-             , VNum (NumDecimal 210)
-             )
-           , ( VAccount
                  (Address "Fw68hsis6JPW4ed3ER1VC959TTf9DqberLxrq5uECKxh")
              , VNum (NumDecimal 10)
+             )
+           , ( VAccount
+                 (Address "fwBVDsVh8SYQy98CzYpNPcbyTRczVUZ96HszhNRB8Ve")
+             , VNum (NumDecimal 210)
              )
            ])
     )
@@ -120,12 +120,12 @@ fromList
     , VMap
         (fromList
            [ ( VAccount
-                 (Address "fwBVDsVh8SYQy98CzYpNPcbyTRczVUZ96HszhNRB8Ve")
-             , VNum (NumDecimal 0)
-             )
-           , ( VAccount
                  (Address "Fw68hsis6JPW4ed3ER1VC959TTf9DqberLxrq5uECKxh")
              , VNum (NumDecimal 10)
+             )
+           , ( VAccount
+                 (Address "fwBVDsVh8SYQy98CzYpNPcbyTRczVUZ96HszhNRB8Ve")
+             , VNum (NumDecimal 0)
              )
            ])
     )

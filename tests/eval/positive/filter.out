@@ -23,16 +23,16 @@
           [ VMap
               (fromList
                  [ ( VAccount
-                       (Address "fwBVDsVh8SYQy98CzYpNPcbyTRczVUZ96HszhNRB8Ve")
-                   , VNum (NumDecimal 2)
-                   )
-                 , ( VAccount
                        (Address "2R5XggBkMCQwh74KuqBh553jzCpY9ma7PmkPTBP8ti6j")
                    , VNum (NumDecimal 4)
                    )
                  , ( VAccount
                        (Address "6pxGdGG6nQP3VoCW7HoGkCGDNCiCEWP3P5jHtrvgphBc")
                    , VNum (NumDecimal 3)
+                   )
+                 , ( VAccount
+                       (Address "fwBVDsVh8SYQy98CzYpNPcbyTRczVUZ96HszhNRB8Ve")
+                   , VNum (NumDecimal 2)
                    )
                  ])
           , VMap
@@ -76,16 +76,16 @@ fromList
            [ VMap
                (fromList
                   [ ( VAccount
-                        (Address "fwBVDsVh8SYQy98CzYpNPcbyTRczVUZ96HszhNRB8Ve")
-                    , VNum (NumDecimal 2)
-                    )
-                  , ( VAccount
                         (Address "2R5XggBkMCQwh74KuqBh553jzCpY9ma7PmkPTBP8ti6j")
                     , VNum (NumDecimal 4)
                     )
                   , ( VAccount
                         (Address "6pxGdGG6nQP3VoCW7HoGkCGDNCiCEWP3P5jHtrvgphBc")
                     , VNum (NumDecimal 3)
+                    )
+                  , ( VAccount
+                        (Address "fwBVDsVh8SYQy98CzYpNPcbyTRczVUZ96HszhNRB8Ve")
+                    , VNum (NumDecimal 2)
                     )
                   ])
            , VMap

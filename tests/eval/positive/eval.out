@@ -7,12 +7,12 @@
              Datetime
                { year = 2090
                , month = 10
-               , day = 11
-               , hour = 4
+               , day = 10
+               , hour = 23
                , minute = 13
                , second = 40
-               , zone = 300
-               , week_day = 3
+               , zone = 0
+               , week_day = 2
                }
          })
 , ModifyGlobal
@@ -23,12 +23,12 @@
              Datetime
                { year = 1999
                , month = 2
-               , day = 24
-               , hour = 4
+               , day = 23
+               , hour = 23
                , minute = 13
                , second = 40
-               , zone = 300
-               , week_day = 3
+               , zone = 0
+               , week_day = 2
                }
          })
 , ModifyGlobal
@@ -40,10 +40,10 @@
                { year = 2003
                , month = 6
                , day = 28
-               , hour = 8
+               , hour = 3
                , minute = 17
                , second = 44
-               , zone = 300
+               , zone = 0
                , week_day = 6
                }
          })
@@ -101,12 +101,12 @@ fromList
               Datetime
                 { year = 2090
                 , month = 10
-                , day = 11
-                , hour = 4
+                , day = 10
+                , hour = 23
                 , minute = 13
                 , second = 40
-                , zone = 300
-                , week_day = 3
+                , zone = 0
+                , week_day = 2
                 }
           }
     )
@@ -118,10 +118,10 @@ fromList
                 { year = 2003
                 , month = 6
                 , day = 28
-                , hour = 8
+                , hour = 3
                 , minute = 17
                 , second = 44
-                , zone = 300
+                , zone = 0
                 , week_day = 6
                 }
           }

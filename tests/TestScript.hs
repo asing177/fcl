@@ -315,10 +315,9 @@ evalTests = testGroup "eval" <$> sequence
     evalTest :: FilePath -> IO (Either Eval.EvalFail (Contract.Contract, Eval.EvalState Ref.World))
     evalTest file = do
       script <- injectTestAddresses <$> Parser.parseFile file
-      Right bs <- Utils.safeRead file
       now <- Time.now
       let contractAddr = Ref.testAddr
-      Right contract <-
+      contractE <-
         Init.createContract
           contractAddr
           Ref.testAddr
@@ -327,19 +326,14 @@ evalTests = testGroup "eval" <$> sequence
           now
           Ref.testAddr
           Ref.genesisWorld
-          (toS bs)
-      -- Right contract <- Init.createFauxContract
-      --     Ref.testAddr
-      --     (Just Ref.testTransactionCtx)
-      --     Ref.testPriv
-      --     now
-      --     Ref.testAddr
-      --     Ledger.genesisWorld
-      --     script
-      evalCtx <- initTestEvalCtx (scriptHelpers script)
-      calls <- parseCalls <$> readFile (replaceExtension file ".calls")
-      let evalState = Eval.initEvalState contract Ref.genesisWorld
-      foldM (evalMethod' evalCtx) (Right (contract, evalState)) calls
+          (Pretty.prettyPrint script)
+      case contractE of
+        Left err -> panic err
+        Right contract -> do
+          evalCtx <- initTestEvalCtx (scriptHelpers script)
+          calls <- parseCalls <$> readFile (replaceExtension file ".calls")
+          let evalState = Eval.initEvalState contract Ref.genesisWorld
+          foldM (evalMethod' evalCtx) (Right (contract, evalState)) calls
 
     evalMethod' _ (Left err) _ = pure (Left err)
     evalMethod' evalCtx (Right (contract, evalState)) (Right lname, args) =

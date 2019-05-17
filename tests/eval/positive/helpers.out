@@ -5,7 +5,7 @@
        (fromList
           [ ( VAccount
                 (Address "fwBVDsVh8SYQy98CzYpNPcbyTRczVUZ96HszhNRB8Ve")
-            , VNum (NumDecimal 225.485)
+            , VNum (NumDecimal 225.48)
             )
           ]))
 , ModifyState WorkflowState { places = fromList [ PlaceEnd ] }
@@ -19,7 +19,7 @@ fromList
         (fromList
            [ ( VAccount
                  (Address "fwBVDsVh8SYQy98CzYpNPcbyTRczVUZ96HszhNRB8Ve")
-             , VNum (NumDecimal 225.485)
+             , VNum (NumDecimal 225.48)
              )
            ])
     )

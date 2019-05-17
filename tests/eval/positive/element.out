@@ -37,6 +37,9 @@ fromList
            , VNum (NumDecimal 500)
            ])
     )
+  , ( Key { unKey = "b" }
+    , VAccount (Address "H1tbrEKWGpbPjSeG856kz2DjViCwMU3qTw3i1PqCLz65")
+    )
   , ( Key { unKey = "balances" }
     , VMap
         (fromList

@@ -88,6 +88,8 @@ instance Pretty EvalFail where
       <$$+> "Method only callable before: " <+> ppr (VDateTime dtExpected)
         <+> ". Actual date-time:" <+> ppr (VDateTime dtActual)
     PrecNotSatCaller m setAccExpected accActual ->
-      "Unauthorized to call method" <+> ppr (methodName m) <+> "."
-      <$$+> "Authorized accounts: " <+> setOf setAccExpected
-        <+> ". Transaction issuer: " <+> ppr accActual
+      "Unauthorized to call method" <+> sqppr (methodName m) <> "."
+          <$$+> vcat
+          [ "Transaction issuer: " <+> ppr accActual
+          , "Authorized accounts: " <+> setOf setAccExpected
+          ]
