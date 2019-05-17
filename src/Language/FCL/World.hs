@@ -14,25 +14,28 @@ import Language.FCL.Contract
 import qualified Language.FCL.Key as Key
 
 data AssetError
-  = InsufficientHoldings (Address AAsset) Int64
+  = InsufficientHoldings (Address AAsset) Balance
   | InsufficientSupply (Address AAsset) Balance
   | CirculatorIsNotIssuer Holder (Address AAsset)
+  | AssetError
   | SelfTransfer Holder
   | HolderDoesNotExist Holder
   | AssetDoesNotExist (Address AAsset)
+  | SenderDoesNotExist Holder
+  | ReceiverDoesNotExist Holder
   deriving (Show, Eq, Generic, Serialize)
 
 data AccountError
-  = AccountDoesNotExist
+  = AccountDoesNotExist (Address AAccount)
   deriving (Show, Eq, Generic, Serialize)
 
 data ContractError
-  = ContractDoesNotExist
+  = ContractDoesNotExist (Address AContract)
   deriving (Show, Eq, Generic, Serialize)
 
 class World w where
-  type Account w
-  type Asset w
+  type Account' w
+  type Asset' w
 
   transferAsset
     :: Address AAsset
@@ -49,16 +52,16 @@ class World w where
     -> w
     -> Either AssetError w
 
-  lookupAccount :: Address AAccount -> w -> Either AccountError (Account w)
-  lookupAsset :: Address AAsset -> w -> Either AssetError (Asset w)
+  lookupAccount :: Address AAccount -> w -> Either AccountError (Account' w)
+  lookupAsset :: Address AAsset -> w -> Either AssetError (Asset' w)
   lookupContract :: Address AContract -> w -> Either ContractError Contract
 
-  assetType :: (Asset w) -> w -> AssetType
-  assetBalance :: (Asset w) -> Holder -> w -> Maybe Balance
-  assetToAddr :: (Asset w) -> w -> Address AAsset
+  assetType :: (Asset' w) -> w -> AssetType
+  assetBalance :: (Asset' w) -> Holder -> w -> Maybe Balance
+  assetToAddr :: (Asset' w) -> w -> Address AAsset
 
-  publicKey :: (Account w) -> w -> Key.PubKey
-  accountToAddr :: (Account w) -> w -> Address AAccount
+  publicKey :: (Account' w) -> w -> Key.PubKey
+  accountToAddr :: (Account' w) -> w -> Address AAccount
 
 
 

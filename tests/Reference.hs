@@ -12,68 +12,9 @@ Test fixtures.
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE TypeFamilies #-}
 
-module Reference (
-
-  -- ** Timestamp
-  testTimestamp,
-  unsafeTimestamp,
-
-  -- ** Address
-  testAddr,
-  testAddr2,
-  testAddr3,
-  deriveAddress,
-  recoverAddress,
-
-  -- ** Account
-  testTimezone,
-  testAccount,
-  testAccount2,
-
-  -- ** Asset
-  Ref(..),
-
-  -- ** Contract
-  testContract,
-
-  -- ** Storage
-  testStorage,
-  testGlobalStorage,
-
-  -- ** Script
-  defX,
-  getX,
-  setX,
-  transX,
-  testScript,
-  testCode,
-
-  -- ** Key
-  testSig,
-  testSigDecode,
-  testPub,
-  testPriv,
-  testPub2,
-  testPriv2,
-  testNonce,
-  testKeyExport,
-
-  testDH,
-  testDHPoint,
-  testDHSecret,
-  testDHSecret',
-
-  testEncrypt,
-  testDecrypt,
-
-  testRecover,
-
-  -- ** Evaluation
-  testTransactionCtx
-
-
-) where
+module Reference where
 
 import Protolude
 
@@ -97,6 +38,7 @@ import Language.FCL.Asset as Asset
 import Language.FCL.Metadata as Metadata
 import Language.FCL.Contract as Contract
 import qualified Language.FCL.World as World
+import Language.FCL.World (Account', Asset')
 import Language.FCL.Hash as Hash
 import Language.FCL.Encoding as Encoding
 import Numeric.Lossless.Number (Number(..))
@@ -176,13 +118,13 @@ data Asset = Asset
   , supply    :: Balance           -- ^ Total supply
   , holdings  :: Holdings          -- ^ Holdings map
   , reference :: Maybe Ref         -- ^ Reference unit
-  , assetType :: AssetType         -- ^ Asset type
-  , address   :: Address AAsset    -- ^ Asset address
+  , atype     :: AssetType         -- ^ Asset type
+  , asAddress   :: Address AAsset    -- ^ Asset address
   , metadata  :: Metadata.Metadata -- ^ Asset address
-  } deriving (Show, Generic)
+  } deriving (Show, Eq)
 
 newtype Holdings = Holdings { unHoldings :: Map.Map Holder Balance }
-  deriving (Eq, Ord, Show, Generic)
+  deriving (Eq, Ord, Show)
 
 data Ref
   = USD               -- ^ US Dollars
@@ -198,8 +140,8 @@ data Ref
 -------------------------------------------------------------------------------
 
 data Account = Account
-  { publicKey   :: Key.PubKey
-  , address     :: Address AAccount
+  { acPk        :: Key.PubKey
+  , acAddress   :: Address AAccount
   , timezone    :: SafeString.SafeString
   , metadata    :: Metadata
   } deriving (Show, Eq)
@@ -209,8 +151,8 @@ testTimezone = "GMT"
 
 testAccount :: Account
 testAccount = Account
-  { publicKey   = testPub
-  , address     = deriveAddress testPub
+  { acPk   = testPub
+  , acAddress     = deriveAddress testPub
   , timezone    = "America/New_York"
   , metadata    = Metadata $
       Map.fromList [ ("Company", "Adjoint Inc.") ]
@@ -218,8 +160,8 @@ testAccount = Account
 
 testAccount2 :: Account
 testAccount2 = Account
-  { publicKey   = testPub2
-  , address     = deriveAddress testPub2
+  { acPk   = testPub2
+  , acAddress     = deriveAddress testPub2
   , timezone    = "America/Boston"
   , metadata    = testMetadata
   }
@@ -266,6 +208,120 @@ testStorage = Map.fromList [
 
 testGlobalStorage :: GlobalStorage
 testGlobalStorage = GlobalStorage testStorage
+
+---------------------------------------------------
+-- World
+---------------------------------------------------
+
+data World = World
+  { contracts :: Map.Map (Address AContract) (Contract)
+  , assets    :: Map.Map (Address AAsset) Asset
+  , accounts  :: Map.Map (Address AAccount) Account
+  } deriving (Show, Eq)
+
+
+-- | Transfer an amount of the asset supply to an account's holdings
+circulateSupply :: Holder -> Balance -> Asset -> Either World.AssetError Asset
+circulateSupply addr bal asset
+  | supply asset >= bal
+    = Right $ asset { holdings = holdings', supply = supply' }
+  | otherwise
+    = Left $ World.InsufficientSupply (asAddress asset) (supply asset)
+  where
+    holdings' = Holdings $ clearZeroes $
+      Map.insertWith (+) addr bal $ unHoldings (holdings asset)
+    supply' = supply asset - bal
+
+    clearZeroes = Map.filter (/= 0)
+
+transferHoldings :: Holder -> Holder -> Balance -> Asset -> World -> Either World.AssetError Asset
+transferHoldings from to amount asset world
+    | from == to = Left $ World.SelfTransfer from
+    | otherwise  =
+        case World.assetBalance asset from world of
+          Nothing ->
+            Left $ World.HolderDoesNotExist from
+          Just bal
+            | amount <= bal -> do
+                asset' <- circulateSupply from (negate amount) asset
+                circulateSupply to amount asset'
+            | otherwise     ->
+                Left $ World.InsufficientHoldings (World.assetToAddr asset world) bal
+    where
+      assetIssuer = issuer asset
+
+instance World.World World where
+  type Account' World = Account
+  type Asset' World = Asset
+
+  transferAsset assetAddr from to balance world = do
+    validateTransferAddrs world from to
+    case World.lookupAsset assetAddr world of
+      Left err -> Left $ World.AssetDoesNotExist assetAddr
+      Right asset -> do
+        asset' <- transferHoldings from to balance asset world
+        Right $ world { assets = Map.insert assetAddr asset' (assets world) }
+      where
+        validateTransferAddrs
+          :: World
+          -> Holder -- ^ Sender Address (account or contract)
+          -> Holder -- ^ Receiver Address (account or contract)
+          -> Either World.AssetError ()
+        validateTransferAddrs world from to = void $ do
+          -- Check if origin account/contract exists
+          first (const $ World.SenderDoesNotExist from) $
+            case World.lookupAccount (holderToAccount from) world of
+              Left err -> second (const ()) $
+                World.lookupContract (holderToContract from) world
+              Right acc -> Right ()
+          -- Check if toAddr account/contract exists
+          first (const $ World.ReceiverDoesNotExist to) $
+            case World.lookupAccount (holderToAccount to) world of
+              Left err -> second (const ()) $
+                World.lookupContract (holderToContract to) world
+              Right acc -> Right ()
+
+  circulateAsset assetAddr txOrigin amount world =
+    case World.lookupAsset assetAddr world of
+    Left err    -> Left $ World.AssetDoesNotExist assetAddr
+    Right asset -> do
+      let assetIssuer = issuer asset
+      if assetIssuer /= txOrigin
+        then Left $ World.CirculatorIsNotIssuer (AccountHolder txOrigin) (World.assetToAddr asset world)
+        else do
+          asset' <- circulateSupply (AccountHolder assetIssuer) amount asset
+          Right $ world { assets = Map.insert assetAddr asset' (assets world) }
+
+  lookupContract addr world =
+    case Map.lookup addr (contracts world) of
+      Nothing -> Left $ World.ContractDoesNotExist addr
+      Just contract -> Right contract
+
+  lookupAsset addr world =
+    case Map.lookup addr (assets world) of
+      Nothing -> Left $ World.AssetDoesNotExist addr
+      Just asset -> Right asset
+
+  lookupAccount addr world =
+    case Map.lookup addr (accounts world) of
+      Nothing   -> Left $ World.AccountDoesNotExist addr
+      Just acc  -> Right acc
+
+  assetType asset world
+    = atype asset
+
+  assetBalance asset holder world
+    = Map.lookup holder (unHoldings $ holdings asset)
+
+  assetToAddr asset world
+    = asAddress asset
+
+  publicKey account world = acPk account
+
+  accountToAddr account world = acAddress account
+
+genesisWorld :: World
+genesisWorld = World mempty mempty mempty
 
 -------------------------------------------------------------------------------
 -- Script

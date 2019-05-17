@@ -22,13 +22,14 @@ suite
   = do
   workflowTests <- TestWorkflow.workflowTests
   compilerTests <- TestScript.compilerTests
+  evalTests <- TestScript.evalTests
   pure $ testGroup "Test Suite" [
 
     -- Evaluator tests
-    -- , TestScript.evalTests
+    evalTests
 
     -- Cryptography Tests
-    KeyTests.keyTests
+    , KeyTests.keyTests
 
     -- Undefinedness tests
     , TestUndefinedness.undefinednessTests

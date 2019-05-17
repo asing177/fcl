@@ -4,9 +4,8 @@
 {-# LANGUAGE ViewPatterns #-}
 
 module TestScript
-  (
-    -- evalTests
-  compilerTests
+  ( evalTests
+  , compilerTests
   , scriptPropTests
   ) where
 
@@ -289,92 +288,105 @@ compilerTests = testGroup "script" <$> sequence
 -- the final global storage. At the moment we are injecting a bunch of test
 -- addresses into the script, where 'testAddr' corresponds to the address of the
 -- transaction issuer.
--- evalTests :: IO TestTree
--- evalTests = testGroup "eval" <$> sequence
---     [ discoverGoldenTestsFCL "tests/eval/positive" evalTestPositive
---     , discoverGoldenTestsFCL "tests/eval/negative" evalTestNegative
---     ]
---   where
---     evalTestPositive :: FilePath -> IO String
---     evalTestPositive file = either
---       Pretty.panicppr
---       (\(_, resEvalState) -> toSL $ T.unlines
---           [ "*** Deltas ***"
---           , Utils.ppShow (Eval.deltas resEvalState)
---           , ""
---           , "*** Globals ***"
---           , Utils.ppShow (Eval.globalStorage resEvalState)
---           ])
---       <$> evalTest file
+evalTests :: IO TestTree
+evalTests = testGroup "eval" <$> sequence
+    [ discoverGoldenTestsFCL "tests/eval/positive" evalTestPositive
+    , discoverGoldenTestsFCL "tests/eval/negative" evalTestNegative
+    ]
+  where
+    evalTestPositive :: FilePath -> IO String
+    evalTestPositive file = either
+      Pretty.panicppr
+      (\(_, resEvalState) -> toSL $ T.unlines
+          [ "*** Deltas ***"
+          , Utils.ppShow (Eval.deltas resEvalState)
+          , ""
+          , "*** Globals ***"
+          , Utils.ppShow (Eval.globalStorage resEvalState)
+          ])
+      <$> evalTest file
 
---     evalTestNegative :: FilePath -> IO String
---     evalTestNegative file = either
---       (toS . Pretty.prettyPrint)
---       (panic . Utils.ppShow)
---       <$> evalTest file
+    evalTestNegative :: FilePath -> IO String
+    evalTestNegative file = either
+      (toS . Pretty.prettyPrint)
+      (panic . Utils.ppShow)
+      <$> evalTest file
 
---     evalTest :: FilePath -> IO (Either Eval.EvalFail (Contract.Contract, Eval.EvalState))
---     evalTest file = do
---       script <- injectTestAddresses <$> Parser.parseFile file
---       now <- Time.now
---       Right contract <- Init.createFauxContract
---           Ref.testAddr
---           (Just Ref.testTransactionCtx)
---           Ref.testPriv
---           now
---           Ref.testAddr
---           Ledger.genesisWorld
---           script
---       evalCtx <- initTestEvalCtx (scriptHelpers script)
---       calls <- parseCalls <$> readFile (replaceExtension file ".calls")
---       let evalState = Eval.initEvalState contract Ledger.genesisWorld
---       foldM (evalMethod' evalCtx) (Right (contract, evalState)) calls
+    evalTest :: FilePath -> IO (Either Eval.EvalFail (Contract.Contract, Eval.EvalState Ref.World))
+    evalTest file = do
+      script <- injectTestAddresses <$> Parser.parseFile file
+      Right bs <- Utils.safeRead file
+      now <- Time.now
+      let contractAddr = Ref.testAddr
+      Right contract <-
+        Init.createContract
+          contractAddr
+          Ref.testAddr
+          (Just Ref.testTransactionCtx)
+          Ref.testPriv
+          now
+          Ref.testAddr
+          Ref.genesisWorld
+          (toS bs)
+      -- Right contract <- Init.createFauxContract
+      --     Ref.testAddr
+      --     (Just Ref.testTransactionCtx)
+      --     Ref.testPriv
+      --     now
+      --     Ref.testAddr
+      --     Ledger.genesisWorld
+      --     script
+      evalCtx <- initTestEvalCtx (scriptHelpers script)
+      calls <- parseCalls <$> readFile (replaceExtension file ".calls")
+      let evalState = Eval.initEvalState contract Ref.genesisWorld
+      foldM (evalMethod' evalCtx) (Right (contract, evalState)) calls
 
---     evalMethod' _ (Left err) _ = pure (Left err)
---     evalMethod' evalCtx (Right (contract, evalState)) (Right lname, args) =
---         case Contract.lookupContractMethod (locVal lname) contract of
---           Left err -> fail (show err ++ "\n" ++ show contract)
---           Right method -> do
---             eNewEvalState <- Eval.execEvalM
---               evalCtx
---               evalState
---               (Eval.evalMethod method =<< mapM Eval.evalLExpr args)
---             pure ((updateContract contract &&& identity) <$> eNewEvalState)
+    evalMethod' _ (Left err) _ = pure (Left err)
+    evalMethod' evalCtx (Right (contract, evalState)) (Right lname, args) =
+        case Contract.lookupContractMethod (locVal lname) contract of
+          Left err -> fail (show err ++ "\n" ++ show contract)
+          Right method -> do
+            eNewEvalState <- Eval.execEvalM
+              evalCtx
+              evalState
+              (Eval.evalMethod method =<< mapM Eval.evalLExpr args)
+            pure ((updateContract contract &&& identity) <$> eNewEvalState)
 
---     updateContract contract evalState = contract
---       { Contract.globalStorage = Storage.GlobalStorage (Eval.globalStorage evalState)
---       , Contract.state         = Eval.workflowState evalState
---       }
+    updateContract contract evalState = contract
+      { Contract.globalStorage = GlobalStorage (Eval.globalStorage evalState)
+      , Contract.state         = Eval.workflowState evalState
+      }
 
---     -- | To pretty print this apply
---     -- @T.unlines . map (Pretty.prettyPrint . uncurry Script.ECall)@
---     parseCalls :: Text -> [(Either Prim.PrimOp LName, [LExpr])]
---     parseCalls
---       = map (either Pretty.panicppr identity . Parser.parseCall)
---       . T.lines
+    -- | To pretty print this apply
+    -- @T.unlines . map (Pretty.prettyPrint . uncurry ECall)@
+    parseCalls :: Text -> [(Either Prim.PrimOp LName, [LExpr])]
+    parseCalls
+      = map (either Pretty.panicppr identity . Parser.parseCall)
+      . T.lines
 
---     injectTestAddresses :: Script.Script -> Script.Script
---     injectTestAddresses s = s{ Script.scriptDefs = testAddresses <> Script.scriptDefs s }
---       where
---         testAddresses = map (\(nm, val) -> GlobalDef TAccount mempty (Name nm) (Located NoLoc $ ELit $ Located NoLoc $ val))
---             [ ("testAddr", LAccount Ref.testAddr)
---             , ("testAddr2", LAccount Ref.testAddr2)
---             , ("testAddr3", LAccount Ref.testAddr3)
---             ]
---     initTestEvalCtx :: [Helper] -> IO Eval.EvalCtx
---     initTestEvalCtx helpers = do
---       now <- Time.now
---       pure Eval.EvalCtx
---         { Eval.currentTxCtx = Just Eval.TransactionCtx
---             { Eval.transactionBlockIdx = 0
---             , Eval.transactionHash = Hash.toHash (Ref.testTx Ref.testCall)
---             , Eval.transactionBlockTs = now
---             , Eval.transactionIssuer = Ref.testAddr
---             }
---         , Eval.currentValidator = Ref.testAddr
---         , Eval.currentCreated = now
---         , Eval.currentDeployer = Ref.testAddr
---         , Eval.currentAddress = Ref.testAddr
---         , Eval.currentPrivKey = Ref.testPriv
---         , Eval.currentHelpers = helpers
---         }
+    injectTestAddresses :: Script -> Script
+    injectTestAddresses s = s{ scriptDefs = testAddresses <> scriptDefs s }
+      where
+        testAddresses = map (\(nm, val) -> GlobalDef TAccount mempty (Name nm) (Located NoLoc $ ELit $ Located NoLoc $ val))
+            [ ("testAddr", LAccount Ref.testAddr)
+            , ("testAddr2", LAccount Ref.testAddr2)
+            , ("testAddr3", LAccount Ref.testAddr3)
+            ]
+    initTestEvalCtx :: [Helper] -> IO Eval.EvalCtx
+    initTestEvalCtx helpers = do
+      now <- Time.now
+      pure Eval.EvalCtx
+        { Eval.currentTxCtx = Just Eval.TransactionCtx
+            { Eval.transactionBlockIdx = 0
+            , Eval.transactionHash = Hash.toHash ("DummyTx" :: ByteString)
+-- = Hash.toHash (Ref.testTx Ref.testCall)
+            , Eval.transactionBlockTs = now
+            , Eval.transactionIssuer = Ref.testAddr
+            }
+        , Eval.currentValidator = Ref.testAddr
+        , Eval.currentCreated = now
+        , Eval.currentDeployer = Ref.testAddr
+        , Eval.currentAddress = Ref.testAddr
+        , Eval.currentPrivKey = Ref.testPriv
+        , Eval.currentHelpers = helpers
+        }

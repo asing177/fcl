@@ -27,6 +27,7 @@ module Language.FCL.Parser (
   parseDateTime,
   parseWorkflowState,
   parseBlock,
+  parseCall,
   parseMethod,
 
   expr,
@@ -78,7 +79,7 @@ import Language.FCL.AST hiding (mapType)
 import Language.FCL.Address
 import Language.FCL.Lexer as Lexer
 import Language.FCL.Pretty hiding (parens)
-import Language.FCL.Prim (lookupPrim)
+import Language.FCL.Prim (lookupPrim, PrimOp)
 import Language.FCL.SafeString (fromBytes')
 import qualified Language.FCL.Token as Token
 import qualified Datetime.Types as DT
@@ -143,6 +144,9 @@ parseWorkflowState input = first (mkParseErrInfo input)
 parseBlock :: T.Text -> Either ParseErrInfo LExpr
 parseBlock input = first (mkParseErrInfo input)
   $ parse (contents block) "block" input
+
+parseCall :: Text -> Either ParseErrInfo ((Either PrimOp LName), [LExpr])
+parseCall input = first (mkParseErrInfo input) $ parse call "call" input
 
 contents :: Parser a -> Parser a
 contents p = whiteSpace *> p
@@ -551,6 +555,17 @@ callExpr = do
   args <- commaSep expr <* symbol Token.rparen
   return $ ECall fname args
  <?> "call statement"
+
+call :: Parser ((Either PrimOp LName), [LExpr])
+call = do
+  lnm@(Located _ nm) <-
+    try $ Lexer.locName <* symbol Token.lparen
+  let fname = case lookupPrim nm of
+        Nothing  -> Right lnm
+        Just pop -> Left pop
+  args <- commaSep expr <* symbol Token.rparen
+  return (fname, args)
+    <?> "call statement"
 
 ifElseExpr :: Parser Expr
 ifElseExpr = do

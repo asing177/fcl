@@ -1,6 +1,7 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE DeriveAnyClass #-}
-{-# LANGUAGE DeriveGeneric  #-}
+{-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE KindSignatures #-}
 module Language.FCL.Asset where
 
 import Protolude
@@ -13,9 +14,17 @@ data Holder
   | ContractHolder (Address AContract)
   deriving (Eq, Ord, Show, Generic, Serialize)
 
+holderToAccount :: Holder -> Address AAccount
+holderToAccount (AccountHolder addr) = addr
+holderToAccount _ = panic "Invalid holder to account coercion"
+
+holderToContract :: Holder -> Address AContract
+holderToContract (ContractHolder addr) = addr
+holderToContract _ = panic "Invalid holder to contract coercion"
+
 newtype Balance
   = Balance { unBalance :: Decimal }
-  deriving (Eq, Ord, Show, Generic, Serialize)
+  deriving (Eq, Ord, Show, Num, Generic, Serialize)
 
 -- | Type of an asset's value. Underlying value is always a Int64, but this
 -- informs the representation and range of valid values.

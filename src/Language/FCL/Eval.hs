@@ -111,7 +111,7 @@ data EvalState world = EvalState
   , currentMethod    :: Maybe Method     -- ^ Which method we're currently in, if any
   , worldState       :: world            -- ^ Current world state
   , deltas           :: [Delta.Delta]
-  } deriving (Generic)
+  } deriving (Show, Generic)
 
 {- TopLevel:
  -
@@ -972,7 +972,7 @@ getAccountAddr accExpr = do
   world <- gets worldState
   flip accountToAddr world <$> getAccount accExpr
 
-getAccount :: World world => LExpr -> (EvalM world) (Account world)
+getAccount :: World world => LExpr -> (EvalM world) (Account' world)
 getAccount accExpr = do
   ledgerState <- gets worldState
   accAddr <- extractAddrAccount <$> evalLExpr accExpr
@@ -986,7 +986,7 @@ getAssetAddr assetExpr = do
   world <- gets worldState
   flip assetToAddr world <$> getAsset assetExpr
 
-getAsset :: World world => LExpr -> (EvalM world) (Asset world)
+getAsset :: World world => LExpr -> (EvalM world) (Asset' world)
 getAsset assetExpr = do
   ledgerState <- gets worldState
   assetAddr   <- extractAddrAsset <$> evalLExpr assetExpr
