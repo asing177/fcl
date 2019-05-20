@@ -58,6 +58,9 @@ class World w where
   lookupAsset :: Address AAsset -> w -> Either AssetError (Asset' w)
   lookupContract :: Address AContract -> w -> Either ContractError Contract
 
+  -- All the methods below have ambiguous types (hence -XAmbiguousTypes) which
+  -- need to be resolved via type applications.
+
   assetType :: (Asset' w) -> AssetType
   assetBalance :: (Asset' w) -> Holder -> Maybe Balance
   assetToAddr :: (Asset' w) -> Address AAsset
