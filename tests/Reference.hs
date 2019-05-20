@@ -231,7 +231,6 @@ circulateSupply addr bal asset
     holdings' = Holdings $ clearZeroes $
       Map.insertWith (+) addr bal $ unHoldings (holdings asset)
     supply' = supply asset - bal
-
     clearZeroes = Map.filter (/= 0)
 
 transferHoldings :: Holder -> Holder -> Balance -> Asset -> World -> Either World.AssetError Asset

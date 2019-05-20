@@ -14,7 +14,7 @@ extra-source-files:
 description:         Financial Core Language compiler
 
 dependencies:
-  - base >= 4.12 && < 5
+  - base >= 4.7 && < 5
   - protolude
   - text
   - array
