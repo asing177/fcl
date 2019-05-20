@@ -1,7 +1,7 @@
 {-|
 GMP integer types with serializers that consume finite, bounded data.
 -}
-
+{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE Strict                     #-}
 
@@ -64,7 +64,7 @@ instance Exception HugeInteger
 
 -- | Integers safe for serialization
 newtype SafeInteger = SafeInteger Integer
-  deriving (Eq, Ord, Read, NFData)
+  deriving (Eq, Ord, Read, NFData, Generic)
 
 instance Bounded SafeInteger where
   maxBound = SafeInteger maxBound'
