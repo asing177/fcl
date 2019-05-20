@@ -44,6 +44,7 @@ import qualified Data.Aeson as A
 import qualified Data.Binary as BI
 
 import Language.FCL.Pretty (Pretty(..))
+import qualified Language.FCL.Hash as Hash
 
 -- | Maximum number of bytes to read from wire for this field.
 maxSize :: Int
@@ -59,6 +60,9 @@ data HugeString = HugeString
 
 instance Exception HugeString
 instance Serialize HugeString
+
+instance Hash.Hashable SafeString where
+  toHash (SafeString h) = Hash.toHash h
 
 instance Show SafeString where
   show (SafeString x) = show x

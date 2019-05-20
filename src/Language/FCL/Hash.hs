@@ -15,10 +15,9 @@ Hashing for bytestrings and data structures.
 
 module Language.FCL.Hash (
   -- ** Types
-  Hash,
+  Hash(..),
   getHash,
   getRawHash,
-  rawHash,
   hashSize,
   emptyHash,
   isHashOf,

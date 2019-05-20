@@ -11,19 +11,15 @@ module Language.FCL.Encoding (
   -- ** ByteStringEncoding
   ByteStringEncoding(..),
   EncodingError(..),
-  Base16ByteString,
-  unbase16,
+  Base16ByteString(..),
   encodeBase16,
   decodeBase16E,
-  Base58ByteString,
-  unbase58,
+  Base58ByteString(..),
   encodeBase58,
   decodeBase58M,
-  Base64ByteString,
-  unbase64,
+  Base64ByteString(..),
   encodeBase64,
-  Base64PByteString,
-  unbase64P,
+  Base64PByteString(..),
   encodeBase64P
 ) where
 

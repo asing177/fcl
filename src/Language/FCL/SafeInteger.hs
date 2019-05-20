@@ -39,6 +39,7 @@ import           Data.Serialize      as S (Serialize (..), getWord16be,
 import           Data.Text.Read      (decimal, signed)
 
 import           Language.FCL.Pretty
+import qualified Language.FCL.Hash as Hash
 
 maxBits :: Int
 maxBits = 4096
@@ -68,6 +69,9 @@ newtype SafeInteger = SafeInteger Integer
 instance Bounded SafeInteger where
   maxBound = SafeInteger maxBound'
   minBound = SafeInteger minBound'
+
+instance Hash.Hashable SafeInteger where
+  toHash (SafeInteger n) = Hash.toHash n
 
 instance Show SafeInteger where
   show (SafeInteger x) = show x

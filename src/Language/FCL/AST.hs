@@ -106,8 +106,8 @@ module Language.FCL.AST (
 
 ) where
 
-import Protolude hiding (put, get, (<>), Show, putByteString, Type)
-import Prelude (Show(..))
+import Protolude hiding (put, get, (<>), show, Show, putByteString, Type)
+import Prelude (show, Show(..))
 
 import Control.Monad (fail)
 
@@ -115,8 +115,8 @@ import Numeric.Lossless.Number
 import Language.FCL.Pretty
 import Language.FCL.Prim (PrimOp)
 import qualified Language.FCL.Pretty as Pretty
-
 import qualified Language.FCL.Token as Token
+import qualified Language.FCL.Hash as Hash
 import qualified Data.Text as T
 import qualified Datetime.Types as DT
 
@@ -141,12 +141,12 @@ import Language.FCL.SafeInteger
 data Loc
   = NoLoc
   | Loc { line :: Int, col :: Int }
-  deriving (Eq, Show, Ord, Generic, Serialize, FromJSON, ToJSON)
+  deriving (Eq, Show, Ord, Generic, Serialize, FromJSON, ToJSON, Hash.Hashable)
 
 data Located a = Located
   { located :: Loc
   , locVal  :: a
-  } deriving (Generic, Show, FromJSON, ToJSON, FromJSONKey, ToJSONKey)
+  } deriving (Generic, Show, FromJSON, ToJSON, FromJSONKey, ToJSONKey, Hash.Hashable)
 
 instance Functor Located where
   fmap f (Located l v) = Located l (f v)
@@ -169,7 +169,7 @@ type LPattern = Located Pattern
 
 -- | Enum constructor.
 newtype EnumConstr = EnumConstr { unEnumConstr :: SafeString }
-  deriving (Eq, Show, Ord, Generic)
+  deriving (Eq, Show, Ord, Generic, Hash.Hashable)
 
 instance ToJSON EnumConstr where
   toJSON = toJSON . unEnumConstr
@@ -179,7 +179,7 @@ instance FromJSON EnumConstr where
 
 -- | Variable names
 newtype Name = Name { unName :: Text }
-  deriving (Eq, Show, Ord, Generic, B.Binary, Serialize, FromJSONKey, ToJSONKey)
+  deriving (Eq, Show, Ord, Generic, B.Binary, Serialize, FromJSONKey, ToJSONKey, Hash.Hashable)
 
 -- | Datetime literals
 newtype DateTime = DateTime { unDateTime :: DT.Datetime }
@@ -188,15 +188,21 @@ newtype DateTime = DateTime { unDateTime :: DT.Datetime }
 newtype TimeDelta = TimeDelta { unTimeDelta :: DT.Delta }
    deriving (Eq, Ord, Show, Generic, Serialize, ToJSON, FromJSON)
 
+instance Hash.Hashable TimeDelta where
+  toHash = Hash.toHash . (toS :: [Char] -> ByteString) . show
+
+instance Hash.Hashable DateTime where
+  toHash = Hash.toHash . (toS :: [Char] -> ByteString) . show
+
 data Pattern
   = PatLit EnumConstr
-  deriving (Eq, Ord, Show, Generic, FromJSON, ToJSON)
+  deriving (Eq, Ord, Show, Generic, FromJSON, ToJSON, Hash.Hashable)
 
 data Match
   = Match { matchPat :: LPattern
           , matchBody :: LExpr
           }
-  deriving (Eq, Ord, Show, Generic, FromJSON, ToJSON)
+  deriving (Eq, Ord, Show, Generic, FromJSON, ToJSON, Hash.Hashable)
 
 data Expr
   = ESeq     LExpr LExpr           -- ^ Sequencing
@@ -215,7 +221,7 @@ data Expr
   | ENoOp                          -- ^ Empty method body
   | EMap     (Map LExpr LExpr)     -- ^ Map k v
   | ESet     (Set LExpr)           -- ^ Set v
-  deriving (Eq, Ord, Show, Generic, FromJSON, ToJSON)
+  deriving (Eq, Ord, Show, Generic, FromJSON, ToJSON, Hash.Hashable)
 
 data BinOp
   = Add     -- ^ Addition
@@ -230,10 +236,10 @@ data BinOp
   | GEqual  -- ^ Greater equal
   | Lesser  -- ^ Lesser
   | Greater -- ^ Greater
-  deriving (Eq, Ord, Show, Generic, FromJSON, ToJSON)
+  deriving (Eq, Ord, Show, Generic, FromJSON, ToJSON, Hash.Hashable)
 
 data UnOp = Not -- ^ Logical negation
-  deriving (Eq, Ord, Show, Generic, FromJSON, ToJSON)
+  deriving (Eq, Ord, Show, Generic, FromJSON, ToJSON, Hash.Hashable)
 
 -- | Literal representing Value
 data Lit
@@ -249,7 +255,7 @@ data Lit
   | LTimeDelta TimeDelta
   | LConstr    EnumConstr
   | LVoid
-  deriving (Eq, Ord, Show, Generic, FromJSON, ToJSON)
+  deriving (Eq, Ord, Show, Generic, FromJSON, ToJSON, Hash.Hashable)
 
 -- | Values in which literals are evaluated to
 data Value
@@ -268,7 +274,7 @@ data Value
   | VMap (Map Value Value)         -- ^ Map of values to values
   | VSet (Set Value)               -- ^ Set of values
   | VUndefined                     -- ^ Undefined
-  deriving (Eq, Ord, Show, Generic, Serialize)
+  deriving (Eq, Ord, Show, Generic, Serialize, Hash.Hashable)
 
 -- | Type variables used in inference
 data TVar
@@ -276,12 +282,12 @@ data TVar
   | TAV Text -- ^ Type variable used for inferring return types of prim ops operating over assets
   | TCV Text -- ^ Type variable used for inferring return types of prim ops operating over collections
   | THV Type -- ^ Type variable used for inferring holdings type of polymorphic asset prim ops.
-  deriving (Eq, Ord, Show, Generic, FromJSON, ToJSON)
+  deriving (Eq, Ord, Show, Generic, FromJSON, ToJSON, Hash.Hashable)
 
 data TCollection
   = TMap Type Type  -- ^ Type of FCL Maps
   | TSet Type       -- ^ Type of FCL Sets
-  deriving (Eq, Ord, Show, Generic, Serialize, FromJSON, ToJSON)
+  deriving (Eq, Ord, Show, Generic, Serialize, FromJSON, ToJSON, Hash.Hashable)
 
 -- | The required numeric precision @p@ to ensure non-lossy arithmetic. This is
 -- tracked in the type of numbers, @TNum p@.
@@ -290,7 +296,7 @@ data NumPrecision
   | NPDecimalPlaces Integer          -- ^ fixed number of decimal places
   | NPAdd NumPrecision NumPrecision  -- ^ internal (for multiplication)
   | NPMax NumPrecision NumPrecision  -- ^ internal (for addition)
-  deriving (Eq, Ord, Show, Generic, Serialize, FromJSON, ToJSON)
+  deriving (Eq, Ord, Show, Generic, Serialize, FromJSON, ToJSON, Hash.Hashable)
 
 -- | Smart constructor for 'NumPrecision' for integers
 nPInt :: NumPrecision
@@ -328,15 +334,15 @@ data Type
   | TFun [Type] Type -- ^ Type signature of helper functions--argument types and return type
   | TColl TCollection -- ^ Type of collection values
   | TTransition     -- ^ Transition type
-  deriving (Eq, Ord, Show, Generic, FromJSON, ToJSON)
+  deriving (Eq, Ord, Show, Generic, FromJSON, ToJSON, Hash.Hashable)
 
 -- | Function argument
 data Arg
   = Arg { argType :: Type, argName ::  LName }
-  deriving (Eq, Ord, Show, Generic, FromJSON, ToJSON)
+  deriving (Eq, Ord, Show, Generic, FromJSON, ToJSON, Hash.Hashable)
 
 data Precondition = PrecAfter | PrecBefore | PrecRoles
-  deriving (Eq, Ord, Show, Generic, Serialize, FromJSON, ToJSON)
+  deriving (Eq, Ord, Show, Generic, Serialize, FromJSON, ToJSON, Hash.Hashable)
 
 instance Pretty Precondition where
   ppr = \case
@@ -346,7 +352,7 @@ instance Pretty Precondition where
 
 newtype Preconditions = Preconditions
   { unPreconditions :: [(Precondition, LExpr)] }
-  deriving (Eq, Ord, Show, Generic, Serialize, FromJSON, ToJSON)
+  deriving (Eq, Ord, Show, Generic, Serialize, FromJSON, ToJSON, Hash.Hashable)
 
 instance Semigroup Preconditions where
   Preconditions ps1 <> Preconditions ps2 = Preconditions $ ps1 <> ps2
@@ -372,26 +378,26 @@ data Method = Method
   , methodName          :: LName
   , methodArgs          :: [Arg]
   , methodBody          :: LExpr
-  } deriving (Eq, Ord, Show, Generic, FromJSON, ToJSON)
+  } deriving (Eq, Ord, Show, Generic, FromJSON, ToJSON, Hash.Hashable)
 
 -- | "Pure" Helper functions
 data Helper = Helper
   { helperName :: LName
   , helperArgs :: [Arg]
   , helperBody :: LExpr
-  } deriving (Eq, Ord, Show, Generic, FromJSON, ToJSON)
+  } deriving (Eq, Ord, Show, Generic, FromJSON, ToJSON, Hash.Hashable)
 
 -- | Enumeration
 data EnumDef = EnumDef
   { enumName :: LName
   , enumConstrs :: [LEnumConstr]
-  } deriving (Eq, Ord, Show, Generic, ToJSON, FromJSON)
+  } deriving (Eq, Ord, Show, Generic, ToJSON, FromJSON, Hash.Hashable)
 
 -- | Definition
 data Def
   = GlobalDef Type Preconditions Name LExpr
   | GlobalDefNull Type Preconditions LName
-  deriving (Eq, Ord, Show, Generic, FromJSON, ToJSON)
+  deriving (Eq, Ord, Show, Generic, FromJSON, ToJSON, Hash.Hashable)
 
 defnName :: Def -> Name
 defnName = locVal . defnLName
@@ -413,7 +419,7 @@ data Script = Script
   , scriptTransitions :: [Transition]
   , scriptMethods     :: [Method]
   , scriptHelpers     :: [Helper]
-  } deriving (Eq, Ord, Show, Generic, ToJSON, FromJSON)
+  } deriving (Eq, Ord, Show, Generic, ToJSON, FromJSON, Hash.Hashable)
 
 emptyScript :: Script
 emptyScript = Script
@@ -842,7 +848,7 @@ data Place
   = PlaceStart
   | Place { placeName :: Name }
   | PlaceEnd
-  deriving (Eq, Ord, Show, Generic, Serialize, ToJSON, FromJSON, FromJSONKey, ToJSONKey)
+  deriving (Eq, Ord, Show, Generic, Serialize, ToJSON, FromJSON, FromJSONKey, ToJSONKey, Hash.Hashable)
 
 instance Pretty Place where
   ppr PlaceStart = ppr Token.initial
@@ -860,7 +866,7 @@ startState = WorkflowState $ Set.singleton PlaceStart
 endState = WorkflowState $ Set.singleton PlaceEnd
 
 newtype WorkflowState = WorkflowState { places :: Set Place }
-  deriving (Eq, Ord, Show, Generic, Serialize)
+  deriving (Eq, Ord, Show, Generic, Serialize, Hash.Hashable)
 
 instance Pretty WorkflowState where
   ppr (Set.toList . places -> [p]) = ppr p
@@ -874,7 +880,7 @@ instance FromJSON WorkflowState where
 
 data Transition
   = Arrow WorkflowState WorkflowState
-  deriving (Eq, Ord, Show, Generic, Serialize, ToJSON, FromJSON)
+  deriving (Eq, Ord, Show, Generic, Serialize, ToJSON, FromJSON, Hash.Hashable)
 
 instance Pretty Transition where
   ppr (Arrow from to) = token Token.transition <+> ppr from <+> token Token.rarrow <+> ppr to
