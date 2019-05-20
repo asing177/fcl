@@ -7,7 +7,6 @@
 module Language.FCL.Address where
 
 import Protolude
-import GHC.Show
 import Language.FCL.Hash as Hash (Hashable(..))
 import Language.FCL.Pretty
 import Data.Aeson (ToJSON(..), FromJSON(..), ToJSONKey(..), FromJSONKey(..))

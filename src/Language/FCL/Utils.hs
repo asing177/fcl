@@ -52,7 +52,6 @@ import Protolude
 
 import Control.Monad (fail)
 
-import Data.Time.Clock
 import qualified Data.Binary as B
 import qualified Data.Binary.Get as B
 import qualified Data.Binary.Put as B
@@ -64,19 +63,12 @@ import qualified Data.List as List
 import Data.Map (Map)
 import qualified Data.Map as Map
 import qualified Data.Serialize as S
-import qualified Data.Text as T
 
-import qualified Text.Parsec.Text as T
-import qualified Text.Parsec as T
 import Text.Printf (printf)
 import qualified Text.Show.Pretty (ppShow)
 
-import Control.Exception (Exception)
-
 import System.Console.ANSI
 import System.Directory
-
-import qualified Language.FCL.Time as Time
 
 showHex :: Word8 -> [Char]
 showHex = printf "%02x"
@@ -245,12 +237,9 @@ putBinaryViaSerialize v = do
 -- Impossible Errors
 -------------------------------------------------------------------------------
 
-panicImpossible :: Maybe Text -> a
-panicImpossible mText = panic $
-  (<>) "The impossible happened" $
-    case mText of
-      Nothing -> "!"
-      Just txt -> ": " <> txt <> "!"
+
+panicImpossible :: Text -> a
+panicImpossible msg = panic $ "The impossible happened: " <> msg <> "!"
 
 
 -------------------------------------------------------------------------------

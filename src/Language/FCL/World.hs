@@ -3,6 +3,7 @@
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE DataKinds #-}
+{-# LANGUAGE ImpredicativeTypes #-}
 module Language.FCL.World where
 
 import Protolude

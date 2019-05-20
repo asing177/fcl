@@ -17,29 +17,39 @@ dependencies:
   - base >= 4.7 && < 5
   - protolude
   - text
-  - array
+  - memory
+  - lattices
+
+  # Data Structures
+  - containers
+
+  # Serialization
+  - binary
+
+  # Date & Time
+  - time
+  - datetimes
+  - hourglass
+
+  # Text
+  - bytestring
+
+library:
+  source-dirs: src
+  dependencies:
   - deepseq
   - directory
   - filepath
   - unix
   - array
   - pretty-show
-  - safe
-  - scientific
-  - filelock
   - ansi-terminal
-  - rank1dynamic
-  - lattices
-  - memory
   - process-extras
-  - process
 
   # Serialization
   - cereal
   - cereal-text
-  - binary
   - aeson
-  - aeson-pretty
   - pretty-hex
 
   # Exceptions
@@ -48,27 +58,12 @@ dependencies:
     # Control Structures
   - mtl
   - transformers
-  - transformers-base
-  - monad-control
-  - lifted-base
-
-  # Date & Time
-  - time
-  - datetimes
-  - hourglass
 
   # Text
   - text
-  - bytestring
   - parsec
-  - attoparsec
   - wl-pprint-text
   - base58-bytestring
-
-  # Data Structures
-  - containers
-  - hashable
-  - unordered-containers
 
   # Cryptography
   - cryptonite
@@ -78,9 +73,6 @@ dependencies:
   - asn1-types
   - asn1-encoding
   - arithmoi
-
-library:
-  source-dirs: src
   ghc-options:
     -fwarn-tabs
     -fwarn-incomplete-patterns
@@ -197,6 +189,7 @@ tests:
     - -with-rtsopts=-N
     dependencies:
     - fcl
+    - filepath
     - Diff
     - strict
     - cryptonite

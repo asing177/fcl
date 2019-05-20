@@ -41,7 +41,7 @@ import Text.ParserCombinators.ReadP
 import Text.Read
 import Text.Show
 
-import Language.FCL.Pretty (Pretty(..), prettyPrint)
+import Language.FCL.Pretty (Pretty(..))
 import Language.FCL.Hash (Hashable(..))
 import Language.FCL.Utils ((?), putBinaryViaSerialize, getBinaryViaSerialize)
 

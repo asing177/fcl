@@ -72,7 +72,6 @@ import Data.Functor.Identity (Identity)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import qualified Data.Text as T
-import qualified Data.Text.IO as TIO
 
 import Numeric.Lossless.Number
 import Language.FCL.AST hiding (mapType)
@@ -546,15 +545,7 @@ assignExpr = do
  <?> "assign statement"
 
 callExpr :: Parser Expr
-callExpr = do
-  lnm@(Located _ nm) <-
-    try $ Lexer.locName <* symbol Token.lparen
-  let fname = case lookupPrim nm of
-        Nothing  -> Right lnm
-        Just pop -> Left pop
-  args <- commaSep expr <* symbol Token.rparen
-  return $ ECall fname args
- <?> "call statement"
+callExpr = uncurry ECall <$> call
 
 call :: Parser ((Either PrimOp LName), [LExpr])
 call = do

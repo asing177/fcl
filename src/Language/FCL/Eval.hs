@@ -182,7 +182,7 @@ lookupHelper :: LName -> (EvalM world) Helper
 lookupHelper lhnm = do
   helpers <- currentHelpers <$> ask
   case List.find ((==) lhnm . helperName) helpers of
-    Nothing     -> panicImpossible $ Just "lookupHelper: Undefined helper function name"
+    Nothing     -> panicImpossible "lookupHelper: Undefined helper function name"
     Just helper -> pure helper
 
 -- | Emit a delta updating  the state of a global reference.
@@ -326,7 +326,7 @@ evalLExpr (Located loc e) = case e of
       VBool a' -> return $
         case op of
           Not -> VBool $ not a'
-      _ -> panicImpossible $ Just "EUnOp"
+      _ -> panicImpossible "EUnOp"
 
   -- This logic handles the special cases of operating over homomorphic
   -- crypto-text.
@@ -413,13 +413,13 @@ evalLExpr (Located loc e) = case e of
           Greater -> VBool $ a' > b'
           Add -> VText $ a' <> b'
           _ -> binOpFail
-      (v1, v2) -> panicImpossible $ Just $
+      (v1, v2) -> panicImpossible $
         "evalLExpr EBinOp: (" <> show v1 <> ", " <> show v2 <> ")"
 
   EVar (Located _ var) -> do
     mVal <- lookupVar var
     case mVal of
-      Nothing -> panicImpossible $ Just $ "evalLExpr: EVar" <> show var
+      Nothing -> panicImpossible $ "evalLExpr: EVar" <> show var
       Just val -> return val
 
   ECall ef args   ->
@@ -477,11 +477,11 @@ evalLExpr (Located loc e) = case e of
     VSet . Set.fromList <$> traverse evalLExpr (toList s)
 
   EHole ->
-    panicImpossible . Just $ "Evaluating hole expression at " <> show loc
+    panicImpossible $ "Evaluating hole expression at " <> show loc
 
 match :: [Match] -> EnumConstr -> LExpr
 match ps c
-  = fromMaybe (panicImpossible $ Just "Cannot match constructor")
+  = fromMaybe (panicImpossible "Cannot match constructor")
   $ List.lookup (PatLit c)
   $ map (\(Match pat body) -> (locVal pat, body))
   $ ps
@@ -553,7 +553,7 @@ evalPrim loc ex args = case ex of
     let [LState newLocalState] = unLoc <$> argLits (unLoc <$> args)
     m <- gets currentMethod
     case m of
-      Nothing -> panicImpossible $ Just "evalPrim: transitionTo can only be called from a method body."
+      Nothing -> panicImpossible "evalPrim: transitionTo can only be called from a method body."
       Just m -> do
         oldGlobalState <- getState
         let oldLocalState = methodInputPlaces m
@@ -564,10 +564,10 @@ evalPrim loc ex args = case ex of
             emitDelta . Delta.ModifyState $ newGlobalState
             updateState newGlobalState
             pure VVoid
-          Just (Left err) -> panicImpossible . Just $
+          Just (Left err) -> panicImpossible $
             "evalPrim: how did you manage to smuggle an unsound workflow past the soundness checker?\n"
             <> Pretty.prettyPrint err
-          Nothing -> panicImpossible . Just . Pretty.prettyPrint . Pretty.sep $
+          Nothing -> panicImpossible . Pretty.prettyPrint . Pretty.sep $
             [ "evalPrim: how did you manage to smuggle an unsound workflow past the soundness checker?"
             , Pretty.squotes (Pretty.ppr t)
             , "is not enabled in current global state"
@@ -579,7 +579,7 @@ evalPrim loc ex args = case ex of
   Stay -> do
     m <- gets currentMethod
     case m of
-      Nothing -> panicImpossible $ Just "evalPrim: stay can only be called from a method body."
+      Nothing -> panicImpossible "evalPrim: stay can only be called from a method body."
       Just m -> pure VVoid
 
   Sign           -> do
@@ -957,7 +957,7 @@ evalCollPrim collPrimOp args =
       pure $ case res of
         VBool True  -> True
         VBool False -> False
-        otherwise -> panicImpossible $ Just "Body of helper function used in filter primop did not return Bool"
+        otherwise -> panicImpossible "Body of helper function used in filter primop did not return Bool"
 
     foldColl :: LExpr -> (Name, Value) -> Name -> [Value] -> (EvalM world) Value
     foldColl fbody (accNm, initVal) argNm vals =
@@ -1038,15 +1038,15 @@ noop = pure VVoid
 -- XXX find a better way to do this
 extractAddrAccount :: Value -> Address AAccount
 extractAddrAccount (VAccount addr) = addr
-extractAddrAccount _ = panicImpossible $ Just "extractAddrAccount"
+extractAddrAccount _ = panicImpossible "extractAddrAccount"
 
 extractAddrAsset :: Value -> Address AAsset
 extractAddrAsset (VAsset addr) = addr
-extractAddrAsset _ = panicImpossible $ Just "extractAddrAsset"
+extractAddrAsset _ = panicImpossible "extractAddrAsset"
 
 extractAddrContract :: Value -> Address AContract
 extractAddrContract (VContract addr) = addr
-extractAddrContract _ = panicImpossible $ Just "extractAddrContract"
+extractAddrContract _ = panicImpossible "extractAddrContract"
 
 -------------------------------------------------------------------------------
 -- Method Precondition Evaluation and Checking
@@ -1087,6 +1087,7 @@ evalPreconditions m = do
           let accounts = Set.map (\(VAccount a) -> a) vAccounts
           pure accounts
         VAccount addr -> pure $ Set.singleton addr
+        _ -> panicImpossible $ "Could not evaluate role " <> show e
 
 checkPreconditions :: World world => Method -> (EvalM world) ()
 checkPreconditions m = do
@@ -1166,15 +1167,15 @@ hashValue = \case
 -------------------------------------------------------------------------------
 
 panicInvalidBinOp :: BinOp -> Value -> Value -> a
-panicInvalidBinOp op x y = panicImpossible $ Just $
+panicInvalidBinOp op x y = panicImpossible $
   "Operator " <> show op <> " cannot be used with " <> show x <> " and " <> show y
 
 panicInvalidUnOp :: UnOp -> Value -> a
-panicInvalidUnOp op x = panicImpossible $ Just $
+panicInvalidUnOp op x = panicImpossible $
   "Operator " <> show op <> " cannot be used with " <> show x
 
 panicInvalidHoldingsVal :: Value -> a
-panicInvalidHoldingsVal v = panicImpossible $ Just $
+panicInvalidHoldingsVal v = panicImpossible $
   "Only numbers and booleans can be values of asset holdings. Instead, saw: "  <> show v
 
 
