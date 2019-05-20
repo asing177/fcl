@@ -237,7 +237,7 @@ transferHoldings :: Holder -> Holder -> Balance -> Asset -> World -> Either Worl
 transferHoldings from to amount asset world
     | from == to = Left $ World.SelfTransfer from
     | otherwise  =
-        case World.assetBalance asset from world of
+        case World.assetBalance @World asset from of
           Nothing ->
             Left $ World.HolderDoesNotExist from
           Just bal
@@ -245,7 +245,7 @@ transferHoldings from to amount asset world
                 asset' <- circulateSupply from (negate amount) asset
                 circulateSupply to amount asset'
             | otherwise     ->
-                Left $ World.InsufficientHoldings (World.assetToAddr asset world) bal
+                Left $ World.InsufficientHoldings (World.assetToAddr @World asset) bal
     where
       assetIssuer = issuer asset
 
@@ -286,7 +286,7 @@ instance World.World World where
     Right asset -> do
       let assetIssuer = issuer asset
       if assetIssuer /= txOrigin
-        then Left $ World.CirculatorIsNotIssuer (AccountHolder txOrigin) (World.assetToAddr asset world)
+        then Left $ World.CirculatorIsNotIssuer (AccountHolder txOrigin) (World.assetToAddr @World asset)
         else do
           asset' <- circulateSupply (AccountHolder assetIssuer) amount asset
           Right $ world { assets = Map.insert assetAddr asset' (assets world) }
@@ -306,18 +306,18 @@ instance World.World World where
       Nothing   -> Left $ World.AccountDoesNotExist addr
       Just acc  -> Right acc
 
-  assetType asset world
+  assetType asset
     = atype asset
 
-  assetBalance asset holder world
+  assetBalance asset holder
     = Map.lookup holder (unHoldings $ holdings asset)
 
-  assetToAddr asset world
+  assetToAddr asset
     = asAddress asset
 
-  publicKey account world = acPk account
+  publicKey account = acPk account
 
-  accountToAddr account world = acAddress account
+  accountToAddr account = acAddress account
 
 genesisWorld :: World
 genesisWorld = World mempty mempty mempty

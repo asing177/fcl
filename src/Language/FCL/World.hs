@@ -1,3 +1,5 @@
+{-# LANGUAGE AllowAmbiguousTypes #-}
+{-# LANGUAGE ImplicitParams #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE DeriveAnyClass #-}
@@ -57,12 +59,12 @@ class World w where
   lookupAsset :: Address AAsset -> w -> Either AssetError (Asset' w)
   lookupContract :: Address AContract -> w -> Either ContractError Contract
 
-  assetType :: (Asset' w) -> w -> AssetType
-  assetBalance :: (Asset' w) -> Holder -> w -> Maybe Balance
-  assetToAddr :: (Asset' w) -> w -> Address AAsset
+  -- All the methods below have ambiguous types (hence -XAmbiguousTypes) which
+  -- need to be resolved via type applications.
 
-  publicKey :: (Account' w) -> w -> Key.PubKey
-  accountToAddr :: (Account' w) -> w -> Address AAccount
+  assetType :: (Asset' w) -> AssetType
+  assetBalance :: (Asset' w) -> Holder -> Maybe Balance
+  assetToAddr :: (Asset' w) -> Address AAsset
 
-
-
+  publicKey :: (Account' w) -> Key.PubKey
+  accountToAddr :: (Account' w) -> Address AAccount

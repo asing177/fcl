@@ -9,6 +9,7 @@ FCL interpreter and expression evaluation.
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TypeApplications #-}
 {-# OPTIONS_GHC -fno-warn-incomplete-uni-patterns #-}
 
 module Language.FCL.Eval (
@@ -503,7 +504,7 @@ evalBinOpF Greater constr a b = pure $ VBool (a > b)
 evalBinOpF bop c a b = panicInvalidBinOp bop (c a) (c b)
 
 evalPrim
-  :: (World world)
+  :: forall world. (World world)
   => Loc -> PrimOp -> [LExpr] -> (EvalM world) Value
 evalPrim loc ex args = case ex of
   Now               -> do
@@ -627,7 +628,7 @@ evalPrim loc ex args = case ex of
     acc <- getAccount accExpr
     let sig = bimap fromSafeInteger fromSafeInteger safeSig
     return $ VBool $
-      Key.verify (World.publicKey acc ledgerState) (Key.mkSignatureRS sig) $ SS.toBytes msg
+      Key.verify (World.publicKey @world acc) (Key.mkSignatureRS sig) $ SS.toBytes msg
 
   TxHash -> do
     txHash <- currentTxHash loc
@@ -701,7 +702,9 @@ evalPrim loc ex args = case ex of
   SetPrimOp m   -> evalSetPrim m args
   CollPrimOp c  -> evalCollPrim c args
 
-evalAssetPrim :: World world => Loc -> Prim.AssetPrimOp -> [LExpr] -> (EvalM world) Value
+evalAssetPrim
+  :: forall world. World world
+  => Loc -> Prim.AssetPrimOp -> [LExpr] -> (EvalM world) Value
 evalAssetPrim loc assetPrimOp args =
   case assetPrimOp of
 
@@ -710,19 +713,19 @@ evalAssetPrim loc assetPrimOp args =
       let [assetExpr, accExpr] = args
       asset <- getAsset assetExpr
       accAddr <- getAccountAddr accExpr
-      case World.assetType asset world of
+      case World.assetType @world asset of
         Asset.Discrete  ->
-          case World.assetBalance asset (Asset.AccountHolder accAddr) world of
+          case World.assetBalance @world asset (Asset.AccountHolder accAddr) of
             Nothing  -> return $ VNum 0
             Just bal -> return . VNum . NumDecimal $ Asset.unBalance bal
 
         Asset.Fractional n ->
-          case World.assetBalance asset (Asset.AccountHolder accAddr) world of
+          case World.assetBalance @world asset (Asset.AccountHolder accAddr) of
             Nothing  -> return $ VNum 0
             Just bal -> return . VNum . NumDecimal $ Asset.unBalance bal
 
         Asset.Binary ->
-          case Asset.unBalance <$> World.assetBalance asset (Asset.AccountHolder accAddr) world of
+          case Asset.unBalance <$> World.assetBalance @world asset (Asset.AccountHolder accAddr) of
             Nothing  -> return $ VBool False
             Just 0 -> return $ VBool False
             Just 1 -> return $ VBool True
@@ -968,10 +971,12 @@ evalCollPrim collPrimOp args =
             [(accNm, accVal), (argNm, v)]
             (evalLExpr fbody)
 
-getAccountAddr :: World world => LExpr -> (EvalM world) (Address AAccount)
+getAccountAddr
+  :: forall world. World world
+  => LExpr -> (EvalM world) (Address AAccount)
 getAccountAddr accExpr = do
   world <- gets worldState
-  flip accountToAddr world <$> getAccount accExpr
+  accountToAddr @world <$> getAccount accExpr
 
 getAccount :: World world => LExpr -> (EvalM world) (Account' world)
 getAccount accExpr = do
@@ -982,10 +987,12 @@ getAccount accExpr = do
       AccountIntegrity ("No account with address: " <> show accAddr)
     Right acc -> pure acc
 
-getAssetAddr :: World world => LExpr -> (EvalM world) (Address AAsset)
+getAssetAddr
+  :: forall world. World world
+  => LExpr -> (EvalM world) (Address AAsset)
 getAssetAddr assetExpr = do
   world <- gets worldState
-  flip assetToAddr world <$> getAsset assetExpr
+  assetToAddr @world <$> getAsset assetExpr
 
 getAsset :: World world => LExpr -> (EvalM world) (Asset' world)
 getAsset assetExpr = do
