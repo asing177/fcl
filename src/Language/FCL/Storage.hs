@@ -65,7 +65,7 @@ newtype Key = Key { unKey :: Text }
 type Storage = Map.Map Key Value
 
 newtype GlobalStorage = GlobalStorage { unGlobalStorage :: Storage }
-  deriving (Eq, Show, Generic)
+  deriving (Eq, Show, Generic, Hash.Hashable)
 
 instance Semigroup GlobalStorage where
   (GlobalStorage m1) <> (GlobalStorage m2) = GlobalStorage (m1 <> m2)
@@ -77,7 +77,7 @@ instance Pretty Key where
   ppr (Key key) = ppr key
 
 newtype LocalStorage = LocalStorage { unLocalStorage :: Storage }
-  deriving (Eq, Show, Generic)
+  deriving (Eq, Show, Generic, Hash.Hashable)
 
 instance Semigroup LocalStorage where
   (LocalStorage m1) <> (LocalStorage m2) = LocalStorage (m1 <> m2)
