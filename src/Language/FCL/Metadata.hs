@@ -15,6 +15,7 @@ module Language.FCL.Metadata (
 
 import Protolude
 import qualified Language.FCL.Utils as Utils
+import qualified Language.FCL.Hash as Hash
 
 import qualified Data.Map as Map
 import qualified Data.Aeson as A
@@ -30,7 +31,7 @@ import qualified Data.ByteString as BS
 
 newtype Metadata = Metadata
   { unMetadata :: Map Text Text }
-  deriving (Show, Eq, Generic)
+  deriving (Show, Eq, Generic, Hash.Hashable)
 
 instance Semigroup Metadata where
   (Metadata m1) <> (Metadata m2) =
