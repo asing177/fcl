@@ -192,6 +192,9 @@ import qualified Language.FCL.Hash as Hash
 newtype PubKey = PubKey ECDSA.PublicKey
   deriving (Show, Eq, Generic)
 
+instance Hash.Hashable PubKey where
+  toHash  = Hash.toHash . extractPoint
+
 instance ToJSON PubKey where
    toJSON = String . decodeUtf8 . unHexPub . encodeHexPub
 
