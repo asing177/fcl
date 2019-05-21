@@ -190,7 +190,7 @@ import qualified Language.FCL.Hash as Hash
 --
 -- > Pub1 + Pub2 = (x1 + x2 (mod n)) G
 newtype PubKey = PubKey ECDSA.PublicKey
-  deriving (Show, Eq, Generic, S.Serialize, Hash.Hashable)
+  deriving (Show, Eq, Generic)
 
 instance ToJSON PubKey where
    toJSON = String . decodeUtf8 . unHexPub . encodeHexPub
@@ -677,7 +677,7 @@ data InvalidSignature
   = InvalidSignature ECDSA.Signature ByteString
   | DecodeSignatureFail ByteString
   | SignatureSplittingFail ByteString
-  deriving (Show, Eq, Generic, S.Serialize, Hash.Hashable)
+  deriving (Show, Eq, Generic, S.Serialize)
 
 -- XXX Wrap ECDSA.Signature in newtype to prevent orphan instances
 instance S.Serialize ECDSA.Signature where
