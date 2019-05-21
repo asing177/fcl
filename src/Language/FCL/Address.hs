@@ -12,40 +12,18 @@ import Language.FCL.Pretty
 import Data.Aeson (ToJSON(..), FromJSON(..), ToJSONKey(..), FromJSONKey(..))
 import Data.Serialize as S (Serialize(..))
 import Data.Binary (Binary(..))
-import GHC.Show
-
--- | Address conversion error, indexed by a type, to allow custom @Pretty@
--- instances.
-data AddrConvErr a = ParseError
-
--- | A class that allows us to be parametric over different notions of Address.
-class IsAddress a where
-  byteStringToAddress :: ByteString -> Either (AddrConvErr a) a
-  addressToByteString :: a -> ByteString
 
 -- | Type level tags of address type.
 data AddrType
   = AAccount
   | AContract
   | AAsset
+  deriving (Eq, Ord, Show, Generic, Serialize, Binary, FromJSON, ToJSON)
 
 -- | An address is something that implements 'IsAddress'.
-data Address (a :: AddrType) = forall b. IsAddress b => MkAddress b
-
-instance Eq (Address a) where
-  MkAddress a1 == MkAddress a2 = addressToByteString a1 == addressToByteString a2
-
-instance Ord (Address a) where
-  compare (MkAddress a1) (MkAddress a2)
-    = compare (addressToByteString a1) (addressToByteString a2)
-
-instance Show (Address AAccount) where
-  show (MkAddress a) = "u'" <> toS (addressToByteString a) <> "'"
-instance Show (Address AAsset) where
-  show (MkAddress a) = "a'" <> toS (addressToByteString a) <> "'"
-instance Show (Address AContract) where
-  show (MkAddress a) = "c'" <> toS (addressToByteString a) <> "'"
-
+newtype Address (t :: AddrType)
+  = Address ByteString
+  deriving (Eq, Ord, Show, Generic, Hash.Hashable, Binary, Serialize)
 
 instance FromJSON (Address a) where
   parseJSON = notImplemented
@@ -59,19 +37,6 @@ instance FromJSONKey (Address a) where
 instance ToJSONKey (Address a) where
   toJSONKey = notImplemented
 
-instance Serialize (Address a) where
-  put = notImplemented
-  get = notImplemented
-
-instance Hash.Hashable (Address AAccount) where
-  toHash = notImplemented
-
-instance Hash.Hashable (Address AAsset) where
-  toHash = notImplemented
-
-instance Hash.Hashable (Address AContract) where
-  toHash = notImplemented
-
 -- instance Serialize (Address a) where
 --   put = notImplemented
 --   get = notImplemented
@@ -82,10 +47,10 @@ instance Hash.Hashable (Address AContract) where
 
 
 instance Pretty (Address 'AAccount) where
-  ppr (MkAddress a) = ppr . addressToByteString $ a
+  ppr (Address bs) = ppr bs
 
 instance Pretty (Address 'AAsset) where
-  ppr (MkAddress a) = ppr . addressToByteString $ a
+  ppr (Address bs) = ppr bs
 
 instance Pretty (Address 'AContract) where
-  ppr (MkAddress a) = ppr . addressToByteString $ a
+  ppr (Address bs) = ppr bs
