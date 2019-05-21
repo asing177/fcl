@@ -144,6 +144,7 @@ library:
     - Language.FCL.Asset
     - Language.FCL.SafeString
     - Language.FCL.SafeInteger
+    - Language.FCL.Unsafe
     - Language.FCL.Utils
     - Language.FCL.Time
     - Language.FCL.World

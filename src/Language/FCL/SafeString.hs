@@ -45,14 +45,11 @@ import qualified Data.Binary as BI
 
 import Language.FCL.Pretty (Pretty(..))
 import qualified Language.FCL.Hash as Hash
+import Language.FCL.Unsafe
 
 -- | Maximum number of bytes to read from wire for this field.
 maxSize :: Int
 maxSize = 10000
-
--- | Strings safe for network serialization
-newtype SafeString = SafeString ByteString
-  deriving (Read, Eq, Ord, IsString, Generic, BI.Binary)
 
 -- Exceptions for handling invalid string construction
 data HugeString = HugeString

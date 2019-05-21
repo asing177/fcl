@@ -39,6 +39,7 @@ import           Data.Serialize      as S (Serialize (..), getWord16be,
 import           Data.Text.Read      (decimal, signed)
 
 import           Language.FCL.Pretty
+import Language.FCL.Unsafe
 import qualified Language.FCL.Hash as Hash
 
 maxBits :: Int
@@ -61,10 +62,6 @@ data HugeInteger = HugeInteger
   deriving (Eq, Show)
 
 instance Exception HugeInteger
-
--- | Integers safe for serialization
-newtype SafeInteger = SafeInteger Integer
-  deriving (Eq, Ord, Read, NFData, Generic)
 
 instance Bounded SafeInteger where
   maxBound = SafeInteger maxBound'
