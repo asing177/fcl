@@ -88,10 +88,8 @@ import qualified Datetime.Types as DT
 -- Parser
 -------------------------------------------------------------------------------
 
--- -- | Push in the desired notion of 'Address' via a 'Proxy'
--- type HasNotionOfAddreass t = forall a. IsAddress a => (?addrProxy :: Proxy a) => t
-
--- | An 'FclParser' is a 'Parser' that
+-- | An 'FclParser' is a 'Parser' that expects the caller to provide a notion of
+-- 'Address'
 type FclParser t = forall a. IsAddress a => (?addrProxy :: Proxy a) => Parser t
 
 -- | Parse an expression.
