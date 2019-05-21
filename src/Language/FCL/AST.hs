@@ -168,14 +168,8 @@ type LEnumConstr = Located EnumConstr
 type LPattern = Located Pattern
 
 -- | Enum constructor.
-newtype EnumConstr = EnumConstr { unEnumConstr :: SafeString }
-  deriving (Eq, Show, Ord, Generic, Hash.Hashable)
-
-instance ToJSON EnumConstr where
-  toJSON = toJSON . unEnumConstr
-
-instance FromJSON EnumConstr where
-  parseJSON = fmap EnumConstr . parseJSON
+data EnumConstr = EnumConstr { enumConstrId :: Name, enumConstrParams :: [Type] }
+  deriving (Eq, Show, Ord, Generic, Hash.Hashable, FromJSON, ToJSON, Serialize)
 
 -- | Variable names
 newtype Name = Name { unName :: Text }
@@ -195,7 +189,8 @@ instance Hash.Hashable DateTime where
   toHash = Hash.toHash . (toS :: [Char] -> ByteString) . show
 
 data Pattern
-  = PatLit EnumConstr
+  = PatConstr EnumConstr [Pattern]
+  | PatLit LLit
   deriving (Eq, Ord, Show, Generic, FromJSON, ToJSON, Hash.Hashable)
 
 data Match
@@ -319,7 +314,7 @@ data Type
   = TError          -- ^ (Internal) Error branch in typechecker
   | TVar TVar       -- ^ (Internal) Type variable used in inference
   | TAny            -- ^ (Internal) Polymorphic type
-  | TNum NumPrecision           -- ^ Type of rational numbers
+  | TNum NumPrecision -- ^ Type of rational numbers
   | TBool           -- ^ Type of booleans
   | TAccount        -- ^ Type of account addresses
   | TAsset Type     -- ^ Type of asset addresses
@@ -390,7 +385,7 @@ data Helper = Helper
 -- | Enumeration
 data EnumDef = EnumDef
   { enumName :: LName
-  , enumConstrs :: [LEnumConstr]
+  , enumConstrs :: LEnumConstr
   } deriving (Eq, Ord, Show, Generic, ToJSON, FromJSON, Hash.Hashable)
 
 -- | Definition
@@ -482,13 +477,13 @@ eseq loc es = case es of
 mapType :: EnumInfo -> Value -> Maybe Type
 mapType _        (VNum (NumRational _)) = pure (TNum NPArbitrary)
 mapType _        (VNum (NumDecimal f))  = (pure . TNum . NPDecimalPlaces . decimalPlaces) f
-mapType enumInfo (VEnum c)    = TEnum <$> Map.lookup c (constrToEnum enumInfo)
+mapType enumInfo (VEnum c)    = TEnum . fst <$> Map.lookup c (constrToEnumAndTypes enumInfo)
 mapType _        VBool{}      = pure TBool
 mapType _        VAccount{}   = pure TAccount
 mapType _        VAsset{}     = pure (TAsset TAny)
 mapType _        VContract{}  = pure TContract
 mapType _        VVoid        = pure TVoid
-mapType _        VText{}       = pure TText
+mapType _        VText{}      = pure TText
 mapType _        VSig{}       = pure TSig
 mapType _        VDateTime{}  = pure TDateTime
 mapType _        VTimeDelta{} = pure TTimeDelta
@@ -504,7 +499,7 @@ mapType einfo   (VSet vset)   =
     (v:_) -> TColl <$> (TSet <$> mapType einfo v)
 
 data EnumInfo = EnumInfo
-  { constrToEnum :: Map EnumConstr Name
+  { constrToEnumAndTypes :: Map Name (Name, [Type])
   , enumToConstrs :: Map Name [EnumConstr]
   }
 
@@ -516,14 +511,14 @@ createEnumInfo enums = EnumInfo constrEnum enumConstrs
   where
     constrEnum
       = Map.fromList
-      . concatMap (\(EnumDef lname constrs)
-                     -> map (\lconstr -> (locVal lconstr, locVal lname)) constrs)
+      . concatMap (\(EnumDef lname lconstrs)
+                     -> map ((\(EnumConstr id types) -> (id, (locVal lname, types))) . locVal) constrs)
       $ enums
 
     enumConstrs
       = Map.fromList
-      . map (\(EnumDef lname constrs)
-               -> (locVal lname, map locVal constrs))
+      . map (\(EnumDef lname constrsAndTypes)
+               -> (locVal lname, map (first locVal) constrsAndTypes))
       $ enums
 
 -------------------------------------------------------------------------------
@@ -553,13 +548,6 @@ instance Serialize TVar where
       2 -> TCV . decodeUtf8 <$> get
       3 -> THV <$> get
       n -> fail "Inavlid tag deserialized for TVar"
-
-instance IsString EnumConstr where
-  fromString = EnumConstr . fromString
-
-instance Serialize EnumConstr where
-  put = put . unEnumConstr
-  get = EnumConstr <$> get
 
 instance (Serialize a) => Serialize (Located a) where
   put (Located loc x) = put (loc,x)
@@ -597,7 +585,8 @@ instance Pretty Name where
   ppr (Name nm) = ppr nm
 
 instance Pretty EnumConstr where
-  ppr (EnumConstr ec) = ppr ec
+  ppr (EnumConstr id []) = ppr id
+  ppr (EnumConstr id types) = ppr id <> tupleOf types
 
 instance Pretty Expr where
   ppr = \case
@@ -651,10 +640,14 @@ instance Pretty Expr where
     EMap m -> tupleOf $ map (\(k,v) -> ppr k <+> ":" <+> ppr v) (Map.toList m)
     ESet s -> setOf s
 
+instance Pretty Pattern where
+  ppr = \case
+    PatConstr id pats -> ppr id <> tupleOf pats
+    PatLit lit -> ppr lit
 
 instance Pretty Match where
-  ppr (Match (Located _ (PatLit p)) expr)
-    = ppr (LConstr p) <+> token Token.rarrow <+> maybeBrace expr
+  ppr (Match (Located _ pat) expr)
+    = ppr pat <+> token Token.rarrow <+> maybeBrace expr
     where
       -- Wrap braces around the expression in case it is a sequence of
       -- statements, otherwise don't.
@@ -775,9 +768,9 @@ instance Pretty Helper where
         other -> lbrace <$$> indent 2 (semify (ppr other)) <$$> rbrace
 
 instance Pretty EnumDef where
-  ppr (EnumDef lname lconstrs)
+  ppr (EnumDef lname lconstrsAndTypes)
     = token Token.enum <+> ppr (locVal lname) <+> lbrace
-      <$$> (Pretty.commafy . map (ppr . locVal) $ lconstrs)
+      <$$> (Pretty.commafy . map ppr $ lconstrsAndTypes)
       <$$> rbrace <> token Token.semi
 
 instance Pretty Def where

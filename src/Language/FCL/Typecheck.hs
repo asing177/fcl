@@ -621,30 +621,25 @@ tcCasePatterns scrut scrutInfo []
 tcCasePatterns scrut scrutInfo ps@(_:_)
   = case ttype scrutInfo of
       -- Scrutinee of enum type e
-      (TEnum e) -> do
-        maybeAllConstrs <- Map.lookup e . enumToConstrs <$> ask
-        case maybeAllConstrs of
-          Nothing
-            -> void $ throwErrInferM (UnknownEnum e) topLoc
+      (TEnum e) -> Map.lookup e . enumToConstrs <$> ask >>= \case
+        Nothing -> void $ throwErrInferM (UnknownEnum e) topLoc
+        Just allConstrs ->
+          case (missing allConstrs ps, overlap ps) of
+            ([],[]) -> do
+              enumConstrs <- constrToEnum <$> ask
+              mapM_ (addConstr scrut scrutInfo <=< patternInfo enumConstrs) ps
 
-          Just allConstrs
-            -> case (missing allConstrs ps, overlap ps) of
-                 ([],[])
-                   -> do
-                   enumConstrs <- constrToEnum <$> ask
-                   mapM_ (addConstr scrut scrutInfo <=< patternInfo enumConstrs) ps
-
-                 (misses, overlaps)
-                   -> void $ throwErrInferM (PatternMatchError misses overlaps) topLoc
+            (misses, overlaps)
+              -> void $ throwErrInferM (PatternMatchError misses overlaps) topLoc
       _ -> void $ throwErrInferM (CaseOnNotEnum scrutInfo) topLoc
   where
     topLoc = located scrut
 
-    patConstr (Located _ (PatLit c)) = c
+    patConstr (Located _ (PatConstr c _)) = c
     missing allConstrs ps = allConstrs List.\\ map patConstr ps
     overlap ps = duplicates (map patConstr ps)
 
-    patternInfo enumConstrs (Located ploc (PatLit c))
+    patternInfo enumConstrs (Located ploc (PatConstr c pats))
       = case Map.lookup c enumConstrs of
           Nothing
             -> throwErrInferM (UnknownConstructor c)
