@@ -1,3 +1,4 @@
+{-# LANGUAGE ImplicitParams #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE KindSignatures #-}
 {-# LANGUAGE DeriveAnyClass #-}
@@ -87,37 +88,49 @@ import qualified Datetime.Types as DT
 -- Parser
 -------------------------------------------------------------------------------
 
+-- -- | Push in the desired notion of 'Address' via a 'Proxy'
+-- type HasNotionOfAddreass t = forall a. IsAddress a => (?addrProxy :: Proxy a) => t
+
+-- | An 'FclParser' is a 'Parser' that
+type FclParser t = forall a. IsAddress a => (?addrProxy :: Proxy a) => Parser t
+
 -- | Parse an expression.
-parseExpr :: T.Text -> Either ParseErrInfo LExpr
-parseExpr input = first (mkParseErrInfo input)
+parseExpr :: forall a. IsAddress a => Proxy a -> T.Text -> Either ParseErrInfo LExpr
+parseExpr addrProxy input = let ?addrProxy = addrProxy
+  in first (mkParseErrInfo input)
   $ parse (contents expr) "<stdin>" input
 
 -- | Parse file contents into a Language.FCL.
-parseScript :: T.Text -> Either ParseErrInfo Script
-parseScript input = first (mkParseErrInfo input)
+parseScript :: forall a. IsAddress a => Proxy a -> T.Text -> Either ParseErrInfo Script
+parseScript addrProxy input = let ?addrProxy = addrProxy
+  in first (mkParseErrInfo input)
   $ parse (contents script <* eof) "<stdin>" input
 
 -- | Parse text not expecting eof
-parseText :: Text -> Either ParseErrInfo Script
-parseText input = first (mkParseErrInfo input)
+parseText :: forall a. IsAddress a => Proxy a -> Text -> Either ParseErrInfo Script
+parseText addrProxy input = let ?addrProxy = addrProxy
+  in first (mkParseErrInfo input)
   $ parse (contents script) mempty input
 
 -- | Parse a file into a Language.FCL.
-parseFile :: FilePath -> IO Script
-parseFile path = do
-  eScript <- parseScript <$> readFile path
+parseFile :: forall a. IsAddress a => Proxy a -> FilePath -> IO Script
+parseFile addrProxy path = do
+  eScript <- parseScript addrProxy <$> readFile path
   either panicppr pure eScript
 
-parseDefn :: Text -> Either ParseErrInfo Def
-parseDefn input = first (mkParseErrInfo input)
+parseDefn :: forall a. IsAddress a => Proxy a -> Text -> Either ParseErrInfo Def
+parseDefn addrProxy input = let ?addrProxy = addrProxy
+  in first (mkParseErrInfo input)
   $ parse (contents def) "definition" input
 
-parseMethod :: Text -> Either ParseErrInfo Method
-parseMethod input = first (mkParseErrInfo input)
+parseMethod :: forall a. IsAddress a => Proxy a -> Text -> Either ParseErrInfo Method
+parseMethod addrProxy input = let ?addrProxy = addrProxy
+  in first (mkParseErrInfo input)
   $ parse (contents method) "method" input
 
-parseLit :: Text -> Either ParseErrInfo Lit
-parseLit input = first (mkParseErrInfo input)
+parseLit :: forall a. IsAddress a => Proxy a -> Text -> Either ParseErrInfo Lit
+parseLit addrProxy input = let ?addrProxy = addrProxy
+  in first (mkParseErrInfo input)
   $ parse (contents lit) "literal" input
 
 parseDecimal :: Text -> Either ParseErrInfo Decimal
@@ -140,18 +153,27 @@ parseWorkflowState :: Text -> Either ParseErrInfo WorkflowState
 parseWorkflowState input = first (mkParseErrInfo input)
   $ parse workflowPlaces "workflowPlaces" input
 
-parseBlock :: T.Text -> Either ParseErrInfo LExpr
-parseBlock input = first (mkParseErrInfo input)
+parseBlock :: forall a. IsAddress a => Proxy a -> T.Text -> Either ParseErrInfo LExpr
+parseBlock addrProxy input = let ?addrProxy = addrProxy
+  in first (mkParseErrInfo input)
   $ parse (contents block) "block" input
 
-parseCall :: Text -> Either ParseErrInfo ((Either PrimOp LName), [LExpr])
-parseCall input = first (mkParseErrInfo input) $ parse call "call" input
+parseCall :: forall a. IsAddress a => Proxy a -> Text -> Either ParseErrInfo ((Either PrimOp LName), [LExpr])
+parseCall addrProxy input = let ?addrProxy = addrProxy
+  in first (mkParseErrInfo input) $ parse call "call" input
 
 contents :: Parser a -> Parser a
 contents p = whiteSpace *> p
 
+
+type TestAddress = Text
+
+instance IsAddress TestAddress where
+  byteStringToAddress = Right . toS
+  addressToByteString = toS
+
 testParse :: T.Text -> IO ()
-testParse = parseTest (contents script)
+testParse = let ?addrProxy = Proxy @TestAddress in parseTest (contents script)
 
 
 -------------------------------------------------------------------------------
@@ -159,7 +181,7 @@ testParse = parseTest (contents script)
 -------------------------------------------------------------------------------
 
 
-lit :: Parser Lit
+lit :: FclParser Lit
 lit =  try timedeltaLit
    <|> decimalLit
    <|> boolLit
@@ -171,7 +193,7 @@ lit =  try timedeltaLit
    <|> enumConstrLit
    <?> "literal"
 
-locLit :: Parser LLit
+locLit :: FclParser LLit
 locLit = mkLocated lit
 
 decimalLit :: Parser Lit
@@ -203,16 +225,19 @@ boolLit =
  <|> LBool True  <$ try ((reserved Token.true)  <|> (() <$ string "True"  <* whiteSpace))
  <?> "boolean literal"
 
-rawAddress :: forall (a :: AddrType). Parser (Address a)
-rawAddress =
-  Address . BS8.pack <$> between (symbol "\'") (symbol "\'") (many1 alphaNum)
+rawAddress :: forall (a :: *) (t :: AddrType). IsAddress a => Proxy a -> Parser (Address t)
+rawAddress _ = MkAddress @_ @a <$> (
+    byteStringToAddress . BS8.pack <$> between (symbol "\'") (symbol "\'") (many1 alphaNum) >>= \case
+      Left err -> parserFail "Invalid address literal" -- TODO: add a way of explaining what was expected
+      Right addr -> pure addr
+  )
 
-addressLit :: Parser Lit
+addressLit :: FclParser Lit
 addressLit = try $ do
   type_ <- char 'c' <|> char 'a' <|> char 'u'
-  if | type_ == 'c' -> LContract <$> rawAddress
-     | type_ == 'a' -> LAsset <$> rawAddress
-     | type_ == 'u' -> LAccount <$> rawAddress
+  if | type_ == 'c' -> LContract <$> rawAddress ?addrProxy
+     | type_ == 'a' -> LAsset <$> rawAddress ?addrProxy
+     | type_ == 'u' -> LAccount <$> rawAddress ?addrProxy
      | otherwise    -> parserFail "Cannot parse address literal"
 
 datetimeParser :: Parser DateTime
@@ -375,12 +400,12 @@ setType = do
 -- Definitions
 -------------------------------------------------------------------------------
 
-def :: Parser Def
+def :: FclParser Def
 def = try globalDef
   <|> globalDefNull
   <?> "definition"
 
-globalDef :: Parser Def
+globalDef :: FclParser Def
 globalDef = do
   optional (reserved Token.global <|> reserved Token.local)
   typ <- type_
@@ -391,7 +416,7 @@ globalDef = do
   return $ GlobalDef typ precs id lexpr
  <?> "global definition"
 
-globalDefNull :: Parser Def
+globalDefNull :: FclParser Def
 globalDefNull = do
   optional (reserved Token.global <|> reserved Token.local)
   typ <- type_
@@ -408,7 +433,7 @@ arg :: Parser Arg
 arg = Arg <$> type_ <*> locName
    <?> "argument"
 
-method :: Parser Method
+method :: FclParser Method
 method = do
   LState (inputPlaces) <- stateLit
   precs <- preconditions <|> pure (mempty @Preconditions)
@@ -419,7 +444,7 @@ method = do
   return $ Method inputPlaces precs (Located loc nm) args body
  <?> "method"
 
-preconditions :: Parser Preconditions
+preconditions :: FclParser Preconditions
 preconditions = Preconditions <$> (brackets . commaSep $ do
   p <- precondition
   char ':'
@@ -434,7 +459,7 @@ precondition
   <|> (reserved "role"   *> pure PrecRoles)
   <|> (reserved "roles"  *> pure PrecRoles)
 
-helper :: Parser Helper
+helper :: FclParser Helper
 helper =  Helper
       <$> Lexer.locName
       <*> parens (commaSep arg)
@@ -502,11 +527,11 @@ unOp :: UnOp -> Parser UnOp
 unOp oper = symbol (Lexer.unOpToken oper) >> pure oper
   <?> "unary operator"
 
-expr :: Parser LExpr
+expr :: FclParser LExpr
 expr = buildExpressionParser opTable locExpr
   where
     -- Expressions without locations and binary and unary ops.
-    nonLocExpr :: Parser Expr
+    nonLocExpr :: FclParser Expr
     nonLocExpr =  assignExpr
               <|> beforeExpr
               <|> afterExpr
@@ -522,14 +547,14 @@ expr = buildExpressionParser opTable locExpr
 
     -- Expressions without binary/unary operations or expressions with
     -- parentheses.
-    locExpr :: Parser LExpr
+    locExpr :: FclParser LExpr
     locExpr =  mkLocated nonLocExpr
            <|> parensLExpr
 
-parensLExpr :: Parser LExpr
+parensLExpr :: FclParser LExpr
 parensLExpr = parens expr
 
-litExpr :: Parser Expr
+litExpr :: FclParser Expr
 litExpr = ELit <$> locLit
  <?> "literal"
 
@@ -537,17 +562,17 @@ varExpr :: Parser Expr
 varExpr = EVar <$> locName
  <?> "variable"
 
-assignExpr :: Parser Expr
+assignExpr :: FclParser Expr
 assignExpr = do
   var <- try $ name <* reservedOp Token.assign
   lexpr <- expr
   return $ EAssign var lexpr
  <?> "assign statement"
 
-callExpr :: Parser Expr
+callExpr :: FclParser Expr
 callExpr = uncurry ECall <$> call
 
-call :: Parser ((Either PrimOp LName), [LExpr])
+call :: FclParser ((Either PrimOp LName), [LExpr])
 call = do
   lnm@(Located _ nm) <-
     try $ Lexer.locName <* symbol Token.lparen
@@ -558,7 +583,7 @@ call = do
   return (fname, args)
     <?> "call statement"
 
-ifElseExpr :: Parser Expr
+ifElseExpr :: FclParser Expr
 ifElseExpr = do
   try $ reserved Token.if_
   cond <- parensLExpr
@@ -576,7 +601,7 @@ ifElseExpr = do
         (try (reserved Token.else_) *> block
           <?> "else statement")
 
-beforeExpr :: Parser Expr
+beforeExpr :: FclParser Expr
 beforeExpr = do
   try $ reserved Token.before
   dt <- parensLExpr
@@ -584,7 +609,7 @@ beforeExpr = do
   return $ EBefore dt e
  <?> "before guard statement"
 
-afterExpr :: Parser Expr
+afterExpr :: FclParser Expr
 afterExpr = do
   try $ reserved Token.after
   dt <- parensLExpr
@@ -592,7 +617,7 @@ afterExpr = do
   return $ EAfter dt e
  <?> "after guard statement"
 
-betweenExpr :: Parser Expr
+betweenExpr :: FclParser Expr
 betweenExpr = do
   try $ reserved Token.between
   start <- symbol Token.lparen *> expr
@@ -602,7 +627,7 @@ betweenExpr = do
   return $ EBetween start end e
  <?> "between guard statement"
 
-caseExpr :: Parser Expr
+caseExpr :: FclParser Expr
 caseExpr = do
     try $ reserved Token.case_
     scrutinee <- parensLExpr
@@ -619,7 +644,7 @@ caseExpr = do
       loc <- location
       Located loc . PatLit <$> try (symbol "`" *> Lexer.enumConstr)
 
-mapExpr :: Parser Expr
+mapExpr :: FclParser Expr
 mapExpr =
   EMap . Map.fromList <$>
     parens (commaSep parseMapItem <* optional newline)
@@ -631,14 +656,14 @@ mapExpr =
       optional newline
       pure (ek, ev)
 
-setExpr :: Parser Expr
+setExpr :: FclParser Expr
 setExpr = ESet . Set.fromList <$> braces (commaSep expr <* optional newline)
 
 holeExpr :: Parser Expr
 holeExpr = EHole <$ reserved Token.hole
 
 -- | Parses 0 or more expressions delimited by ';'
-block :: Parser LExpr
+block :: FclParser LExpr
 block = (braces $ do
   loc <- location
   eseq loc <$> (expr `sepEndBy` semi))
@@ -680,7 +705,7 @@ enumDef = do
 -- Script
 -------------------------------------------------------------------------------
 
-script :: Parser Script
+script :: FclParser Script
 script = do
   enums <- endBy enumDef semi
   defns <- endBy def semi
