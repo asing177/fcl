@@ -23,29 +23,16 @@ data AddrType
 -- | An address is something that implements 'IsAddress'.
 newtype Address (t :: AddrType)
   = Address ByteString
-  deriving (Eq, Ord, Show, Generic, Hash.Hashable, Binary, Serialize)
+  deriving (Eq, Ord, Show, Generic, Hash.Hashable, Binary, Serialize, FromJSON, ToJSON)
 
-instance FromJSON (Address a) where
-  parseJSON = notImplemented
+instance ToJSON ByteString where
+  toJSON = toJSON . decodeUtf8
 
-instance ToJSON (Address a) where
-  toJSON = notImplemented
-
-instance FromJSONKey (Address a) where
-  fromJSONKey = notImplemented
-
-instance ToJSONKey (Address a) where
-  toJSONKey = notImplemented
-
--- instance Serialize (Address a) where
---   put = notImplemented
---   get = notImplemented
-
--- instance Binary (Address a) where
---   put = notImplemented
---   get = notImplemented
-
-
+instance FromJSON ByteString where
+  parseJSON v = do
+    t :: Text <- parseJSON v
+    pure $ encodeUtf8 t
+    
 instance Pretty (Address 'AAccount) where
   ppr (Address bs) = ppr bs
 
