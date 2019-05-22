@@ -300,7 +300,8 @@ handleArithError m = do
 -------------------------------------------------------------------------------
 
 -- | Evaluator for expressions
-evalLExpr :: (World world) => LExpr -> (EvalM world) Value
+evalLExpr :: (World world, Show (AccountError' world), Show (AssetError' world))
+  => LExpr -> (EvalM world) Value
 evalLExpr (Located loc e) = case e of
 
   ESeq a b        -> evalLExpr a >> evalLExpr b
@@ -504,7 +505,8 @@ evalBinOpF Greater constr a b = pure $ VBool (a > b)
 evalBinOpF bop c a b = panicInvalidBinOp bop (c a) (c b)
 
 evalPrim
-  :: forall world. (World world)
+  :: forall world.
+  (World world, Show (AccountError' world), Show (AssetError' world))
   => Loc -> PrimOp -> [LExpr] -> (EvalM world) Value
 evalPrim loc ex args = case ex of
   Now               -> do
@@ -703,7 +705,7 @@ evalPrim loc ex args = case ex of
   CollPrimOp c  -> evalCollPrim c args
 
 evalAssetPrim
-  :: forall world. World world
+  :: forall world. (World world, Show (AccountError' world), Show (AssetError' world))
   => Loc -> Prim.AssetPrimOp -> [LExpr] -> (EvalM world) Value
 evalAssetPrim loc assetPrimOp args =
   case assetPrimOp of
@@ -852,7 +854,8 @@ evalAssetPrim loc assetPrimOp args =
       x                   -> panicInvalidHoldingsVal x
 
 
-evalMapPrim :: World world => Prim.MapPrimOp -> [LExpr] -> (EvalM world) Value
+evalMapPrim :: (World world, Show (AccountError' world), Show (AssetError' world))
+  => Prim.MapPrimOp -> [LExpr] -> (EvalM world) Value
 evalMapPrim mapPrimOp args =
   case mapPrimOp of
     Prim.MapInsert -> do
@@ -879,7 +882,8 @@ evalMapPrim mapPrimOp args =
           newVal <- localTempStorage [(harg,v)] $ evalLExpr (helperBody helper)
           pure $ VMap (Map.insert k newVal mapVal)
 
-evalSetPrim :: World world => Prim.SetPrimOp -> [LExpr] -> (EvalM world) Value
+evalSetPrim :: (World world, Show (AccountError' world), Show (AssetError' world))
+  => Prim.SetPrimOp -> [LExpr] -> (EvalM world) Value
 evalSetPrim setPrimOp args =
   case setPrimOp of
     Prim.SetInsert -> do
@@ -889,7 +893,8 @@ evalSetPrim setPrimOp args =
       [v, VSet setVal] <- mapM evalLExpr args
       pure $ VSet (Set.delete v setVal)
 
-evalCollPrim :: forall world. World world => Prim.CollPrimOp -> [LExpr] -> (EvalM world) Value
+evalCollPrim :: forall world. (World world, Show (AccountError' world), Show (AssetError' world))
+  => Prim.CollPrimOp -> [LExpr] -> (EvalM world) Value
 evalCollPrim collPrimOp args =
   case collPrimOp of
     Prim.Aggregate -> do
@@ -972,13 +977,13 @@ evalCollPrim collPrimOp args =
             (evalLExpr fbody)
 
 getAccountAddr
-  :: forall world. World world
+  :: forall world. (World world, Show (AccountError' world), Show (AssetError' world))
   => LExpr -> (EvalM world) (Address AAccount)
 getAccountAddr accExpr = do
   world <- gets worldState
   accountToAddr @world <$> getAccount accExpr
 
-getAccount :: World world => LExpr -> (EvalM world) (Account' world)
+getAccount :: (World world, Show (AccountError' world), Show (AssetError' world)) => LExpr -> (EvalM world) (Account' world)
 getAccount accExpr = do
   ledgerState <- gets worldState
   accAddr <- extractAddrAccount <$> evalLExpr accExpr
@@ -988,13 +993,13 @@ getAccount accExpr = do
     Right acc -> pure acc
 
 getAssetAddr
-  :: forall world. World world
+  :: forall world. (World world, Show (AccountError' world), Show (AssetError' world))
   => LExpr -> (EvalM world) (Address AAsset)
 getAssetAddr assetExpr = do
   world <- gets worldState
   assetToAddr @world <$> getAsset assetExpr
 
-getAsset :: World world => LExpr -> (EvalM world) (Asset' world)
+getAsset :: (World world, Show (AccountError' world), Show (AssetError' world)) => LExpr -> (EvalM world) (Asset' world)
 getAsset assetExpr = do
   ledgerState <- gets worldState
   assetAddr   <- extractAddrAsset <$> evalLExpr assetExpr
@@ -1014,7 +1019,7 @@ checkGraph = do
 -- | Does not perform typechecking on args supplied, eval should only happen
 -- after typecheck. We don't check whether the input places are satisfied, since
 -- this is done by 'Contract.callableMethods'
-evalMethod :: World world => Method -> [Value] -> (EvalM world) Value
+evalMethod :: (World world, Show (AccountError' world), Show (AssetError' world)) => Method -> [Value] -> (EvalM world) Value
 evalMethod meth@(Method _ _ nm argTyps body) args = do
     setCurrentMethod meth
     checkPreconditions meth
@@ -1032,7 +1037,7 @@ evalMethod meth@(Method _ _ nm argTyps body) args = do
 -- Methods will only ever be evaluated in the context of a contract on the
 -- ledger. If script methods should be evaluated outside of the context of a
 -- contract, call `evalMethod`.
-eval :: World world => Contract.Contract -> Name -> [Value] -> (EvalM world) Value
+eval :: (World world, Show (AccountError' world), Show (AssetError' world)) => Contract.Contract -> Name -> [Value] -> (EvalM world) Value
 eval c nm args =
   case Contract.lookupContractMethod nm c of
     Right method -> evalMethod method args
@@ -1068,7 +1073,7 @@ data PreconditionsV = PreconditionsV
 
 -- | Succeeds when all preconditions are fulfilled and throws an error otherwise
 -- NB: We assume that we are given a type checked AST
-evalPreconditions :: forall world. World world => Method -> (EvalM world) PreconditionsV
+evalPreconditions :: forall world. (World world, Show (AccountError' world), Show (AssetError' world)) => Method -> (EvalM world) PreconditionsV
 evalPreconditions m = do
   let Preconditions ps = methodPreconditions m
   PreconditionsV
@@ -1096,7 +1101,7 @@ evalPreconditions m = do
         VAccount addr -> pure $ Set.singleton addr
         _ -> panicImpossible $ "Could not evaluate role " <> show e
 
-checkPreconditions :: World world => Method -> (EvalM world) ()
+checkPreconditions :: (World world, Show (AccountError' world), Show (AssetError' world)) => Method -> (EvalM world) ()
 checkPreconditions m = do
   PreconditionsV afterV beforeV roleV <- evalPreconditions m
   sequence_
@@ -1123,7 +1128,7 @@ checkPreconditions m = do
         (issuer `elem` accounts)
         (throwError $ PrecNotSatCaller m accounts issuer)
 
-evalCallableMethods :: World world => Contract.Contract -> (EvalM world) Contract.CallableMethods
+evalCallableMethods :: (World world, Show (AccountError' world), Show (AssetError' world)) => Contract.Contract -> (EvalM world) Contract.CallableMethods
 evalCallableMethods contract =
     foldM insertCallableMethod mempty (Contract.callableMethods contract)
   where
@@ -1204,7 +1209,7 @@ initGlobalStorage (Script _ defns _ _ _)
         Map.insert (Key nm) VUndefined gstore
 
 initStorage
-  :: forall world. (World world)
+  :: forall world. (World world, Show (AccountError' world), Show (AssetError' world))
   => EvalCtx    -- ^ Context to evaluate the top-level definitions in
   -> world      -- ^ World to evaluate the top-level definitions in
   -> Script     -- ^ Script

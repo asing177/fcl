@@ -220,43 +220,61 @@ data World = World
   } deriving (Show, Eq)
 
 
+data AssetError
+  = InsufficientHoldings (Address AAsset) Balance
+  | InsufficientSupply (Address AAsset) Balance
+  | CirculatorIsNotIssuer Holder (Address AAsset)
+  | AssetError
+  | SelfTransfer Holder
+  | HolderDoesNotExist Holder
+  | AssetDoesNotExist (Address AAsset)
+  | SenderDoesNotExist Holder
+  | ReceiverDoesNotExist Holder
+  deriving (Show, Eq)
+
+data AccountError
+  = AccountDoesNotExist (Address AAccount)
+  deriving (Show, Eq)
+
 -- | Transfer an amount of the asset supply to an account's holdings
-circulateSupply :: Holder -> Balance -> Asset -> Either World.AssetError Asset
+circulateSupply :: Holder -> Balance -> Asset -> Either AssetError Asset
 circulateSupply addr bal asset
   | supply asset >= bal
     = Right $ asset { holdings = holdings', supply = supply' }
   | otherwise
-    = Left $ World.InsufficientSupply (asAddress asset) (supply asset)
+    = Left $ InsufficientSupply (asAddress asset) (supply asset)
   where
     holdings' = Holdings $ clearZeroes $
       Map.insertWith (+) addr bal $ unHoldings (holdings asset)
     supply' = supply asset - bal
     clearZeroes = Map.filter (/= 0)
 
-transferHoldings :: Holder -> Holder -> Balance -> Asset -> World -> Either World.AssetError Asset
+transferHoldings :: Holder -> Holder -> Balance -> Asset -> World -> Either AssetError Asset
 transferHoldings from to amount asset world
-    | from == to = Left $ World.SelfTransfer from
+    | from == to = Left $ SelfTransfer from
     | otherwise  =
         case World.assetBalance @World asset from of
           Nothing ->
-            Left $ World.HolderDoesNotExist from
+            Left $ HolderDoesNotExist from
           Just bal
             | amount <= bal -> do
                 asset' <- circulateSupply from (negate amount) asset
                 circulateSupply to amount asset'
             | otherwise     ->
-                Left $ World.InsufficientHoldings (World.assetToAddr @World asset) bal
+                Left $ InsufficientHoldings (World.assetToAddr @World asset) bal
     where
       assetIssuer = issuer asset
 
 instance World.World World where
   type Account' World = Account
   type Asset' World = Asset
+  type AccountError' World = AccountError
+  type AssetError' World = AssetError
 
   transferAsset assetAddr from to balance world = do
     validateTransferAddrs world from to
     case World.lookupAsset assetAddr world of
-      Left err -> Left $ World.AssetDoesNotExist assetAddr
+      Left err -> Left $ AssetDoesNotExist assetAddr
       Right asset -> do
         asset' <- transferHoldings from to balance asset world
         Right $ world { assets = Map.insert assetAddr asset' (assets world) }
@@ -265,16 +283,16 @@ instance World.World World where
           :: World
           -> Holder -- ^ Sender Address (account or contract)
           -> Holder -- ^ Receiver Address (account or contract)
-          -> Either World.AssetError ()
+          -> Either AssetError ()
         validateTransferAddrs world from to = void $ do
           -- Check if origin account/contract exists
-          first (const $ World.SenderDoesNotExist from) $
+          first (const $ SenderDoesNotExist from) $
             case World.lookupAccount (holderToAccount from) world of
               Left err -> second (const ()) $
                 World.lookupContract (holderToContract from) world
               Right acc -> Right ()
           -- Check if toAddr account/contract exists
-          first (const $ World.ReceiverDoesNotExist to) $
+          first (const $ ReceiverDoesNotExist to) $
             case World.lookupAccount (holderToAccount to) world of
               Left err -> second (const ()) $
                 World.lookupContract (holderToContract to) world
@@ -282,11 +300,11 @@ instance World.World World where
 
   circulateAsset assetAddr txOrigin amount world =
     case World.lookupAsset assetAddr world of
-    Left err    -> Left $ World.AssetDoesNotExist assetAddr
+    Left err    -> Left $ AssetDoesNotExist assetAddr
     Right asset -> do
       let assetIssuer = issuer asset
       if assetIssuer /= txOrigin
-        then Left $ World.CirculatorIsNotIssuer (AccountHolder txOrigin) (World.assetToAddr @World asset)
+        then Left $ CirculatorIsNotIssuer (AccountHolder txOrigin) (World.assetToAddr @World asset)
         else do
           asset' <- circulateSupply (AccountHolder assetIssuer) amount asset
           Right $ world { assets = Map.insert assetAddr asset' (assets world) }
@@ -298,12 +316,12 @@ instance World.World World where
 
   lookupAsset addr world =
     case Map.lookup addr (assets world) of
-      Nothing -> Left $ World.AssetDoesNotExist addr
+      Nothing -> Left $ AssetDoesNotExist addr
       Just asset -> Right asset
 
   lookupAccount addr world =
     case Map.lookup addr (accounts world) of
-      Nothing   -> Left $ World.AccountDoesNotExist addr
+      Nothing   -> Left $ AccountDoesNotExist addr
       Just acc  -> Right acc
 
   assetType asset

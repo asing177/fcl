@@ -13,24 +13,7 @@ import Data.Serialize
 import Language.FCL.Asset
 import Language.FCL.Address
 import Language.FCL.Contract
--- import Language.FCL.Account
 import qualified Language.FCL.Key as Key
-
-data AssetError
-  = InsufficientHoldings (Address AAsset) Balance
-  | InsufficientSupply (Address AAsset) Balance
-  | CirculatorIsNotIssuer Holder (Address AAsset)
-  | AssetError
-  | SelfTransfer Holder
-  | HolderDoesNotExist Holder
-  | AssetDoesNotExist (Address AAsset)
-  | SenderDoesNotExist Holder
-  | ReceiverDoesNotExist Holder
-  deriving (Show, Eq, Generic, Serialize)
-
-data AccountError
-  = AccountDoesNotExist (Address AAccount)
-  deriving (Show, Eq, Generic, Serialize)
 
 data ContractError
   = ContractDoesNotExist (Address AContract)
@@ -39,6 +22,8 @@ data ContractError
 class World w where
   type Account' w
   type Asset' w
+  type AssetError' w
+  type AccountError'  w
 
   transferAsset
     :: Address AAsset
@@ -46,17 +31,17 @@ class World w where
     -> Holder
     -> Balance
     -> w
-    -> Either AssetError w
+    -> Either (AssetError' w) w
 
   circulateAsset
     :: Address AAsset
     -> Address AAccount
     -> Balance
     -> w
-    -> Either AssetError w
+    -> Either (AssetError' w) w
 
-  lookupAccount :: Address AAccount -> w -> Either AccountError (Account' w)
-  lookupAsset :: Address AAsset -> w -> Either AssetError (Asset' w)
+  lookupAccount :: Show ((AccountError' w)) => Address AAccount -> w -> Either (AccountError' w) (Account' w)
+  lookupAsset :: Show ((AssetError' w)) => Address AAsset -> w -> Either (AssetError' w) (Asset' w)
   lookupContract :: Address AContract -> w -> Either ContractError Contract
 
   -- All the methods below have ambiguous types (hence -XAmbiguousTypes) which
