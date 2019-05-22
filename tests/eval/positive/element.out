@@ -1,0 +1,64 @@
+*** Deltas ***
+[ ModifyGlobal
+    Name { unName = "balances" }
+    (VMap
+       (fromList
+          [ ( VAccount
+                (Address "fwBVDsVh8SYQy98CzYpNPcbyTRczVUZ96HszhNRB8Ve")
+            , VNum (NumDecimal 500)
+            )
+          ]))
+, ModifyGlobal Name { unName = "aElemOf" } (VBool True)
+, ModifyGlobal Name { unName = "notElemOf" } (VBool True)
+, ModifyGlobal
+    Name { unName = "amounts" }
+    (VSet
+       (fromList
+          [ VNum (NumDecimal 1)
+          , VNum (NumDecimal 2)
+          , VNum (NumDecimal 3)
+          , VNum (NumDecimal 500)
+          ]))
+, ModifyGlobal Name { unName = "elemOfSet" } (VBool True)
+, ModifyGlobal Name { unName = "notElemOfSet" } (VBool True)
+, ModifyState WorkflowState { places = fromList [ PlaceEnd ] }
+, Terminate
+]
+
+*** Globals ***
+fromList
+  [ ( Key { unKey = "aElemOf" } , VBool True )
+  , ( Key { unKey = "amounts" }
+    , VSet
+        (fromList
+           [ VNum (NumDecimal 1)
+           , VNum (NumDecimal 2)
+           , VNum (NumDecimal 3)
+           , VNum (NumDecimal 500)
+           ])
+    )
+  , ( Key { unKey = "b" }
+    , VAccount (Address "H1tbrEKWGpbPjSeG856kz2DjViCwMU3qTw3i1PqCLz65")
+    )
+  , ( Key { unKey = "balances" }
+    , VMap
+        (fromList
+           [ ( VAccount
+                 (Address "fwBVDsVh8SYQy98CzYpNPcbyTRczVUZ96HszhNRB8Ve")
+             , VNum (NumDecimal 500)
+             )
+           ])
+    )
+  , ( Key { unKey = "elemOfSet" } , VBool True )
+  , ( Key { unKey = "notElemOf" } , VBool True )
+  , ( Key { unKey = "notElemOfSet" } , VBool True )
+  , ( Key { unKey = "testAddr" }
+    , VAccount (Address "fwBVDsVh8SYQy98CzYpNPcbyTRczVUZ96HszhNRB8Ve")
+    )
+  , ( Key { unKey = "testAddr2" }
+    , VAccount (Address "Fw68hsis6JPW4ed3ER1VC959TTf9DqberLxrq5uECKxh")
+    )
+  , ( Key { unKey = "testAddr3" }
+    , VAccount (Address "4Stv5gWGt78D3p919HFcKEschSmyGKGrAX2G35xJgdhw")
+    )
+  ]

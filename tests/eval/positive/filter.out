@@ -1,0 +1,113 @@
+*** Deltas ***
+[ ModifyGlobal
+    Name { unName = "balances" }
+    (VMap
+       (fromList
+          [ ( VAccount
+                (Address "2R5XggBkMCQwh74KuqBh553jzCpY9ma7PmkPTBP8ti6j")
+            , VNum (NumDecimal 4)
+            )
+          , ( VAccount
+                (Address "6pxGdGG6nQP3VoCW7HoGkCGDNCiCEWP3P5jHtrvgphBc")
+            , VNum (NumDecimal 3)
+            )
+          , ( VAccount
+                (Address "AAqhpDc5dabugYAemzc6DVtSyiC5RMoz5MiPdZBMrf7m")
+            , VNum (NumDecimal 5)
+            )
+          ]))
+, ModifyGlobal
+    Name { unName = "groups" }
+    (VSet
+       (fromList
+          [ VMap
+              (fromList
+                 [ ( VAccount
+                       (Address "2R5XggBkMCQwh74KuqBh553jzCpY9ma7PmkPTBP8ti6j")
+                   , VNum (NumDecimal 4)
+                   )
+                 , ( VAccount
+                       (Address "6pxGdGG6nQP3VoCW7HoGkCGDNCiCEWP3P5jHtrvgphBc")
+                   , VNum (NumDecimal 3)
+                   )
+                 , ( VAccount
+                       (Address "fwBVDsVh8SYQy98CzYpNPcbyTRczVUZ96HszhNRB8Ve")
+                   , VNum (NumDecimal 2)
+                   )
+                 ])
+          , VMap
+              (fromList
+                 [ ( VAccount
+                       (Address "2R5XggBkMCQwh74KuqBh553jzCpY9ma7PmkPTBP8ti6j")
+                   , VNum (NumDecimal 6)
+                   )
+                 , ( VAccount
+                       (Address "AAqhpDc5dabugYAemzc6DVtSyiC5RMoz5MiPdZBMrf7m")
+                   , VNum (NumDecimal 5)
+                   )
+                 ])
+          ]))
+, ModifyState WorkflowState { places = fromList [ PlaceEnd ] }
+, Terminate
+]
+
+*** Globals ***
+fromList
+  [ ( Key { unKey = "balances" }
+    , VMap
+        (fromList
+           [ ( VAccount
+                 (Address "2R5XggBkMCQwh74KuqBh553jzCpY9ma7PmkPTBP8ti6j")
+             , VNum (NumDecimal 4)
+             )
+           , ( VAccount
+                 (Address "6pxGdGG6nQP3VoCW7HoGkCGDNCiCEWP3P5jHtrvgphBc")
+             , VNum (NumDecimal 3)
+             )
+           , ( VAccount
+                 (Address "AAqhpDc5dabugYAemzc6DVtSyiC5RMoz5MiPdZBMrf7m")
+             , VNum (NumDecimal 5)
+             )
+           ])
+    )
+  , ( Key { unKey = "groups" }
+    , VSet
+        (fromList
+           [ VMap
+               (fromList
+                  [ ( VAccount
+                        (Address "2R5XggBkMCQwh74KuqBh553jzCpY9ma7PmkPTBP8ti6j")
+                    , VNum (NumDecimal 4)
+                    )
+                  , ( VAccount
+                        (Address "6pxGdGG6nQP3VoCW7HoGkCGDNCiCEWP3P5jHtrvgphBc")
+                    , VNum (NumDecimal 3)
+                    )
+                  , ( VAccount
+                        (Address "fwBVDsVh8SYQy98CzYpNPcbyTRczVUZ96HszhNRB8Ve")
+                    , VNum (NumDecimal 2)
+                    )
+                  ])
+           , VMap
+               (fromList
+                  [ ( VAccount
+                        (Address "2R5XggBkMCQwh74KuqBh553jzCpY9ma7PmkPTBP8ti6j")
+                    , VNum (NumDecimal 6)
+                    )
+                  , ( VAccount
+                        (Address "AAqhpDc5dabugYAemzc6DVtSyiC5RMoz5MiPdZBMrf7m")
+                    , VNum (NumDecimal 5)
+                    )
+                  ])
+           ])
+    )
+  , ( Key { unKey = "testAddr" }
+    , VAccount (Address "fwBVDsVh8SYQy98CzYpNPcbyTRczVUZ96HszhNRB8Ve")
+    )
+  , ( Key { unKey = "testAddr2" }
+    , VAccount (Address "Fw68hsis6JPW4ed3ER1VC959TTf9DqberLxrq5uECKxh")
+    )
+  , ( Key { unKey = "testAddr3" }
+    , VAccount (Address "4Stv5gWGt78D3p919HFcKEschSmyGKGrAX2G35xJgdhw")
+    )
+  ]

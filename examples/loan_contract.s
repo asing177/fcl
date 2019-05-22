@@ -1,12 +1,12 @@
-fixed2 principle;
-fixed2 interest_rate;
-assetFrac2 currency;
+decimal<2> principle;
+decimal<2> interest_rate;
+asset<decimal<2>> currency;
 account borrower;
 account lender;
 text loan_contract;
 
 @initial
-propose_contract(fixed2 PRINCIPLE, assetFrac2 CURRENCY, account BORROWER, account LENDER, fixed2 INTEREST_RATE){
+propose_contract(decimal<2> PRINCIPLE, asset<decimal<2>> CURRENCY, account BORROWER, account LENDER, decimal<2> INTEREST_RATE){
   borrower = BORROWER;
   lender = LENDER;
   principle = PRINCIPLE;
@@ -44,7 +44,7 @@ loan_start(){
 // The borrower pays interest
 @contract_active [role: borrower]
 pay_interest(){
-  interest_payment = (principle * interest_rate);
+  interest_payment = round(2,principle * interest_rate);
   transferHoldings(borrower, currency, interest_payment, lender);
   stay()
 }

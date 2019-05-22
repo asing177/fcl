@@ -1,0 +1,39 @@
+digraph workflow {
+edge [color="#000000"]
+graph [bgcolor=transparent]
+
+
+initial [shape=point; width=0.3; style=filled; color="#0e64ce"; label=""]
+a [shape=ellipse; fontname="Arial"; fontsize=16; style=filled; color=black; fillcolor=white;]
+b [shape=ellipse; fontname="Arial"; fontsize=16; style=filled; color=black; fillcolor=white;]
+c [shape=ellipse; fontname="Arial"; fontsize=16; style=filled; color=black; fillcolor=white;]
+d [shape=ellipse; fontname="Arial"; fontsize=16; style=filled; color=black; fillcolor=white;]
+e [shape=ellipse; fontname="Arial"; fontsize=16; style=filled; color=black; fillcolor=white;]
+f [shape=ellipse; fontname="Arial"; fontsize=16; style=filled; color=black; fillcolor=white;]
+terminal [shape=point; width=0.3; peripheries=2; style=filled; color="#d11010"; label=""]
+
+1[label=<<FONT POINT-SIZE="16">toA</FONT><FONT POINT-SIZE="10" COLOR="blue"> </FONT>>shape=box; fontname="Arial"; style=filled; color=black; fillcolor=gray75;]
+2[label=<<FONT POINT-SIZE="16">toB</FONT><FONT POINT-SIZE="10" COLOR="blue"> </FONT>>shape=box; fontname="Arial"; style=filled; color=black; fillcolor=gray75;]
+3[label=<<FONT POINT-SIZE="16">toB</FONT><FONT POINT-SIZE="10" COLOR="blue"> </FONT>>shape=box; fontname="Arial"; style=filled; color=black; fillcolor=gray75;]
+4[label=<<FONT POINT-SIZE="16">toCorD</FONT><FONT POINT-SIZE="10" COLOR="blue"> </FONT>>shape=box; fontname="Arial"; style=filled; color=black; fillcolor=gray75;]
+5[label=<<FONT POINT-SIZE="16">toCorD</FONT><FONT POINT-SIZE="10" COLOR="blue"> </FONT>>shape=box; fontname="Arial"; style=filled; color=black; fillcolor=gray75;]
+6[label=<<FONT POINT-SIZE="16">toEorF</FONT><FONT POINT-SIZE="10" COLOR="blue"> </FONT>>shape=box; fontname="Arial"; style=filled; color=black; fillcolor=gray75;]
+7[label=<<FONT POINT-SIZE="16">toEorF</FONT><FONT POINT-SIZE="10" COLOR="blue"> </FONT>>shape=box; fontname="Arial"; style=filled; color=black; fillcolor=gray75;]
+8[label=<<FONT POINT-SIZE="16">toEfromD</FONT><FONT POINT-SIZE="10" COLOR="blue"> </FONT>>shape=box; fontname="Arial"; style=filled; color=black; fillcolor=gray75;]
+9[label=<<FONT POINT-SIZE="16">toEfromF</FONT><FONT POINT-SIZE="10" COLOR="blue"> </FONT>>shape=box; fontname="Arial"; style=filled; color=black; fillcolor=gray75;]
+10[label=<<FONT POINT-SIZE="16">finish</FONT><FONT POINT-SIZE="10" COLOR="blue"> </FONT>>shape=box; fontname="Arial"; style=filled; color=black; fillcolor=gray75;]
+
+initial -> 1 ; 1 -> a
+a -> 2 ; 2 -> a
+a -> 3 ; 3 -> b
+b -> 4 ; 4 -> c
+b -> 5 ; 5 -> d
+c -> 6 ; 6 -> e
+c -> 7 ; 7 -> f
+d -> 8 ; 8 -> e
+f -> 9 ; 9 -> e
+e -> 10 ; 10 -> terminal
+
+
+
+}

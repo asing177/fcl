@@ -1,0 +1,3 @@
+Type error at Line 8, Column 13:
+   Expected: 'bool' inferred from the assignment to variable 'tmp' on Line 8, Column 13
+   But got:  'text' inferred from literal '"bla"' on Line 8, Column 13

@@ -11,9 +11,9 @@ cost bond to an investor, usually at a steep discount compared to its face value
 account bond_issuer; // The issuer of the bond
 account investor; // The investor who is buying the bond
 
-assetFrac2 the_asset; // USD/GBP/EUR etc.
-fixed2 face_value; // The face value
-fixed2 issue_price; // The issue price of the bond
+asset<decimal<2>> the_asset; // USD/GBP/EUR etc.
+decimal<2> face_value; // The face value
+decimal<2> issue_price; // The issue price of the bond
 
 datetime offer_made; // The date at which the offer was made
 datetime offer_expiry; // The date when the deployer can retract the offer
@@ -41,9 +41,9 @@ kill() {
 // Instantiate an offer to a particular investor
 @initial [role: deployer()]
 make_offer( account investor_p,
-            assetFrac2 asset_p,
-            fixed2 face_value_p,
-            fixed2 issue_price_p,
+            asset<decimal<2>> asset_p,
+            decimal<2> face_value_p,
+            decimal<2> issue_price_p,
             timedelta offer_validity_p,
             timedelta time_until_maturity_p
           ) {

@@ -1,0 +1,33 @@
+digraph workflow {
+edge [color="#000000"]
+graph [bgcolor=transparent]
+
+
+initial [shape=point; width=0.3; style=filled; color="#0e64ce"; label=""]
+a1 [shape=ellipse; fontname="Arial"; fontsize=16; style=filled; color=black; fillcolor=white;]
+a2 [shape=ellipse; fontname="Arial"; fontsize=16; style=filled; color=black; fillcolor=white;]
+a3 [shape=ellipse; fontname="Arial"; fontsize=16; style=filled; color=black; fillcolor=white;]
+b [shape=ellipse; fontname="Arial"; fontsize=16; style=filled; color=black; fillcolor=white;]
+terminal [shape=point; width=0.3; peripheries=2; style=filled; color="#d11010"; label=""]
+
+1[label=<<FONT POINT-SIZE="16">go1</FONT><FONT POINT-SIZE="10" COLOR="blue"> </FONT>>shape=box; fontname="Arial"; style=filled; color=black; fillcolor=gray75;]
+2[label=<<FONT POINT-SIZE="16">go2</FONT><FONT POINT-SIZE="10" COLOR="blue"> </FONT>>shape=box; fontname="Arial"; style=filled; color=black; fillcolor=gray75;]
+3[label=<<FONT POINT-SIZE="16">go3</FONT><FONT POINT-SIZE="10" COLOR="blue"> </FONT>>shape=box; fontname="Arial"; style=filled; color=black; fillcolor=gray75;]
+4[label=<<FONT POINT-SIZE="16">go4</FONT><FONT POINT-SIZE="10" COLOR="blue"> </FONT>>shape=box; fontname="Arial"; style=filled; color=black; fillcolor=gray75;]
+5[label=<<FONT POINT-SIZE="16">go5</FONT><FONT POINT-SIZE="10" COLOR="blue"> </FONT>>shape=box; fontname="Arial"; style=filled; color=black; fillcolor=gray75;]
+6[label=<<FONT POINT-SIZE="16">go6</FONT><FONT POINT-SIZE="10" COLOR="blue"> </FONT>>shape=box; fontname="Arial"; style=filled; color=black; fillcolor=gray75;]
+7[label=<<FONT POINT-SIZE="16">go7</FONT><FONT POINT-SIZE="10" COLOR="blue"> </FONT>>shape=box; fontname="Arial"; style=filled; color=black; fillcolor=gray75;]
+8[label=<<FONT POINT-SIZE="16">go8</FONT><FONT POINT-SIZE="10" COLOR="blue"> </FONT>>shape=box; fontname="Arial"; style=filled; color=black; fillcolor=gray75;]
+
+initial -> 1 ; 1 -> a1
+a1 -> 2 ; 2 -> a2
+a2 -> 3 ; 3 -> a3
+a3 -> 4 ; 4 -> b
+a3 -> 5 ; 5 -> terminal
+initial -> 6 ; 6 -> b
+b -> 7 ; 7 -> a3
+b -> 8 ; 8 -> terminal
+
+
+
+}

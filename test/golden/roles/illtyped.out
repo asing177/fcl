@@ -1,4 +1,0 @@
-Error at Line 1, Column 13:
-   Could not match expected type 'set<account>' with actual type 'set<text>':
-      Type set<account> was inferred from a precondition 'roles' on Line 1, Column 13
-      Type set<text> was inferred from a set expression on Line 1, Column 13

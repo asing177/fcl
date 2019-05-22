@@ -1,0 +1,7 @@
+Error at Line 9, Column 27:
+   Implicit loss of numeric precision
+      'decimal<2>' inferred from the type signature of argument 3 of function 'calcAndInsert' on Line 9, Column 7
+      'decimal<3>' inferred from the type signature of argument 2 of function 'f' on Line 8, Column 26
+   Possible fixes:
+      • round the higher precision expression to match the lower precision
+      • use types with more (e.g. arbitrary) precision

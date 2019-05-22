@@ -1,4 +1,4 @@
-local float x = 0.1;
+local num x = 0.1;
 
 transition initial -> set;
 transition set -> terminal;

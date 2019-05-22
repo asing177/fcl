@@ -1,0 +1,45 @@
+digraph workflow {
+edge [color="#000000"]
+graph [bgcolor=transparent]
+
+
+initial [shape=point; width=0.3; style=filled; color="#0e64ce"; label=""]
+circulated [shape=ellipse; fontname="Arial"; fontsize=16; style=filled; color=black; fillcolor=white;]
+confirmation [shape=ellipse; fontname="Arial"; fontsize=16; style=filled; color=black; fillcolor=white;]
+setX [shape=ellipse; fontname="Arial"; fontsize=16; style=filled; color=black; fillcolor=white;]
+settlement [shape=ellipse; fontname="Arial"; fontsize=16; style=filled; color=black; fillcolor=white;]
+setup [shape=ellipse; fontname="Arial"; fontsize=16; style=filled; color=black; fillcolor=white;]
+update [shape=ellipse; fontname="Arial"; fontsize=16; style=filled; color=black; fillcolor=white;]
+terminal [shape=point; width=0.3; peripheries=2; style=filled; color="#d11010"; label=""]
+
+1[label=<<FONT POINT-SIZE="16">setDate</FONT><FONT POINT-SIZE="10" COLOR="blue"> </FONT>>shape=box; fontname="Arial"; style=filled; color=black; fillcolor=gray75;]
+2[label=<<FONT POINT-SIZE="16">initialize</FONT><FONT POINT-SIZE="10" COLOR="blue"> </FONT>>shape=box; fontname="Arial"; style=filled; color=black; fillcolor=gray75;]
+3[label=<<FONT POINT-SIZE="16">confirm</FONT><FONT POINT-SIZE="10" COLOR="blue"> </FONT>>shape=box; fontname="Arial"; style=filled; color=black; fillcolor=gray75;]
+4[label=<<FONT POINT-SIZE="16">settle</FONT><FONT POINT-SIZE="10" COLOR="blue"> </FONT>>shape=box; fontname="Arial"; style=filled; color=black; fillcolor=gray75;]
+5[label=<<FONT POINT-SIZE="16">finalize</FONT><FONT POINT-SIZE="10" COLOR="blue"> </FONT>>shape=box; fontname="Arial"; style=filled; color=black; fillcolor=gray75;]
+6[label=<<FONT POINT-SIZE="16">setX</FONT><FONT POINT-SIZE="10" COLOR="blue"> <BR/>roles: {u'H1tbrEKWGpbPjSeG856kz2DjViCwMU3qTw3i1PqCLz65'}</FONT>>shape=box; fontname="Arial"; style=filled; color=black; fillcolor=gray75;]
+7[label=<<FONT POINT-SIZE="16">fixX</FONT><FONT POINT-SIZE="10" COLOR="blue"> </FONT>>shape=box; fontname="Arial"; style=filled; color=black; fillcolor=gray75;]
+8[label=<<FONT POINT-SIZE="16">fixY</FONT><FONT POINT-SIZE="10" COLOR="blue"> </FONT>>shape=box; fontname="Arial"; style=filled; color=black; fillcolor=gray75;]
+9[label=<<FONT POINT-SIZE="16">update</FONT><FONT POINT-SIZE="10" COLOR="blue"> </FONT>>shape=box; fontname="Arial"; style=filled; color=black; fillcolor=gray75;]
+10[label=<<FONT POINT-SIZE="16">f</FONT><FONT POINT-SIZE="10" COLOR="blue"> </FONT>>shape=box; fontname="Arial"; style=filled; color=black; fillcolor=gray75;]
+11[label=<<FONT POINT-SIZE="16">g</FONT><FONT POINT-SIZE="10" COLOR="blue"> </FONT>>shape=box; fontname="Arial"; style=filled; color=black; fillcolor=gray75;]
+12[label=<<FONT POINT-SIZE="16">circulate</FONT><FONT POINT-SIZE="10" COLOR="blue"> </FONT>>shape=box; fontname="Arial"; style=filled; color=black; fillcolor=gray75;]
+13[label=<<FONT POINT-SIZE="16">transfer</FONT><FONT POINT-SIZE="10" COLOR="blue"> </FONT>>shape=box; fontname="Arial"; style=filled; color=black; fillcolor=gray75;]
+
+initial -> 1 ; 1 -> terminal
+initial -> 2 ; 2 -> setX
+setup -> 3 ; 3 -> confirmation
+confirmation -> 4 ; 4 -> settlement
+settlement -> 5 ; 5 -> terminal
+setX -> 6 ; 6 -> update
+setX -> 7 ; 7 -> setup
+update -> 8 ; 8 -> setup
+update -> 9 ; 9 -> setX
+initial -> 10 ; 10 -> terminal
+initial -> 11 ; 11 -> terminal
+initial -> 12 ; 12 -> initial
+circulated -> 13 ; 13 -> terminal
+
+
+
+}

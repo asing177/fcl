@@ -1,6 +1,0 @@
-Error at Line 3, Column 3:
-   A transition occurs when the condition 'b' of the if-statement is true,
-      but there is no else-branch that specifies where to transition to when the condition is false.
-
-Error at Line 10, Column 3:
-   A transition occurs in one branch of the if-statement, but not in the other.

@@ -9,8 +9,8 @@ retract the offer, also causing return of her funds.
 
 global account alice = u'2vJ8JYN43hKwZx6p3r7fuRToZ3NiqGrPRngdq63hAskf';
 global account bob = u'6fgCTVBrVLiXxCdZZWBznabxwEebfu6iAP93S1s358Ca';
-global assetDisc usd = a'2vJ8JYN43hKwZx6p3r7fuRToZ3NiqGrPRngdq63hAskf';
-global assetDisc gbp = a'6fgCTVBrVLiXxCdZZWBznabxwEebfu6iAP93S1s358Ca';
+global asset<int> usd = a'2vJ8JYN43hKwZx6p3r7fuRToZ3NiqGrPRngdq63hAskf';
+global asset<int> gbp = a'6fgCTVBrVLiXxCdZZWBznabxwEebfu6iAP93S1s358Ca';
 global int usdAmount;
 global int gbpAmount;
 

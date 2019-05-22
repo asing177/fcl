@@ -1,0 +1,30 @@
+Type error at Line 22, Column 7:
+   Expected: 'set<decimal<2>>' inferred from the return type of the function 'setInsert' on Line 22, Column 7
+   But got:  'account' inferred from the type signature of argument 1 of function 'insertInvestor' on Line 18, Column 24
+
+Type error at Line 22, Column 23:
+   Expected: 'set<decimal<2>>' inferred from the type signature of argument 2 of function 'setInsert' on Line 22, Column 23
+   But got:  'set<account>' inferred from expression 'lookup(x, investors)' on Line 19, Column 13
+
+Type error at Line 26, Column 15:
+   Expected: 'map<enum investor, set<account>>' inferred from the assignment to variable 'investors' on Line 26, Column 15
+   But got:  'map<enum investor, set<decimal<2>>>' inferred from the return type of the function 'mapInsert' on Line 26, Column 15
+
+Type error at Line 26, Column 36:
+   Expected: 'map<enum investor, set<decimal<2>>>' inferred from the type signature of argument 3 of function 'mapInsert' on Line 26, Column 36
+   But got:  'map<enum investor, set<account>>' inferred by top level definition for variable 'investors' on Line 9, Column 3
+
+Error at Line 33, Column 3:
+   Expected a statement but got something of type 'map<f, g>'
+
+Type error at Line 35, Column 7:
+   Expected: 'set<asset<decimal<2>>>' inferred from the return type of the function 'setDelete' on Line 35, Column 7
+   But got:  'set<account>' inferred from expression 'lookup(x, investors)' on Line 32, Column 13
+
+Type error at Line 35, Column 20:
+   Expected: 'set<asset<decimal<2>>>' inferred from the type signature of argument 2 of function 'setDelete' on Line 35, Column 20
+   But got:  'set<account>' inferred from expression 'lookup(x, investors)' on Line 32, Column 13
+
+Type error at Line 39, Column 24:
+   Expected: 'map<enum investor, set<asset<decimal<2>>>>' inferred from the type signature of argument 3 of function 'mapInsert' on Line 39, Column 24
+   But got:  'map<enum investor, set<account>>' inferred by top level definition for variable 'investors' on Line 9, Column 3

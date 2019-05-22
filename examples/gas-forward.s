@@ -2,18 +2,18 @@ global account seller = u'6fgCTVBrVLiXxCdZZWBznabxwEebfu6iAP93S1s358Ca';
 global account buyer;
 global account admin = u'FoUAmBFu3vd3eHfqfurqpM7intjZMbXNLqzty5eKihBF';
 global account pipeline = u'2vJ8JYN43hKwZx6p3r7fuRToZ3NiqGrPRngdq63hAskf';
-global assetFrac2 asset_ = a'EBYttLyWUzhtdhFyAp8nAuKXZ7UZjxDLbry2Bnd8KuA5';
-global fixed2 dailyQuantity;
-global fixed2 dailyQuantityCounter;
-global fixed2 nominatedQuantity = 0.00f;
-global fixed2 deliveredQuantity = 0.00f;
-global fixed2 adjustedQuantity = 0.00f;
+global asset<decimal<2>> asset_ = a'EBYttLyWUzhtdhFyAp8nAuKXZ7UZjxDLbry2Bnd8KuA5';
+global decimal<2> dailyQuantity;
+global decimal<2> dailyQuantityCounter;
+global decimal<2> nominatedQuantity = 0.00;
+global decimal<2> deliveredQuantity = 0.00;
+global decimal<2> adjustedQuantity = 0.00;
 global text index;
 global text pipelineName;
 global text deliveryLocation;
-global fixed2 price;
-global fixed2 payment;
-global fixed2 ppa;
+global decimal<2> price;
+global decimal<2> payment;
+global decimal<2> ppa;
 global datetime deliveryStartDate;
 global int numberOfDeliveryDays;
 global int counter = 1;
@@ -36,7 +36,7 @@ transition ppaPeriod -> ppaPeriod;
 transition ppaPeriod -> terminal;
 
 @initial [role: seller]
-propose(account proposedBuyer, fixed2 proposedDailyQuantity, text proposedPipelineName, text proposedDeliveryLocation, text proposedIndex, datetime proposedDeliveryStartDate, int proposedNumberOfDeliveryDays) {
+propose(account proposedBuyer, decimal<2> proposedDailyQuantity, text proposedPipelineName, text proposedDeliveryLocation, text proposedIndex, datetime proposedDeliveryStartDate, int proposedNumberOfDeliveryDays) {
   buyer = proposedBuyer;
   dailyQuantity = proposedDailyQuantity;
   pipelineName = proposedPipelineName;
@@ -48,7 +48,7 @@ propose(account proposedBuyer, fixed2 proposedDailyQuantity, text proposedPipeli
 }
 
 @matching [before: deliveryStartDate, role: buyer]
-match(fixed2 dailyQuantity_) {
+match(decimal<2> dailyQuantity_) {
   dailyQuantityCounter = dailyQuantity_;
   if ((dailyQuantity == dailyQuantityCounter)) {
     transitionTo(@nomination);
@@ -63,7 +63,7 @@ endDuringMatching() {
 }
 
 @discrepancy [before: deliveryStartDate, role: seller]
-resolve(fixed2 dailyQuantity_) {
+resolve(decimal<2> dailyQuantity_) {
   dailyQuantityCounter = dailyQuantity_;
   if (dailyQuantity == dailyQuantityCounter) {
     transitionTo(@nomination);
@@ -78,7 +78,7 @@ endDuringDiscrepancy() {
 }
 
 @nomination [role: seller]
-nominate(fixed2 nominatedQuantity_) {
+nominate(decimal<2> nominatedQuantity_) {
   nominatedQuantity = nominatedQuantity + nominatedQuantity_;
   if (counter < numberOfDeliveryDays + 1) {
     counter = counter + 1;
@@ -92,7 +92,7 @@ nominate(fixed2 nominatedQuantity_) {
 }
 
 @volActualisation [role: pipeline]
-actualisevolume(fixed2 deliveredQuantity_) {
+actualisevolume(decimal<2> deliveredQuantity_) {
   deliveredQuantity = deliveredQuantity + deliveredQuantity_;
   if (counter < numberOfDeliveryDays + 1) {
     counter = counter + 1;
@@ -106,9 +106,9 @@ actualisevolume(fixed2 deliveredQuantity_) {
 }
 
 @priceActualisation [role: admin]
-actualiseprice(fixed2 price_) {
+actualiseprice(decimal<2> price_) {
   price = price_;
-  payment = deliveredQuantity * price;
+  payment = round(2, deliveredQuantity * price);
   transitionTo(@priceActualisationDone);
 }
 
@@ -119,19 +119,19 @@ settle() {
 }
 
 @ppaPeriod [role: pipeline]
-adjust(fixed2 adjustedQuantity_) {
+adjust(decimal<2> adjustedQuantity_) {
   adjustedQuantity = adjustedQuantity + adjustedQuantity_;
   if (counter < numberOfDeliveryDays + 1) {
     counter = counter + 1;
   };
   if (counter == numberOfDeliveryDays + 1) {
-    ppa = (price * adjustedQuantity) - payment;
-    if (ppa > 0.00f) {
+    ppa = round(2, price * adjustedQuantity) - payment;
+    if (ppa > 0.00) {
       transferHoldings(buyer, asset_, ppa, seller);
       ppaPayer = buyer;
     };
-    if (ppa < 0.00f) {
-      ppa = (0.00f - ppa);
+    if (ppa < 0.00) {
+      ppa = (0.00 - ppa);
       transferHoldings(seller, asset_, ppa, buyer);
       ppaPayer = seller;
     };

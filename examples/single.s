@@ -1,4 +1,4 @@
-global int x = 0 ;
+global int x = 0;
 
 transition initial -> terminal;
 

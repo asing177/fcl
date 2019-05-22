@@ -1,0 +1,192 @@
+*** Deltas ***
+[ ModifyGlobal
+    Name { unName = "dt_future" }
+    (VDateTime
+       DateTime
+         { unDateTime =
+             Datetime
+               { year = 2090
+               , month = 10
+               , day = 10
+               , hour = 23
+               , minute = 13
+               , second = 40
+               , zone = 0
+               , week_day = 2
+               }
+         })
+, ModifyGlobal
+    Name { unName = "dt_past" }
+    (VDateTime
+       DateTime
+         { unDateTime =
+             Datetime
+               { year = 1999
+               , month = 2
+               , day = 23
+               , hour = 23
+               , minute = 13
+               , second = 40
+               , zone = 0
+               , week_day = 2
+               }
+         })
+, ModifyGlobal
+    Name { unName = "dt_past" }
+    (VDateTime
+       DateTime
+         { unDateTime =
+             Datetime
+               { year = 2003
+               , month = 6
+               , day = 28
+               , hour = 3
+               , minute = 17
+               , second = 44
+               , zone = 0
+               , week_day = 6
+               }
+         })
+, ModifyGlobal Name { unName = "w" } (VNum (NumDecimal 6.00))
+, ModifyGlobal Name { unName = "z" } (VNum (NumDecimal 4))
+, ModifyGlobal Name { unName = "y" } (VNum (NumDecimal (-2)))
+, ModifyGlobal Name { unName = "y" } (VNum (NumDecimal (-3)))
+, ModifyGlobal Name { unName = "w" } (VNum (NumRational (3 % 1)))
+, ModifyGlobal Name { unName = "m" } (VNum (NumDecimal (-4.0)))
+, ModifyGlobal
+    Name { unName = "n" } (VNum (NumDecimal (-45.00000)))
+, ModifyGlobal Name { unName = "t" } (VBool False)
+, ModifyGlobal Name { unName = "x" } (VNum (NumDecimal 6))
+, ModifyGlobal Name { unName = "y" } (VNum (NumDecimal (-2)))
+, ModifyGlobal Name { unName = "x" } (VNum (NumDecimal 18))
+, ModifyGlobal
+    Name { unName = "future_past_diff" }
+    (VTimeDelta
+       TimeDelta
+         { unTimeDelta =
+             Delta
+               { dPeriod =
+                   Period
+                     { unPeriod =
+                         Period { periodYears = 87 , periodMonths = 3 , periodDays = 12 }
+                     }
+               , dDuration =
+                   Duration
+                     { unDuration =
+                         Duration
+                           { durationHours = 19 h
+                           , durationMinutes = 55 m
+                           , durationSeconds = 56 s
+                           , durationNs = 0 ns
+                           }
+                     }
+               }
+         })
+, ModifyState WorkflowState { places = fromList [ PlaceEnd ] }
+, Terminate
+]
+
+*** Globals ***
+fromList
+  [ ( Key { unKey = "a" }
+    , VAsset (Address "H1tbrEKWGpbPjSeG856kz2DjViCwMU3qTw3i1PqCLz65")
+    )
+  , ( Key { unKey = "b" }
+    , VAccount (Address "H1tbrEKWGpbPjSeG856kz2DjViCwMU3qTw3i1PqCLz65")
+    )
+  , ( Key { unKey = "dt_future" }
+    , VDateTime
+        DateTime
+          { unDateTime =
+              Datetime
+                { year = 2090
+                , month = 10
+                , day = 10
+                , hour = 23
+                , minute = 13
+                , second = 40
+                , zone = 0
+                , week_day = 2
+                }
+          }
+    )
+  , ( Key { unKey = "dt_past" }
+    , VDateTime
+        DateTime
+          { unDateTime =
+              Datetime
+                { year = 2003
+                , month = 6
+                , day = 28
+                , hour = 3
+                , minute = 17
+                , second = 44
+                , zone = 0
+                , week_day = 6
+                }
+          }
+    )
+  , ( Key { unKey = "f" } , VBool True )
+  , ( Key { unKey = "future_past_diff" }
+    , VTimeDelta
+        TimeDelta
+          { unTimeDelta =
+              Delta
+                { dPeriod =
+                    Period
+                      { unPeriod =
+                          Period { periodYears = 87 , periodMonths = 3 , periodDays = 12 }
+                      }
+                , dDuration =
+                    Duration
+                      { unDuration =
+                          Duration
+                            { durationHours = 19 h
+                            , durationMinutes = 55 m
+                            , durationSeconds = 56 s
+                            , durationNs = 0 ns
+                            }
+                      }
+                }
+          }
+    )
+  , ( Key { unKey = "m" } , VNum (NumDecimal (-4.0)) )
+  , ( Key { unKey = "n" } , VNum (NumDecimal (-45.00000)) )
+  , ( Key { unKey = "t" } , VBool False )
+  , ( Key { unKey = "td" }
+    , VTimeDelta
+        TimeDelta
+          { unTimeDelta =
+              Delta
+                { dPeriod =
+                    Period
+                      { unPeriod =
+                          Period { periodYears = 1 , periodMonths = 1 , periodDays = 1 }
+                      }
+                , dDuration =
+                    Duration
+                      { unDuration =
+                          Duration
+                            { durationHours = 1 h
+                            , durationMinutes = 1 m
+                            , durationSeconds = 1 s
+                            , durationNs = 0 ns
+                            }
+                      }
+                }
+          }
+    )
+  , ( Key { unKey = "testAddr" }
+    , VAccount (Address "fwBVDsVh8SYQy98CzYpNPcbyTRczVUZ96HszhNRB8Ve")
+    )
+  , ( Key { unKey = "testAddr2" }
+    , VAccount (Address "Fw68hsis6JPW4ed3ER1VC959TTf9DqberLxrq5uECKxh")
+    )
+  , ( Key { unKey = "testAddr3" }
+    , VAccount (Address "4Stv5gWGt78D3p919HFcKEschSmyGKGrAX2G35xJgdhw")
+    )
+  , ( Key { unKey = "w" } , VNum (NumRational (3 % 1)) )
+  , ( Key { unKey = "x" } , VNum (NumDecimal 18) )
+  , ( Key { unKey = "y" } , VNum (NumDecimal (-2)) )
+  , ( Key { unKey = "z" } , VNum (NumDecimal 4) )
+  ]

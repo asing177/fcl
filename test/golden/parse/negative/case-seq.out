@@ -1,9 +1,0 @@
-run() {
-  foo = case(tmp = `Hello; tmp) {
--------------------------^
-      `Hello -> 1;
-      `There -> 2;
-
-"<stdin>" (line 12, column 26):
-unexpected ";"
-expecting letter or digit, operator or ")"

@@ -1,0 +1,30 @@
+digraph workflow {
+edge [color="#000000"]
+graph [bgcolor=transparent]
+
+
+initial [shape=point; width=0.3; style=filled; color="#0e64ce"; label=""]
+a1 [shape=ellipse; fontname="Arial"; fontsize=16; style=filled; color=black; fillcolor=white;]
+a2 [shape=ellipse; fontname="Arial"; fontsize=16; style=filled; color=black; fillcolor=white;]
+b1 [shape=ellipse; fontname="Arial"; fontsize=16; style=filled; color=black; fillcolor=white;]
+b2 [shape=ellipse; fontname="Arial"; fontsize=16; style=filled; color=black; fillcolor=white;]
+c [shape=ellipse; fontname="Arial"; fontsize=16; style=filled; color=black; fillcolor=white;]
+terminal [shape=point; width=0.3; peripheries=2; style=filled; color="#d11010"; label=""]
+
+1[label=<<FONT POINT-SIZE="16">go1</FONT><FONT POINT-SIZE="10" COLOR="blue"> </FONT>>shape=box; fontname="Arial"; style=filled; color=black; fillcolor=gray75;]
+2[label=<<FONT POINT-SIZE="16">go2</FONT><FONT POINT-SIZE="10" COLOR="blue"> </FONT>>shape=box; fontname="Arial"; style=filled; color=black; fillcolor=gray75;]
+3[label=<<FONT POINT-SIZE="16">go3</FONT><FONT POINT-SIZE="10" COLOR="blue"> </FONT>>shape=box; fontname="Arial"; style=filled; color=black; fillcolor=gray75;]
+4[label=<<FONT POINT-SIZE="16">go4</FONT><FONT POINT-SIZE="10" COLOR="blue"> </FONT>>shape=box; fontname="Arial"; style=filled; color=black; fillcolor=gray75;]
+5[label=<<FONT POINT-SIZE="16">go5</FONT><FONT POINT-SIZE="10" COLOR="blue"> </FONT>>shape=box; fontname="Arial"; style=filled; color=black; fillcolor=gray75;]
+
+initial -> 1 ; 1 -> {a1, b1}
+a1 -> 2 ; 2 -> a2
+b1 -> 3 ; 3 -> b2
+{a2, b2} -> 4 ; 4 -> c
+c -> 5 ; 5 -> terminal
+
+{rank=same a1 b1}
+{rank=same a2 b2}
+
+
+}

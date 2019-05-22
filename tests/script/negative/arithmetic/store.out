@@ -1,0 +1,23 @@
+Error at Line 6, Column 7:
+   Implicit loss of numeric precision
+      'decimal<1>' inferred from the assignment to variable 'n' on Line 6, Column 7
+      'decimal<2>' inferred by top level definition for variable 'm' on Line 1, Column 16
+   Possible fixes:
+      • round the higher precision expression to match the lower precision
+      • use types with more (e.g. arbitrary) precision
+
+Error at Line 7, Column 9:
+   Implicit loss of numeric precision
+      'decimal<1>' inferred from the assignment to variable 'n' on Line 7, Column 9
+      'decimal<2>' inferred from use of binary operator '+' on Line 7, Column 7
+   Possible fixes:
+      • round the higher precision expression to match the lower precision
+      • use types with more (e.g. arbitrary) precision
+
+Error at Line 8, Column 7:
+   Implicit loss of numeric precision
+      'decimal<1>' inferred from the assignment to variable 'n' on Line 8, Column 7
+      'decimal<2>' inferred from literal '0.00' on Line 8, Column 7
+   Possible fixes:
+      • round the higher precision expression to match the lower precision
+      • use types with more (e.g. arbitrary) precision

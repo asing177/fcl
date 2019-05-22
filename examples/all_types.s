@@ -4,12 +4,12 @@ transition set -> terminal;
 @initial
 manyTypes (
     int a
-  , float b
+  , num b
   , text c
   , account d
-  , assetBin e1
-  , assetDisc e2
-  , assetFrac1 e3
+  , asset<bool> e1
+  , asset<int> e2
+  , asset<decimal<1>> e3
   , contract f
   , sig g
   , datetime h

@@ -1,0 +1,5 @@
+Workflow soundness errors:
+• Dead-end state: '{p2, p6}'.
+• Dead-end state: '{p3, p6}'.
+• Unreachable: 'transition {p2, p3} -> p7'.
+• Unreachable: 'transition {p6, p7} -> terminal'.

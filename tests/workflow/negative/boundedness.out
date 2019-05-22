@@ -1,0 +1,4 @@
+Workflow soundness errors:
+• One-boundedness violation. Applying transition 'transition a -> {a, b}' to state '{a, b}' would result in an illegal state where the following place occurs more than once: 'b'.
+• Improper completion. Applying 'transition b -> terminal' to state '{a, b}' would result in the new state '{a, terminal}' where the terminal place is reached while other places are still active.
+• Dead-end state: '{a, b}'.

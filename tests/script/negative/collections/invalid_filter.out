@@ -1,0 +1,7 @@
+Error at Line 14, Column 21:
+   Implicit loss of numeric precision
+      'int' inferred from the collection type 'map<account, int>' supplied as an argument to the primop 'filter' on Line 3, Column 3
+      'num' inferred from the type signature of argument 1 of function 'filter' on Line 14, Column 21
+   Possible fixes:
+      • round the higher precision expression to match the lower precision
+      • use types with more (e.g. arbitrary) precision

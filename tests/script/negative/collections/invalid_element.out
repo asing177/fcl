@@ -1,0 +1,7 @@
+Type error at Line 10, Column 21:
+   Expected: 'account' inferred from the collection type 'map<account, int>' supplied as an argument to the primop 'element' on Line 2, Column 37
+   But got:  'asset<bool>' inferred from the type signature of argument 1 of function 'element' on Line 10, Column 21
+
+Type error at Line 11, Column 24:
+   Expected: 'account' inferred from the collection type 'map<account, int>' supplied as an argument to the primop 'element' on Line 2, Column 37
+   But got:  'decimal<2>' inferred from the type signature of argument 1 of function 'element' on Line 11, Column 24

@@ -1,0 +1,20 @@
+Type error at Line 1, Column 41:
+   Expected: 'text' inferred from literal '"bar"' on Line 1, Column 41
+   But got:  'num' inferred from use of binary operator '/' on Line 1, Column 29
+
+Error at Line 2, Column 16:
+   Invalid definition for bar:
+      Expected type: set<int>
+      But inferred type: set<account> for expression '{3.14,(99 - 99),sender()}'
+
+Type error at Line 2, Column 17:
+   Expected: 'account' inferred from the return type of the function 'sender' on Line 2, Column 17
+   But got:  'int' inferred from use of binary operator '-' on Line 2, Column 27
+
+Error at Line 2, Column 29:
+   Implicit loss of numeric precision
+      'int' inferred from use of binary operator '-' on Line 2, Column 27
+      'decimal<2>' inferred from literal '3.14' on Line 2, Column 34
+   Possible fixes:
+      • round the higher precision expression to match the lower precision
+      • use types with more (e.g. arbitrary) precision

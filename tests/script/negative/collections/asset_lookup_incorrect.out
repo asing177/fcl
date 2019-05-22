@@ -1,0 +1,7 @@
+Type error at Line 7, Column 30:
+   Expected: 'asset<a>' inferred from the type signature of argument 2 of function 'transferHoldings' on Line 7, Column 30
+   But got:  'text' inferred from the return type of the function 'lookup' on Line 7, Column 30
+
+Type error at Line 7, Column 53:
+   Expected: 'holdings<asset<a>>' inferred from the type signature of argument 3 of function 'transferHoldings' on Line 7, Column 53
+   But got:  'int' inferred from the type signature of argument 1 of function 'foo' on Line 6, Column 9

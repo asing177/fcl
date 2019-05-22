@@ -14,31 +14,42 @@ extra-source-files:
 description:         Financial Core Language compiler
 
 dependencies:
-  - base >= 4.12 && < 5
+  - base >= 4.7 && < 5
   - protolude
   - text
-  - array
+  - memory
+  - lattices
+
+  # Data Structures
+  - containers
+
+  # Serialization
+  - binary
+
+  # Date & Time
+  - time
+  - datetimes
+  - hourglass
+
+  # Text
+  - bytestring
+
+library:
+  source-dirs: src
+  dependencies:
   - deepseq
   - directory
   - filepath
   - unix
   - array
   - pretty-show
-  - safe
-  - scientific
-  - filelock
   - ansi-terminal
-  - rank1dynamic
-  - lattices
-  - memory
   - process-extras
 
   # Serialization
   - cereal
   - cereal-text
-  - binary
   - aeson
-  - aeson-pretty
   - pretty-hex
 
   # Exceptions
@@ -47,33 +58,21 @@ dependencies:
     # Control Structures
   - mtl
   - transformers
-  - transformers-base
-  - monad-control
-  - lifted-base
-
-  # Date & Time
-  - time
-  - datetimes
-  - hourglass
 
   # Text
   - text
-  - bytestring
   - parsec
-  - attoparsec
   - wl-pprint-text
   - base58-bytestring
 
-  # Data Structures
-  - containers
-  - hashable
-  - unordered-containers
-
   # Cryptography
   - cryptonite
-
-library:
-  source-dirs: src
+  - memory
+  - pem
+  - x509
+  - asn1-types
+  - asn1-encoding
+  - arithmoi
   ghc-options:
     -fwarn-tabs
     -fwarn-incomplete-patterns
@@ -114,65 +113,68 @@ library:
     - RankNTypes
 
   exposed-modules:
-    - Asset
-    - Delta
-    - Contract
-    - Encoding
-    - Fixed
-    - Hash
-    - Key
-    - Ledger
-    - SafeInteger
-    - SafeString
-    - Script
-    - Storage
-    - Time
-    - Utils
-    - Script.Analysis
-    - Script.Compile
-    - Script.Duplicate
-    - Script.Effect
-    - Script.Error
-    - Script.Eval
-    - Script.Graphviz
-    - Script.Init
-    - Script.Lexer
-    - Script.Parser
-    - Script.Pretty
-    - Script.Prim
-    - Script.ReachabilityGraph
-    - Script.Storage
-    - Script.Token
-    - Script.Typecheck
-    - Script.Undefinedness
-    - Script.Warning
-    - Script.WorkflowNet
+    - Language.FCL.Contract
+    - Language.FCL.AST
+    - Language.FCL.Delta
+    - Numeric.Lossless.Decimal
+    - Numeric.Lossless.Number
+    - Language.FCL.Init
+    - Language.FCL.Storage
+    - Language.FCL.Pretty
+    - Language.FCL.Error
+    - Language.FCL.Eval
+    - Language.FCL.Prim
+    - Language.FCL.Token
+    - Language.FCL.Lexer
+    - Language.FCL.Parser
+    - Language.FCL.Compile
+    - Language.FCL.Typecheck
+    - Language.FCL.Duplicate
+    - Language.FCL.Undefinedness
+    - Language.FCL.Effect
+    - Language.FCL.WorkflowNet
+    - Language.FCL.ReachabilityGraph
+    - Language.FCL.Analysis
+    - Language.FCL.Graphviz
+    - Language.FCL.Hash
+    - Language.FCL.Key
+    - Language.FCL.Address
+    - Language.FCL.Encoding
+    - Language.FCL.Metadata
+    - Language.FCL.Asset
+    - Language.FCL.SafeString
+    - Language.FCL.SafeInteger
+    - Language.FCL.Unsafe
+    - Language.FCL.Utils
+    - Language.FCL.Time
+    - Language.FCL.World
+    - Language.FCL.Warning
 
-executables:
-  fcl-exe:
-    main:                Main.hs
-    source-dirs:         app
-    ghc-options:
-    - -threaded
-    - -rtsopts
-    - -with-rtsopts=-N
-    default-extensions:
-    - LambdaCase
-    - RecordWildCards
-    - OverloadedStrings
-    - NoImplicitPrelude
-    - FlexibleInstances
-    - FlexibleContexts
-    - ScopedTypeVariables
-    - RankNTypes
-    dependencies:
-    - fcl
-    - optparse-applicative
+# executables:
+#   fcl-exe:
+#     main:                Main.hs
+#     source-dirs:         app
+#     ghc-options:
+#     - -threaded
+#     - -rtsopts
+#     - -with-rtsopts=-N
+#     default-extensions:
+#     - LambdaCase
+#     - RecordWildCards
+#     - OverloadedStrings
+#     - NoImplicitPrelude
+#     - FlexibleInstances
+#     - FlexibleContexts
+#     - ScopedTypeVariables
+#     - RankNTypes
+#     dependencies:
+#     - fcl
+#     - optparse-applicative
 
 tests:
   fcl-repo-test:
     main:                Main.hs
-    source-dirs:         test
+    source-dirs:         tests
     default-extensions:
     - LambdaCase
     - RecordWildCards
@@ -188,8 +190,13 @@ tests:
     - -with-rtsopts=-N
     dependencies:
     - fcl
+    - filepath
+    - Diff
+    - strict
     - cryptonite
+    - file-embed
     - tasty
     - tasty-hunit
     - tasty-golden
     - tasty-quickcheck
+    - QuickCheck

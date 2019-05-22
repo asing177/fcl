@@ -1,0 +1,7 @@
+Error at Line 15, Column 27:
+   Implicit loss of numeric precision
+      '(int, c) -> int' inferred from the type signature of argument 2 of function 'aggregate' on Line 15, Column 27
+      '(num, int) -> int' inferred from the helper function definition 'sumPlusOne' on Line 26, Column 1
+   Possible fixes:
+      • round the higher precision expression to match the lower precision
+      • use types with more (e.g. arbitrary) precision
