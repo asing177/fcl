@@ -20,7 +20,7 @@ import Language.FCL.World as World
 
 -- | Create a contract
 createContract
-  :: World world
+  :: (World world, Show (AccountError' world), Show (AssetError' world))
   => Address AContract                    -- ^ Contract Address
   -> Address AAccount                     -- ^ Address of Evaluating node
   -> Maybe Eval.TransactionCtx            -- ^ Maybe info relating to the transaction of the method call
@@ -49,7 +49,7 @@ createContract contractAddr nodeAddr mtxCtx privKey cTimestamp cOwner world body
 
 -- | Create a contract with a supplied evaluation context
 createContractWithEvalCtx
-  :: World world
+  :: (World world, Show (AccountError' world), Show (AssetError' world))
   => Eval.EvalCtx -- ^ Context to evaluate the top-level definitions in
   -> world      -- ^ Initial world
   -> Script     -- ^ Raw FCL code
