@@ -32,7 +32,7 @@ instance FromJSON ByteString where
   parseJSON v = do
     t :: Text <- parseJSON v
     pure $ encodeUtf8 t
-    
+
 instance Pretty (Address 'AAccount) where
   ppr (Address bs) = ppr bs
 

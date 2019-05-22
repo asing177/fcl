@@ -36,6 +36,7 @@ module Language.FCL.Eval (
 
   -- ** Evaluation storage
   initStorage,
+  dumpStorage,
 ) where
 
 import Protolude hiding (DivideByZero, Overflow, Underflow, StateT, execStateT, runStateT, modify, get, gets)
