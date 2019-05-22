@@ -6,8 +6,12 @@ module Language.FCL.Asset where
 
 import Protolude
 import Data.Serialize
+import qualified Data.Binary as B
 import Language.FCL.Address
+import Language.FCL.Pretty (Pretty(..))
 import Numeric.Lossless.Number (Decimal(..))
+import Data.Aeson (ToJSON(..), FromJSON(..))
+import Language.FCL.Hash as Hash (Hashable(..))
 
 data Holder
   = AccountHolder (Address AAccount)
@@ -24,7 +28,10 @@ holderToContract _ = panic "Invalid holder to contract coercion"
 
 newtype Balance
   = Balance { unBalance :: Decimal }
-  deriving (Eq, Ord, Show, Num, Generic, Serialize)
+  deriving (Eq, Ord, Show, Num, Generic, B.Binary, Serialize, FromJSON, ToJSON, Hash.Hashable)
+
+instance Pretty Balance where
+  ppr (Balance n) = ppr n
 
 -- | Type of an asset's value. Underlying value is always a Int64, but this
 -- informs the representation and range of valid values.
@@ -32,4 +39,4 @@ data AssetType
   = Discrete               -- ^ Discrete (Non-zero integer value)
   | Fractional Integer     -- ^ Fractional (Fixed point decimal value)
   | Binary                 -- ^ Binary (Held/Not-Held) (supply is +1 for held, 0 for not-held)
-  deriving (Eq, Ord, Show, Read, Generic)
+  deriving (Eq, Ord, Show, Read, Generic, Hash.Hashable)
