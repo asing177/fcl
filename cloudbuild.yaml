@@ -122,7 +122,7 @@ steps:
     - |
       set -euxo pipefail
 
-      stack test fcl:fcl-repo-test --no-terminal --system-ghc
+      stack test fcl:fcl-test --no-terminal --system-ghc
 
   # TODO - this looks useful to re-enable
   # - id: "Lint (weeder)"
