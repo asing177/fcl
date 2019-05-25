@@ -28,7 +28,21 @@ holderToContract _ = panic "Invalid holder to contract coercion"
 
 newtype Balance
   = Balance { unBalance :: Decimal }
-  deriving (Eq, Ord, Show, Num, Generic, B.Binary, Serialize, FromJSON, ToJSON, Hash.Hashable)
+  deriving (Eq, Ord, Show, Generic, B.Binary, Serialize, Hash.Hashable)
+
+instance ToJSON Balance where
+  toJSON (Balance x) = toJSON x
+
+instance FromJSON Balance where
+  parseJSON x = Balance <$> parseJSON x
+
+instance Num Balance where
+  (+) (Balance a) (Balance b) = Balance (a + b)
+  (*) (Balance a) (Balance b) = Balance (a * b)
+  abs           = Balance . abs . unBalance
+  signum        = Balance . signum . unBalance
+  negate        = Balance . negate . unBalance
+  fromInteger   = Balance . fromInteger
 
 instance Pretty Balance where
   ppr (Balance n) = ppr n
