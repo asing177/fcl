@@ -5,18 +5,12 @@
 FCL Compiler
 ============
 
-Setup
------
-
-TODO
-
 Quickstart
 ----------
 
-TODO
-
-Command Line Interface
-----------------------
+```
+$ stack install
+```
 
 Use the FCL executable to compile, format, lint, extract the graph of a script.
 
@@ -43,6 +37,23 @@ Available commands:
 - Typecheck and dump method types
 
 ```
-fcl compile examples/minimal.s
+$ fcl compile examples/minimal.s
 ```
 
+- Create a visual representation of an FCL workflow
+
+```
+$ fcl graph examples/concurrent.s
+```
+
+Will output the corresponding `dot` and `svg` files.
+
+<p>
+  <img src="assets/concurrent.svg" width="250"/>
+</p>
+
+
+Make sure you have `graphviz` installed before running `fcl graph`. In Ubuntu:
+```
+$ sudo apt install graphviz
+```
