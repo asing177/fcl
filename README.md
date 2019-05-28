@@ -9,6 +9,7 @@ Quickstart
 ----------
 
 ```
+$ git clone git@github.com:adjoint-io/fcl.git
 $ stack install
 ```
 
