@@ -129,6 +129,7 @@ library:
     - Language.FCL.Parser
     - Language.FCL.Compile
     - Language.FCL.Typecheck
+    - Language.FCL.LanguageServerProtocol
     - Language.FCL.Duplicate
     - Language.FCL.Undefinedness
     - Language.FCL.Effect
