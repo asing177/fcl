@@ -34,7 +34,7 @@ data VarSrc = Defn | MethodArg Name LExpr
 data DuplicateError
   = DuplicateMethod LName LExpr
   | DuplicateFunction LName
-  | DuplicateConstructor LEnumConstr
+  | DuplicateConstructor EnumConstr
   | DuplicateEnumDef LName
   | DuplicateVariable VarSrc VarSrc LName
   | DuplicateTransition Transition
@@ -46,8 +46,8 @@ instance Pretty DuplicateError where
     = "Duplicate method:" <+> ppr (locVal lname) <+> "at" <+> ppr (located lname)
   ppr (DuplicateFunction lname)
     = "Duplicate helper function:" <+> ppr (locVal lname) <+> "at" <+> ppr (located lname)
-  ppr (DuplicateConstructor lc)
-    = "Duplicate constructor:" <+> ppr (locVal lc) <+> "at" <+> ppr (located lc)
+  ppr (DuplicateConstructor c)
+    = "Duplicate constructor:" <+> ppr c <+> "at" <+> ppr (located $ enumConstrId c)
   ppr (DuplicateEnumDef lname)
     = "Duplicate enum:" <+> ppr (locVal lname) <+> "at" <+> ppr (located lname)
   ppr (DuplicateVariable varA varB lnm)
@@ -89,7 +89,7 @@ duplicateCheck scr@(Script enums defns transitions methods helpers)
       allErrs
         = concat
           [ enumDefErrs
-          , enumConstrErrs
+          -- , enumConstrErrs
           , transErrs
           , defnAndMethodArgErrs defns methods
           , methErrs
@@ -104,11 +104,11 @@ duplicateCheck scr@(Script enums defns transitions methods helpers)
           . map enumName
           $ enums
 
-      enumConstrErrs
-        = map DuplicateConstructor
-          . duplicatesOn locVal
-          . concatMap enumConstrs
-          $ enums
+      -- enumConstrErrs
+      --   = map DuplicateConstructor
+      --     . duplicatesOn locVal
+      --     . concatMap enumConstrs
+      --     $ enums
 
       transErrs
         = map DuplicateTransition

@@ -12,9 +12,9 @@ module Language.FCL.Lexer (
   -- ** Lexemes
   identifier,
   name,
-  enumConstr,
-  locEnumConstr,
+  nameUpper,
   locName,
+  locNameUpper,
   opToken,
   unOpToken,
   whiteSpace,
@@ -43,10 +43,11 @@ import Text.Parsec.Text
 import qualified Text.Parsec.Token as Tok
 import qualified Text.Parsec.Language as Lang
 
+import Data.Char (isLower, isUpper)
 import Data.Functor.Identity (Identity)
 import qualified Data.Text as T
 
-import Language.FCL.AST (Name(..), Loc(..), Located(..), LName, BinOp(..), UnOp(..), EnumConstr(..), LEnumConstr)
+import Language.FCL.AST (Name(..), Loc(..), Located(..), LName, BinOp(..), UnOp(..), EnumConstr(..))
 import qualified Language.FCL.Token as Token
 import Language.FCL.SafeString (fromBytes')
 
@@ -82,18 +83,23 @@ identifier = T.pack <$> Tok.identifier lexer
   <?> "identifier"
 
 name :: Parser Name
-name = Name <$> identifier
+name = Name <$> (do
+    i <- identifier
+    when (isUpper $ T.head i) (parserFail "Identifiers must begin with a lowercase letter")
+    pure i)
   <?> "name"
 
 locName :: Parser LName
 locName = mkLocated name
 
-enumConstr :: Parser EnumConstr
-enumConstr = EnumConstr . fromBytes' . Text.encodeUtf8 <$> identifier
-  <?> "enum constructor"
+nameUpper :: Parser Name
+nameUpper = Name <$> (do
+    i <- identifier
+    when (isLower $ T.head i) (parserFail "Constructors must begin with an uppercase letter")
+    pure i)
 
-locEnumConstr :: Parser LEnumConstr
-locEnumConstr = mkLocated enumConstr
+locNameUpper :: Parser LName
+locNameUpper = mkLocated nameUpper
 
 unOpToken :: UnOp -> T.Text
 unOpToken Not = Token.not

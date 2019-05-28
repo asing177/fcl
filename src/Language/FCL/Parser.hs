@@ -68,6 +68,7 @@ import qualified Text.Parsec.Token as Tok
 import Data.Aeson (ToJSON(..), FromJSON)
 import qualified Data.ByteString.Char8 as BS8
 import Data.Char (isDigit)
+import Data.Foldable (foldr1)
 import Data.Functor.Identity (Identity)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
@@ -281,7 +282,7 @@ voidLit = LVoid <$ try (reserved Token.void)
  <?> "void literal"
 
 enumConstrLit :: Parser Lit
-enumConstrLit = LConstr <$> try (symbol "`" *> Lexer.enumConstr)
+enumConstrLit = LConstr <$> Lexer.nameUpper
 
 -------------------------------------------------------------------------------
 -- Types
@@ -351,7 +352,7 @@ timedeltaType :: Parser Type
 timedeltaType = TTimeDelta <$ try (reserved Token.timedelta)
 
 enumType :: Parser Type
-enumType = TEnum <$> try (reserved Token.enum *> Lexer.name)
+enumType = TEnum <$> try (reserved Token.type_ *> Lexer.name)
 
 collectionType :: Parser Type
 collectionType =
@@ -512,7 +513,7 @@ expr = buildExpressionParser opTable locExpr
               <|> afterExpr
               <|> betweenExpr
               <|> ifElseExpr
-              <|> caseExpr
+              <|> try caseExpr
               <|> callExpr
               <|> litExpr
               <|> varExpr
@@ -604,20 +605,21 @@ betweenExpr = do
 
 caseExpr :: Parser Expr
 caseExpr = do
-    try $ reserved Token.case_
-    scrutinee <- parensLExpr
-    symbol Token.lbrace
-    matches <- many1 (Match <$> pattern_
-                            <* reserved Token.rarrow
-                            <*> (block <|> expr)
-                            <* semi)
-    symbol Token.rbrace
-    return $ ECase scrutinee matches
+    _ <- reserved Token.case_
+    ECase <$> parensLExpr <*> (braces $ match `sepEndBy` semi)
   where
-    pattern_ :: Parser LPattern
-    pattern_ = do
-      loc <- location
-      Located loc . PatLit <$> try (symbol "`" *> Lexer.enumConstr)
+
+    match = Match
+      <$> mkLocated pattern
+      <*  reserved Token.rarrow
+      <*> (block <|> expr)
+
+    pattern :: Parser Pattern
+    pattern = foldr1 (<|>)
+        [ PatConstr <$> try Lexer.locNameUpper <*> (parens (commaSep pattern) <|> pure [])
+        , PatVar <$> try Lexer.locName
+        , PatLit <$> locLit
+        ]
 
 mapExpr :: Parser Expr
 mapExpr =
@@ -671,10 +673,14 @@ transition = do
 
 enumDef :: Parser EnumDef
 enumDef = do
-  reserved Token.enum
-  lname <- Lexer.locName
-  constrs <- braces $ commaSep1 Lexer.locEnumConstr
-  return $ EnumDef lname constrs
+    _ <- reserved Token.type_
+    EnumDef
+      <$> Lexer.locNameUpper
+      <*> braces (constructor `sepEndBy` semi)
+  where
+    constructor = EnumConstr
+      <$> Lexer.locNameUpper
+      <*> (parens (commaSep type_) <|> pure [])
 
 -------------------------------------------------------------------------------
 -- Script

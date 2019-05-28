@@ -27,7 +27,7 @@ module Language.FCL.Typecheck (
   signatures,
   methodSig,
   functionSig,
-  tcMethodCall,
+  -- tcMethodCall,
   runInferM,
   tcDefns,
   tcDefn,
@@ -87,7 +87,7 @@ data TypeErrInfo
   | ExpectedStatement Type              -- ^ Expected statement but got expression
   | MethodUnspecifiedTransition Name    -- ^ Method doesn't specify where to transition to
   | CaseOnNotEnum TypeInfo              -- ^ Case analysis on non-enum type
-  | UnknownConstructor EnumConstr       -- ^ Reference to undefined constructor
+  | UnknownConstructor LName            -- ^ Reference to undefined constructor
   | UnknownEnum Name                    -- ^ Reference to unknown enum type
   | EmptyMatches                        -- ^ Case statement with empty matches
   | PatternMatchError
@@ -144,8 +144,9 @@ data TypeOrigin
   | Assignment            -- ^ From var assignment
   | FunctionArg Int Name  -- ^ Expr passed as function argument + it's position
   | FunctionRet Name      -- ^ Returned from prip op
-  | CasePattern Name      -- ^ Enum type of pattern
+  | CasePattern LName     -- ^ Enum type of pattern
   | CaseBody Expr         -- ^ Body of case match
+  | FromVariablePattern LName
   | EmptyCollection       -- ^ From an empty collection
   | MapExpr               -- ^ From a Map expression
   | SetExpr               -- ^ From a Set expression
@@ -286,30 +287,30 @@ runInferM enumInfo inferState act
 
 -- | Typechecks whether the values supplied as arguments to the method
 -- call match the method argument types expected
-tcMethodCall :: EnumInfo -> Method -> [Value] -> Either TypeErrInfo ()
-tcMethodCall enumInfo method argVals
-  = do
-  actualTypes <- mapM valueType argVals
-  zipWithM_ validateTypes expectedTypes actualTypes
-  where
-    valueType :: Value -> Either TypeErrInfo Type
-    valueType val
-      = case (val, mapType enumInfo val) of
-          (_, Just ty) -> pure ty
-          (VEnum c, Nothing) -> Left $ UnknownConstructor c
-          (o, Nothing) -> Left $ Impossible $ "Malformed value: " <> show o
+-- tcMethodCall :: EnumInfo -> Method -> [Value] -> Either TypeErrInfo ()
+-- tcMethodCall enumInfo method argVals
+--   = do
+--   actualTypes <- mapM valueType argVals
+--   zipWithM_ validateTypes expectedTypes actualTypes
+--   where
+--     valueType :: Value -> Either TypeErrInfo Type
+--     valueType val
+--       = case (val, mapType enumInfo val) of
+--           (_, Just ty) -> pure ty
+--           (VEnum c, Nothing) -> Left $ UnknownConstructor c
+--           (o, Nothing) -> Left $ Impossible $ "Malformed value: " <> show o
 
-    expectedTypes = Language.FCL.AST.argtys' method
+--     expectedTypes = Language.FCL.AST.argtys' method
 
-    validateTypes expected actual =
-      when (not $ validMethodArgType expected actual) $
-        Left $ InvalidArgType (locVal $ methodName method) expected actual
+--     validateTypes expected actual =
+--       when (not $ validMethodArgType expected actual) $
+--         Left $ InvalidArgType (locVal $ methodName method) expected actual
 
-    validMethodArgType :: Type -> Type -> Bool
-    validMethodArgType (TAsset _) (TAsset TAny) = True
-    validMethodArgType (TAsset TAny) (TAsset _) = True
-    validMethodArgType (TNum np1) (TNum np2) = np1 <= np2
-    validMethodArgType t1 t2 = t1 == t2
+--     validMethodArgType :: Type -> Type -> Bool
+--     validMethodArgType (TAsset _) (TAsset TAny) = True
+--     validMethodArgType (TAsset TAny) (TAsset _) = True
+--     validMethodArgType (TNum np1) (TNum np2) = np1 <= np2
+--     validMethodArgType t1 t2 = t1 == t2
 
 signatures :: Script -> Either (NonEmpty TypeError) [(Name,Sig)]
 signatures (Script enums defns graph methods helpers) =
@@ -384,7 +385,7 @@ tcArg :: Name -> Arg -> Int -> InferM (Name, TMeta, TypeInfo)
 tcArg fnm (Arg typ (Located loc anm)) argPos =
     case typ of
       TEnum enm -> do
-        enumDoesExist <- enumExists enm
+        enumDoesExist <- Map.member enm . enumToConstrs <$> ask
         if enumDoesExist
            then pure argInfo
            else do
@@ -393,13 +394,6 @@ tcArg fnm (Arg typ (Located loc anm)) argPos =
       _ -> pure argInfo
   where
     argInfo = (anm, FuncArg, TypeInfo typ (FunctionArg argPos fnm) loc)
-
-    enumExists :: Name -> InferM Bool
-    enumExists enumNm = do
-      enumConstrs <- enumToConstrs <$> ask
-      case Map.lookup enumNm enumConstrs of
-        Nothing -> pure False
-        Just _  -> pure True
 
 -------------------------------------------------------------------------------
 -- Typechecker (w/ inference)
@@ -623,43 +617,48 @@ tcCasePatterns scrut scrutInfo ps@(_:_)
       -- Scrutinee of enum type e
       (TEnum e) -> Map.lookup e . enumToConstrs <$> ask >>= \case
         Nothing -> void $ throwErrInferM (UnknownEnum e) topLoc
-        Just allConstrs ->
-          case (missing allConstrs ps, overlap ps) of
-            ([],[]) -> do
-              enumConstrs <- constrToEnum <$> ask
-              mapM_ (addConstr scrut scrutInfo <=< patternInfo enumConstrs) ps
+        Just allConstrs -> do
+          -- case (missing allConstrs ps, overlap ps) of
+          --   ([],[]) -> do
+          enumConstrs <- constructorToType <$> ask
+          mapM_ (addConstr scrut scrutInfo <=< patternInfo enumConstrs . locVal) ps
+              -- mapM_ tcPatternMatch ps
 
-            (misses, overlaps)
-              -> void $ throwErrInferM (PatternMatchError misses overlaps) topLoc
+            -- (misses, overlaps)
+            --   -> void $ throwErrInferM (PatternMatchError misses overlaps) topLoc
       _ -> void $ throwErrInferM (CaseOnNotEnum scrutInfo) topLoc
   where
     topLoc = located scrut
 
-    patConstr (Located _ (PatConstr c _)) = c
-    missing allConstrs ps = allConstrs List.\\ map patConstr ps
-    overlap ps = duplicates (map patConstr ps)
+    -- patConstr (Located _ (PatConstr c _)) = c
+    -- missing allConstrs ps = allConstrs List.\\ map patConstr ps
+    -- overlap ps = duplicates (map patConstr ps)
 
-    patternInfo enumConstrs (Located ploc (PatConstr c pats))
-      = case Map.lookup c enumConstrs of
-          Nothing
-            -> throwErrInferM (UnknownConstructor c)
-                              topLoc
-          Just enumName
-            -> return TypeInfo
-               { ttype = TEnum enumName
-               , torig = CasePattern enumName
-               , tloc = ploc
-               }
+    patternInfo :: Map Name (LName, [Type]) -> Pattern -> InferM TypeInfo
+    patternInfo enumConstrs (PatConstr c pats)
+      = case Map.lookup (locVal c) enumConstrs of
+          Nothing -> throwErrInferM (UnknownConstructor c) (located c)
+          Just (enumName, _) -> return TypeInfo
+            { ttype = TEnum (locVal enumName)
+            , torig = CasePattern enumName
+            , tloc = located c
+            }
+
+    patternInfo _ (PatLit l) = tcLLit l
+
+    patternInfo _ (PatVar v) = do
+        tvar <- freshTVar
+        pure $ TypeInfo tvar (FromVariablePattern v) (located v)
 
 tcLLit :: LLit -> InferM TypeInfo
 tcLLit (Located loc lit) = do
-  enumConstrs <- constrToEnum <$> ask
+  enumConstrs <- constructorToType <$> ask
   case tcLit enumConstrs lit of
     Left err  -> throwErrInferM err loc
     Right typ -> pure $
       TypeInfo typ (InferredFromLit lit) loc
 
-tcLit :: Map EnumConstr Name -> Lit -> Either TypeErrInfo Type
+tcLit :: Map Name (LName, [Type]) -> Lit -> Either TypeErrInfo Type
 tcLit enumConstrs lit =
   case lit of
     LNum (Decimal p v)        -> Right (TNum $ NPDecimalPlaces p)
@@ -676,7 +675,7 @@ tcLit enumConstrs lit =
     LConstr c                 ->
       case Map.lookup c enumConstrs of
         Nothing -> Left (Impossible "Reference to unknown enum constructor")
-        Just enum -> Right (TEnum enum)
+        Just (lEnum, _) -> Right . TEnum $ locVal lEnum
 
 -------------------------------------------------------------------------------
   -- Type checking of prim op calls
@@ -1595,6 +1594,7 @@ instance Pretty TypeOrigin where
     FunctionRet nm      -> "inferred from the return type of the function" <+> squotes (ppr nm)
     CasePattern nm      -> "inferred from type of case pattern" <+> squotes (ppr nm)
     CaseBody e          -> "inferred from type of case body" <+> squotes (ppr e)
+    FromVariablePattern v -> "inferred from variable binding" <+> sqppr v <+> "in case body"
     InferredFromCollType nm t -> "inferred from the collection type" <+> squotes (ppr t) <+> "supplied as an argument to the primop" <+> squotes (ppr nm)
     EmptyCollection     -> "inferred from an empty collection"
     MapExpr             -> "inferred from a map expression"

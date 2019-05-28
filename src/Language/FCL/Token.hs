@@ -31,7 +31,7 @@ datetime = "datetime"
 timedelta = "timedelta"
 any      = "any"
 state    = "state"
-enum     = "enum"
+type_    = "type"
 map      = "map"
 set      = "set"
 
@@ -108,7 +108,7 @@ keywords = [
   , transition
   , role
   , roles
-  , enum
+  , type_
   , case_
   , hole
   ]
