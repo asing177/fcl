@@ -173,6 +173,28 @@ executables:
     - optparse-applicative
     - aeson-pretty
 
+  fcl-lsp:
+    main: Main.hs
+    source-dirs: lsp
+    ghc-options:
+    - -threaded
+    - -rtsopts
+    - -with-rtsopts=-N
+    default-extensions:
+    - LambdaCase
+    - RecordWildCards
+    - OverloadedStrings
+    - NoImplicitPrelude
+    - FlexibleInstances
+    - FlexibleContexts
+    - ScopedTypeVariables
+    - RankNTypes
+    dependencies:
+    - fcl
+    - wai-logger
+    - scotty
+    - aeson
+
 tests:
   fcl-test:
     main:                Main.hs
