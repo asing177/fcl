@@ -54,7 +54,7 @@ rpcApi = do
     -- | Compile an FCL definition given in plain text
     -- E.g. "text x = "foo";"
     -- It returns a JSON encoding of a Def type
-    post "/compile/def" $ do
+    post "/defs/compile/raw" $ do
       def <- WS.body
       case Parser.parseDefn (toS def) of
         Left err -> jsonContractParseErr err
@@ -71,7 +71,7 @@ rpcApi = do
     -- | Compile an FCL script given in plain text
     -- If successful, it returns the compiled script along with
     -- warnings, the given script and its representation in graphviz format
-    post "/compile/script" $ do
+    post "/scripts/compile/raw" $ do
       body <- WS.body
       case Compile.compile (toS body) of
         Left err -> do
@@ -90,7 +90,7 @@ rpcApi = do
 
     -- | Validate a script given a JSON encoding of a ReqScript type
     -- It returns RespScript
-    post "/validate/script" $ do
+    post "/scripts/compile" $ do
       body <- WS.jsonData
       case LSP.validateScript body of
         Left err -> jsonCompilationErr err
@@ -98,7 +98,7 @@ rpcApi = do
 
     -- | Parse a method given a JSON encoding of a ReqMethod type
     -- It returns RespMethod
-    post "/parse/method" $ do
+    post "/methods/parse" $ do
       body <- WS.jsonData
       case LSP.parseMethod body of
         Left err -> jsonContractParseErr err
@@ -107,7 +107,7 @@ rpcApi = do
 
     -- | Parse a script given a JSON encoding of a ReqScript type
     -- It returns RespScript
-    post "/parse/script" $ do
+    post "/scripts/parse" $ do
       body <- WS.jsonData
       case LSP.parseScript body of
         Left err -> jsonContractParseErr err
