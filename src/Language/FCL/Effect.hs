@@ -12,6 +12,7 @@ Compute what effects an FCL expression has
 
 module Language.FCL.Effect
   ( Effects
+  , Effect(..)
   , ScriptEffects(..)
   , EffectError(..)
   , effectCheckScript
