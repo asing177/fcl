@@ -1,0 +1,91 @@
+# Set all target’s visibility in this package to "public".
+package(default_visibility = ["//visibility:public"])
+
+# Load `rules_haskell` rules.
+load(
+    "@io_tweag_rules_haskell//haskell:haskell.bzl",
+    "haskell_toolchain_library",
+    "haskell_library",
+    "haskell_binary",
+)
+
+# `haskell_toolchain_library` can access builtin GHC packages
+# and assign them a bazel target name, so that they
+# can be referenced as dependencies.
+haskell_toolchain_library(name = "base")
+haskell_toolchain_library(name = "deepseq")
+haskell_toolchain_library(name = "directory")
+haskell_toolchain_library(name = "filepath")
+haskell_toolchain_library(name = "unix")
+haskell_toolchain_library(name = "array")
+haskell_toolchain_library(name = "pretty-show")
+haskell_toolchain_library(name = "ansi-terminal")
+haskell_toolchain_library(name = "process-extras")
+haskell_toolchain_library(name = "cereal")
+haskell_toolchain_library(name = "cereal-text")
+haskell_toolchain_library(name = "aeson")
+haskell_toolchain_library(name = "pretty-hex")
+haskell_toolchain_library(name = "exceptions")
+haskell_toolchain_library(name = "mtl")
+haskell_toolchain_library(name = "transformers")
+haskell_toolchain_library(name = "text")
+haskell_toolchain_library(name = "parsec")
+haskell_toolchain_library(name = "wl-pprint-text")
+haskell_toolchain_library(name = "base58-bytestring")
+haskell_toolchain_library(name = "cryptonite")
+haskell_toolchain_library(name = "memory")
+haskell_toolchain_library(name = "pem")
+haskell_toolchain_library(name = "x509")
+haskell_toolchain_library(name = "asn1-types")
+haskell_toolchain_library(name = "asn1-encoding")
+haskell_toolchain_library(name = "arithmoi")
+haskell_toolchain_library(name = "optparse-applicative")
+haskell_toolchain_library(name = "aeson-pretty")
+
+# You can add your own libraries with `haskell_library`.
+haskell_binary(
+    name = "fcl",
+    src_strip_prefix = "src",
+    srcs = glob(['src/**/*.hs']),
+    visibility = ["//visibility:public"],
+    deps = [
+        ":base",
+        ":deepseq",
+        ":directory",
+        ":filepath",
+        ":unix",
+        ":array",
+        ":pretty-show",
+        ":ansi-terminal",
+        ":process-extras",
+        ":cereal",
+        ":cereal-text",
+        ":aeson",
+        ":pretty-hex",
+        ":exceptions",
+        ":mtl",
+        ":transformers",
+        ":text",
+        ":parsec",
+        ":wl-pprint-text",
+        ":base58-bytestring",
+        ":cryptonite",
+        ":memory",
+        ":pem",
+        ":x509",
+        ":asn1-types",
+        ":asn1-encoding",
+        ":arithmoi",
+        ":optparse-applicative",
+        ":aeson-pretty",
+    ],
+)
+
+# An example binary using the Prelude module from the
+# GHC base package, to print the hello world.
+# haskell_binary(
+#     name = "example",
+#     srcs = [":Example.hs"],
+#     deps = [":base"],
+# )
+

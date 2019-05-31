@@ -156,20 +156,19 @@ steps:
   #     fi
 
 
-  # - id: "run-release"
-  #   waitFor: [ "tests", "Network tests", "Network profile tests" ]
-  #   name: $_BUILD_IMAGE
-  #   env: ['STACK_ROOT=/workspace/.stack']
-  #   entrypoint: 'bash'
-  #   args:
-  #   - "-c"
-  #   - |
-  #     set -euxo pipefail
+  - id: "run-release"
+    waitFor: [ "test" ]
+    name: $_BUILD_IMAGE
+    env: ['STACK_ROOT=/workspace/.stack']
+    entrypoint: 'bash'
+    args:
+    - "-c"
+    - |
+      set -euxo pipefail
 
-  #     [[ "$BRANCH_NAME" == "master" ]] && \
-  #       (
-  #         ./tools/mksettings.sh
-  #         ./release.sh $SHORT_SHA
+      [[ "$BRANCH_NAME" == "master" ]] && \
+        (
+          ./release.sh $SHORT_SHA
 
-  #         gsutil cp -r release/$SHORT_SHA gs://uplink-dev-releases/$SHORT_SHA
-  #       ) || echo "Not on master branch, skipping . . ."
+          gsutil cp -r release/$SHORT_SHA gs://fcl-releases/$SHORT_SHA
+        ) || echo "Not on master branch, skipping . . ."

@@ -13,6 +13,12 @@ RUN \
     google-cloud-sdk  && \
   rm -rf /var/lib/apt/lists/*
 
+# Install bazel
+ADD https://github.com/bazelbuild/bazel/releases/download/0.24.0/bazel-0.24.0-installer-linux-x86_64.sh install-bazel.sh
+RUN \
+  chmod +x install-bazel.sh && \
+  ./install-bazel.sh
+
 ENTRYPOINT []
 
 RUN stack upgrade
