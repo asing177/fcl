@@ -3,6 +3,7 @@
 Export constructors of types that are not supposed to
 
 -}
+
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 

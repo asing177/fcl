@@ -2,7 +2,7 @@
 
 Tokens for FCL lexer.
 
---}
+-}
 
 {-# OPTIONS_GHC -fno-warn-missing-signatures  #-}
 {-# OPTIONS_GHC -Wno-missing-export-lists #-}

@@ -1,11 +1,10 @@
-{-# LANGUAGE DataKinds #-}
-{-# LANGUAGE DataKinds #-}
-{-
+{- |
 
 Core AST for the FCL core language.
 
 -}
 
+{-# LANGUAGE DataKinds #-}
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE LambdaCase #-}

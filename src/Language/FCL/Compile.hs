@@ -1,10 +1,10 @@
-{-# LANGUAGE DataKinds #-}
 {-|
 
 Compiler entry points and disk serialization for scripts.
 
 -}
 
+{-# LANGUAGE DataKinds #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE DeriveAnyClass #-}
 

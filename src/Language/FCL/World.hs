@@ -1,3 +1,9 @@
+{- |
+
+Ledger state interface.
+
+-}
+
 {-# LANGUAGE AllowAmbiguousTypes #-}
 {-# LANGUAGE ImplicitParams #-}
 {-# LANGUAGE TypeFamilies #-}

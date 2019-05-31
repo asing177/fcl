@@ -7,7 +7,6 @@ TODO:
 
 -}
 
-
 {-# LANGUAGE ScopedTypeVariables #-}
 
 module Language.FCL.Graphviz (

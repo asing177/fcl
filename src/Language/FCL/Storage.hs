@@ -2,7 +2,7 @@
 
 Storage for deployed contracts.
 
---}
+-}
 
 {-# LANGUAGE StrictData #-}
 {-# LANGUAGE LambdaCase #-}

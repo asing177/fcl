@@ -1,6 +1,9 @@
 {-|
+
 GMP integer types with serializers that consume finite, bounded data.
+
 -}
+
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE Strict                     #-}

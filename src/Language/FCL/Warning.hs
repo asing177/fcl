@@ -1,5 +1,6 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE DeriveAnyClass #-}
+
 module Language.FCL.Warning (
   Warning(..),
 ) where
