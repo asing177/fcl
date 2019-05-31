@@ -1,4 +1,3 @@
-{-# LANGUAGE DataKinds #-}
 {-|
 
 Contract datatypes, signing and operations.
@@ -9,6 +8,7 @@ Contract datatypes, signing and operations.
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE StrictData #-}
+{-# LANGUAGE DataKinds #-}
 
 module Language.FCL.Contract (
   -- ** Types
@@ -32,7 +32,7 @@ module Language.FCL.Contract (
   signContract,
 ) where
 
-import Protolude hiding (state, Type(..))
+import Protolude hiding (state, Type)
 
 import Language.FCL.Time (Timestamp)
 import Language.FCL.Address

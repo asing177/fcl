@@ -6,7 +6,10 @@ Export constructors of types that are not supposed to
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
-module Language.FCL.Unsafe where
+module Language.FCL.Unsafe (
+  SafeString(SafeString),
+  SafeInteger(SafeInteger),
+) where
 
 import Protolude
 import qualified Data.Binary as BI

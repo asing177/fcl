@@ -1,0 +1,24 @@
+README                                     @sdiehl
+examples/*.s                               @sdiehl
+
+src/Language/FCL/AST.hs                    @sdiehl
+src/Language/FCL/Asset.hs                  @sdiehl
+src/Language/FCL/World.hs                  @sdiehl
+src/Language/FCL/Key.hs                    @sdiehl
+src/Language/FCL/Hash.hs                   @sdiehl
+src/Language/FCL/Prim.hs                   @sdiehl
+src/Language/FCL/Token.hs                  @sdiehl
+src/Language/FCL/Parser.hs                 @sdiehl
+src/Language/FCL/Lexer.hs                  @sdiehl
+src/Language/FCL/SafeInteger.hs            @sdiehl
+src/Language/FCL/SafeString.hs             @sdiehl
+
+src/Language/FCL/Compile.hs                @buggymcbugfix
+src/Language/FCL/Effect.hs                 @buggymcbugfix
+src/Language/FCL/WorkflowNet.hs            @buggymcbugfix
+src/Language/FCL/Analysis.hs               @buggymcbugfix
+src/Language/FCL/Typecheck.hs              @buggymcbugfix
+src/Language/FCL/Undefinedness.hs          @buggymcbugfix
+src/Language/FCL/ReachabilityAnalysis.hs   @buggymcbugfix
+
+src/Language/FCL/LanguageServerProtocol.hs @acentelles

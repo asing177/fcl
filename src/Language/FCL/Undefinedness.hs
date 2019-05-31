@@ -4,7 +4,11 @@
 {-# LANGUAGE DeriveAnyClass #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
-module Language.FCL.Undefinedness where
+module Language.FCL.Undefinedness (
+  InvalidStackTrace(..),
+  unusedVars,
+  undefinednessAnalysis,
+) where
 
 import Protolude
 

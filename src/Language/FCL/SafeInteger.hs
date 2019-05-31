@@ -4,7 +4,7 @@ GMP integer types with serializers that consume finite, bounded data.
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE Strict                     #-}
-
+{-# OPTIONS_GHC -fno-warn-orphans #-}
 {-# OPTIONS_GHC -fwarn-name-shadowing #-}
 
 module Language.FCL.SafeInteger (

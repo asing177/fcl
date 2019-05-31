@@ -6,7 +6,10 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE ImpredicativeTypes #-}
-module Language.FCL.World where
+
+module Language.FCL.World (
+  World(..),
+) where
 
 import Protolude
 import Data.Serialize

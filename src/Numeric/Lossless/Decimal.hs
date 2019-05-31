@@ -26,9 +26,18 @@ rounding operations provided in this module.
 
 -}
 
-{-# LANGUAGE DeriveAnyClass, DeriveGeneric #-}
+{-# LANGUAGE DeriveAnyClass #-}
+{-# LANGUAGE DeriveGeneric #-}
 
-module Numeric.Lossless.Decimal where -- export everything
+module Numeric.Lossless.Decimal (
+  Decimal(..),
+  roundUp,
+  roundUpRem,
+  roundDown,
+  roundDownRem,
+  roundAwayFrom0,
+  roundAwayFrom0Rem,
+) where
 
 import Protolude hiding (Hashable, option, show, lift)
 
