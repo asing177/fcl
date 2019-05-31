@@ -1,12 +1,23 @@
 <p align="center">
-  <a href="http://www.adjoint.io"><img src="assets/uplink.png" width="250"/></a>
+  <a href="http://www.adjoint.io"><img src="https://www.adjoint.io/assets/img/adjoint-logo@2x.png" width="250"/></a>
 </p>
 
-FCL Compiler
-============
+FCL
+===
+
+FCL is the Adjoint financial modeling language. Adjoint provides domain modeling
+tool for building safe, secure, and transparent workflows for financial products
+and digital process automation.
+
+Adjoint offers solutions to allow enterprises to build auditable and
+synchronized business processes that scale across large vendor and consortium
+networks, enabling the next generation of international commerce.
 
 Quickstart
 ----------
+
+To install FCL from source install the standard
+[stack](https://docs.haskellstack.org/en/stable/README/) tooling.
 
 ```
 $ git clone git@github.com:adjoint-io/fcl.git
