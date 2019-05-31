@@ -67,7 +67,7 @@ management:
 * [Loan](examples/loan_contract.s)
 * [Private Storage](examples/locals.s)
 * [Notary Attestation](examples/notary.s)
-* [Role Access Controls & Datetime Preconditions](examples/precondition.s)
+* [Role Access Controls & Datetime Preconditions](examples/preconditions.s)
 * [Noop Contract](examples/single.s)
 
 Example compiler usage:
