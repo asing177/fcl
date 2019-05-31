@@ -6,6 +6,7 @@
 
 module Language.FCL.Undefinedness (
   InvalidStackTrace(..),
+  IsInitialized(..),
   unusedVars,
   undefinednessAnalysis,
 ) where

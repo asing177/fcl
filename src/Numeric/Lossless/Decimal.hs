@@ -37,6 +37,7 @@ module Numeric.Lossless.Decimal (
   roundDownRem,
   roundAwayFrom0,
   roundAwayFrom0Rem,
+  rationalToDecimalAndRemainder,
 ) where
 
 import Protolude hiding (Hashable, option, show, lift)

@@ -12,6 +12,7 @@ TODO:
 
 module Language.FCL.Graphviz (
   Graphviz,
+  callDot,
   fileWriteSVG,
   methodsToGraphviz,
   fileToGraphviz,

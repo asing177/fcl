@@ -9,6 +9,7 @@
 
 module Language.FCL.World (
   World(..),
+  ContractError(..),
 ) where
 
 import Protolude
