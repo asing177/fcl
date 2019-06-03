@@ -4,12 +4,15 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE KindSignatures #-}
 
-module Language.FCL.Address where
+module Language.FCL.Address (
+  AddrType(..),
+  Address(..),
+) where
 
 import Protolude
 import Language.FCL.Hash as Hash (Hashable(..))
 import Language.FCL.Pretty
-import Data.Aeson (ToJSON(..), FromJSON(..), ToJSONKey(..), FromJSONKey(..))
+import Data.Aeson (ToJSON(..), FromJSON(..))
 import Data.Serialize as S (Serialize(..))
 import Data.Binary (Binary(..))
 
@@ -25,6 +28,7 @@ newtype Address (t :: AddrType)
   = Address ByteString
   deriving (Eq, Ord, Show, Generic, Hash.Hashable, Binary, Serialize, FromJSON, ToJSON)
 
+-- XXX: These are kind of unsafe.
 instance ToJSON ByteString where
   toJSON = toJSON . decodeUtf8
 

@@ -3,6 +3,7 @@
 Ledger deltas , atomic operations on the ledger state as a result of block evaluation.
 
 -}
+
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE DeriveAnyClass #-}

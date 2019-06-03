@@ -7,10 +7,15 @@ TODO:
 
 -}
 
-
 {-# LANGUAGE ScopedTypeVariables #-}
 
-module Language.FCL.Graphviz where
+module Language.FCL.Graphviz (
+  Graphviz,
+  callDot,
+  fileWriteSVG,
+  methodsToGraphviz,
+  fileToGraphviz,
+) where
 
 import Protolude
 

@@ -1,3 +1,9 @@
+{-|
+
+Parser for the FCL scripting language.
+
+-}
+
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE KindSignatures #-}
 {-# LANGUAGE DeriveAnyClass #-}
@@ -5,12 +11,6 @@
 {-# LANGUAGE MultiWayIf #-}
 {-# LANGUAGE TypeApplications #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
-
-{-|
-
-Parser for the FCL scripting language.
-
--}
 
 module Language.FCL.Parser (
   -- ** Parser

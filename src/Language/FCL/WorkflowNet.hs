@@ -3,7 +3,16 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE GADTs #-}
 
-module Language.FCL.WorkflowNet where
+module Language.FCL.WorkflowNet (
+  Token,
+  Marking,
+  Transition(..),
+  WorkflowNet(..),
+  ColorTransition(..),
+  createWorkflowNet,
+  enabledTransitions,
+  fireUnsafe,
+) where
 
 import Protolude
 
