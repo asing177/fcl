@@ -46,6 +46,7 @@ import Numeric.Lossless.Number
 import Language.FCL.AST
 import Language.FCL.Prim
 import Language.FCL.Pretty hiding ((<>))
+import qualified Language.FCL.Token as Token (case_)
 import Language.FCL.Utils ((?), duplicates, zipWith3M_)
 -- import Control.Exception (assert)
 import Control.Monad.State.Strict (modify')
@@ -147,8 +148,9 @@ data TypeOrigin
   | FunctionArg Int Name  -- ^ Expr passed as function argument + it's position
   | FunctionRet Name      -- ^ Returned from prip op
   | FromConstructorPattern LName     -- ^ Enum type of pattern
-  | FromConstructorParameterPattern LName Type Name
+  | FromConstructorParameterPattern LName Name
   | CaseBody Expr         -- ^ Body of case match
+  | FromCase Loc
   | FromVariablePattern LName
   | EmptyCollection       -- ^ From an empty collection
   | MapExpr               -- ^ From a Map expression
@@ -210,7 +212,7 @@ data InferState = InferState
 emptyInferState :: InferState
 emptyInferState = InferState 0 mempty mempty mempty emptyContext
 
-data TMeta = Global | Temp | FuncArg | HelperFunc
+data TMeta = Global | Temp | FuncArg | HelperFunc | PatternVar
   deriving (Show, Eq, Ord, Generic, Serialize, A.FromJSON, A.ToJSON)
 
 instance Pretty TMeta where
@@ -219,6 +221,7 @@ instance Pretty TMeta where
     Temp -> "temporary variable"
     FuncArg -> "method argument"
     HelperFunc -> "helper function"
+    PatternVar -> "variable bound by a pattern"
 --------------------------------------------------------------------------------
 -- Functions for manipulating scoped type environments
 --------------------------------------------------------------------------------
@@ -563,17 +566,10 @@ tcLExpr le@(Located loc expr) = case expr of
               }
         return retTypeInfo
 
-  ECase scrut ms -> do
-    dTypeInfo <- tcLExpr scrut
-
-    tcCasePatterns scrut dTypeInfo . map matchPat $ ms
-
-    -- Associate every body with its type info
-    let attachInfo (Match _ bodyExpr) = (bodyExpr,) <$> tcLExprScoped bodyExpr
-    bodiesTypeInfos <- mapM attachInfo ms
-    -- Add a constraint for every body to have the same type as the
-    -- first body
-    case bodiesTypeInfos of
+  ECase scrut matches -> do
+    scrutTypeInfo <- tcLExpr scrut
+    bodiesTys <- mapM (\m@(Match _ e) -> (e,) <$> tcCaseBranch scrutTypeInfo m) matches
+    case bodiesTys of
       [] -> throwErrInferM EmptyMatches $ located scrut
       ((bodyExpr, tyInfo):eis) -> do
         mapM_ (addConstraint bodyExpr tyInfo . snd) eis
@@ -606,78 +602,56 @@ tcLExpr le@(Located loc expr) = case expr of
 tcLExprScoped :: LExpr -> InferM TypeInfo
 tcLExprScoped = bracketScopeTmpEnvM . tcLExpr
 
-tcCasePatterns
-  :: LExpr
-  -> TypeInfo
-  -> [LPattern]
-  -> InferM ()
-tcCasePatterns scrut scrutInfo []
-  = void
-    . throwErrInferM EmptyMatches
-    $ (located scrut)
-tcCasePatterns scrut scrutInfo ps@(_:_)
-  = case ttype scrutInfo of
-      -- Scrutinee of enum type e
-      (TEnum e) -> Map.lookup e . enumToConstrs <$> ask >>= \case
-        Nothing -> void $ throwErrInferM (UnknownEnum e) topLoc
-        Just allConstrs -> do
-          -- case (missing allConstrs ps, overlap ps) of
-          --   ([],[]) -> do
-          mapM_ (addConstraint scrut scrutInfo <=< patternInfo . locVal) ps
-              -- mapM_ tcPatternMatch ps
+-- | Type check 'Match' patterns (lhs) against the scrutinee type and return the
+-- expression type (rhs).
+tcCaseBranch
+  :: TypeInfo -- ^ scrutinee type
+  -> Match -- ^ a branch of a case statement
+  -> InferM TypeInfo -- ^ return the type of the branch body
+tcCaseBranch tyExpected (Match (Located patLoc pat) body)
+  = bracketScopeTmpEnvM $ do
+      patContext <- tcPattern tyExpected pat
+      mapM_ extendContextInferM patContext
+      tcLExpr body
 
-            -- (misses, overlaps)
-            --   -> void $ throwErrInferM (PatternMatchError misses overlaps) topLoc
-      _ -> void $ throwErrInferM (CaseOnNotEnum scrutInfo) topLoc
+type PatContext = [(Name, TMeta, TypeInfo)]
+
+tcPattern
+  :: TypeInfo -- ^ the expected type
+  -> Pattern -- ^ the pattern to typecheck
+  -> InferM PatContext -- ^ the outgoing pattern context (bound variables)
+tcPattern tyExpected (PatLit l) = do
+    patTy <- tcLLit l
+    addConstraint' tyExpected patTy
+    pure []
+
+tcPattern tyExpected (PatVar v)
+  = pure [(locVal v, PatternVar, TypeInfo (ttype tyExpected) (FromVariablePattern v) (located v))]
+
+tcPattern _ PatWildCard = pure []
+tcPattern tyExpected (PatConstr c pats)
+  = Map.lookup (locVal c) . constructorToType <$> ask >>= \case
+      Nothing -> do
+        throwErrInferM (UnknownConstructor c) (located c)
+        pure []
+      Just (typeConstr, paramTys) -> do
+        addConstraint' tyExpected TypeInfo
+          { ttype = TEnum (locVal typeConstr)
+          , torig = FromConstructorPattern typeConstr
+          , tloc = located c}
+        patZip paramTys pats []
   where
-    topLoc = located scrut
-
-    -- patConstr (Located _ (PatConstr c _)) = c
-    -- missing allConstrs ps = allConstrs List.\\ map patConstr ps
-    -- overlap ps = duplicates (map patConstr ps)
-
-    -- tcNamedPattern :: Name -> Pattern -> InferM ()
-    -- tcNamedPattern nm = addConstraint scrut scrutInfo <=< patternInfo (Just nm)
-
-    patternInfo
-      -- :: Maybe Name  -- ^ for named patterns, e.g. @type Foo {Bar(int baz)}@ then when we match on @Bar(x)@ we know that @x@ is of type @int@ and that its name is @baz@.
-      :: Pattern
-      -> InferM TypeInfo
-    patternInfo (PatConstr c pats)
-      = Map.lookup (locVal c) . constructorToType <$> ask >>= \case
-          Nothing -> throwErrInferM (UnknownConstructor c) (located c)
-          Just (typeConstr, paramTys) -> do
-
-            patZip paramTys pats
-            return TypeInfo
-              { ttype = TEnum (locVal typeConstr)
-              , torig = FromConstructorPattern typeConstr
-              , tloc = located c
-              }
-      where
-        patZip :: [(Type, Name)] -> [Pattern] -> InferM ()
-        patZip ((ty, nm):ts) (p:ps) = do
-          patTyInfo <- patternInfo p
-          addConstraint'
-            TypeInfo
-              { ttype = ty
-              , torig = FromConstructorParameterPattern c ty nm
-              , tloc = patLoc p
-              }
-            patTyInfo
-          patZip ts ps
-
-        patZip [] [] = pure ()
-        patZip [] (p:ps) = throwErrInferM (TooManyPatterns c p) (patLoc p) *> patZip [] ps
-        patZip (t:ts) [] = throwErrInferM (NotEnoughPatterns c t) (located c) *> patZip ts []
-
-    patternInfo (PatLit l) = tcLLit l
-
-    patternInfo (PatVar v)
-      = TypeInfo
-        <$> freshTVar
-        <*> pure (FromVariablePattern v)
-        <*> pure (located v)
+    patZip
+      :: [(Type, Name)] -- ^ the types and names of the constructor fields
+      -> [Pattern] -- ^ the constructor argument patterns to check
+      -> PatContext -- ^ accumulator of the pattern context (bindings that get created through matches)
+      -> InferM PatContext
+    patZip ((ty, nm):ts) (p:ps) acc = do
+      patCtx <- tcPattern (TypeInfo ty (FromConstructorParameterPattern c nm) (located c)) p
+      patZip ts ps (patCtx <> acc)
+    patZip [] [] acc = pure acc
+    patZip [] (p:ps) acc = throwErrInferM (TooManyPatterns c p) (patLoc p) *> patZip [] ps acc
+    patZip (t:ts) [] acc = throwErrInferM (NotEnoughPatterns c t) (located c) *> patZip ts [] acc
 
 tcLLit :: LLit -> InferM TypeInfo
 tcLLit (Located loc lit)
@@ -1627,8 +1601,9 @@ instance Pretty TypeOrigin where
     FunctionArg n nm    -> "inferred from the type signature of argument" <+> ppr n <+> "of function" <+> sqppr nm
     FunctionRet nm      -> "inferred from the return type of the function" <+> sqppr nm
     FromConstructorPattern ty -> "inferred from type of constructor pattern" <+> sqppr ty
-    FromConstructorParameterPattern c ty paramName
-      -> "inferred from type of" <+> sqppr paramName <+> "parameter of" <+> sqppr c <+> "constructor pattern" <+> sqppr ty
+    FromConstructorParameterPattern c paramName
+      -> "inferred from type of field" <+> sqppr paramName <+> "of constructor" <+> sqppr c
+    FromCase loc -> "inferred from" <+> sqppr Token.case_ <+> "at" <+> ppr loc
     CaseBody e          -> "inferred from type of case body" <+> sqppr e
     FromVariablePattern v -> "inferred from variable binding" <+> sqppr v <+> "in case body"
     InferredFromCollType nm t -> "inferred from the collection type" <+> sqppr t <+> "supplied as an argument to the primop" <+> sqppr nm
@@ -1692,8 +1667,8 @@ instance Pretty TypeErrInfo where
     PatternMatchError misses dups -> "Pattern match failures:"
                                   <$$+> vsep (map ((" - Missing case for:" <+>) . ppr) misses)
                                   <$$+> vsep (map ((" - Duplicate case for:" <+>) . ppr) dups)
-    TooManyPatterns c p           -> "Constructor" <+> sqppr c <+> "is applied to too many patterns (" <+> sqppr p <+> ")"
-    NotEnoughPatterns c (t,n)     -> "Constructor" <+> sqppr c <+> "is not applied to enough patterns; expecting a pattern of type" <+> sqppr t <+> "for field" <+> ppr n
+    TooManyPatterns c p           -> "Constructor" <+> sqppr c <+> "is applied to too many patterns (" <> sqppr p <> ")"
+    NotEnoughPatterns c (t,n)     -> "Constructor" <+> sqppr c <+> "is not applied to enough patterns; expecting a pattern of type" <+> sqppr t <+> "for field" <+> sqppr n
     EmptyMatches                  -> "Case expression with no matches"
     InvalidPrecision              -> "Invalid precision argument; must be an integer (whole number) literal."
     Impossible msg                -> "The impossible happened:" <+> ppr msg
