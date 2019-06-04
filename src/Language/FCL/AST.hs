@@ -188,6 +188,7 @@ data Pattern
   = PatConstr LName [Pattern]
   | PatLit LLit
   | PatVar LName
+  | PatWildCard
   deriving (Eq, Ord, Show, Generic, FromJSON, ToJSON, Hash.Hashable)
 
 patLoc :: Pattern -> Loc
@@ -658,6 +659,7 @@ instance Pretty Pattern where
     PatConstr id pats -> ppr id <> tupleOf pats
     PatLit lit -> ppr lit
     PatVar v -> ppr v
+    PatWildCard -> "_"
 
 instance Pretty Match where
   ppr (Match pat expr)
