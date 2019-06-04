@@ -18,6 +18,7 @@ module Language.FCL.AST (
   Script(..),
   Expr(..),
   Pattern(..),
+  patLoc,
   Match(..),
   Method(..),
   Preconditions(..),
@@ -188,6 +189,12 @@ data Pattern
   | PatLit LLit
   | PatVar LName
   deriving (Eq, Ord, Show, Generic, FromJSON, ToJSON, Hash.Hashable)
+
+patLoc :: Pattern -> Loc
+patLoc = \case
+  PatConstr nm _ -> located nm
+  PatLit lit -> located lit
+  PatVar nm -> located nm
 
 data Match
   = Match { matchPat :: LPattern
