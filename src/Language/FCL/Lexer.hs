@@ -10,7 +10,6 @@ module Language.FCL.Lexer (
   lexeme,
 
   -- ** Lexemes
-  identifier,
   name,
   nameUpper,
   locName,
@@ -43,7 +42,6 @@ import Text.Parsec.Text
 import qualified Text.Parsec.Token as Tok
 import qualified Text.Parsec.Language as Lang
 
-import Data.Char (isLower, isUpper)
 import Data.Functor.Identity (Identity)
 import qualified Data.Text as T
 
@@ -78,25 +76,26 @@ style = Lang.emptyDef
 lexeme :: Parser a -> Parser a
 lexeme = Tok.lexeme lexer
 
-identifier :: Parser T.Text
-identifier = T.pack <$> Tok.identifier lexer
-  <?> "identifier"
+-- identifier :: Parser T.Text
+-- identifier = T.pack <$> Tok.identifier lexer
+--   <?> "identifier"
 
 name :: Parser Name
-name = Name <$> (do
-    i <- identifier
-    when (isUpper $ T.head i) (parserFail "Identifiers must begin with a lowercase letter")
-    pure i)
-  <?> "name"
+name = do
+  hd <- lower
+  tl <- many (alphaNum <|> oneOf "_")
+  _ <- whiteSpace
+  pure . Name . T.pack $ hd : tl
 
 locName :: Parser LName
 locName = mkLocated name
 
 nameUpper :: Parser Name
-nameUpper = Name <$> (do
-    i <- identifier
-    when (isLower $ T.head i) (parserFail "Constructors must begin with an uppercase letter")
-    pure i)
+nameUpper = do
+  hd <- upper
+  tl <- many (alphaNum <|> oneOf "_")
+  _ <- whiteSpace
+  pure . Name . T.pack $ hd : tl
 
 locNameUpper :: Parser LName
 locNameUpper = mkLocated nameUpper

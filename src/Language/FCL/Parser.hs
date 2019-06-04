@@ -297,7 +297,7 @@ type_ =  intType
      <|> textType
      <|> dateType
      <|> timedeltaType
-     <|> try enumType
+     <|> enumType
      <|> collectionType
      <?> "type"
 
@@ -606,7 +606,11 @@ betweenExpr = do
 caseExpr :: Parser Expr
 caseExpr = do
     _ <- reserved Token.case_
-    ECase <$> parensLExpr <*> (braces $ match `sepEndBy` semi)
+    scrutinee <- expr
+    _ <- symbol Token.lbrace
+    matches <- match `sepEndBy1` semi
+    _ <- symbol Token.rbrace
+    pure $ ECase scrutinee matches
   where
 
     match = Match
@@ -619,6 +623,7 @@ caseExpr = do
         [ PatConstr <$> try Lexer.locNameUpper <*> (parens (commaSep pattern) <|> pure [])
         , PatVar <$> try Lexer.locName
         , PatLit <$> locLit
+        , PatWildCard <$ (char '_' *> whiteSpace)
         ]
 
 mapExpr :: Parser Expr
