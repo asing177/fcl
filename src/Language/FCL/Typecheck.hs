@@ -620,8 +620,7 @@ tcCasePatterns scrut scrutInfo ps@(_:_)
         Just allConstrs -> do
           -- case (missing allConstrs ps, overlap ps) of
           --   ([],[]) -> do
-          enumConstrs <- constructorToType <$> ask
-          mapM_ (addConstr scrut scrutInfo <=< patternInfo enumConstrs . locVal) ps
+          mapM_ (tcPattern . locVal) ps
               -- mapM_ tcPatternMatch ps
 
             -- (misses, overlaps)
@@ -634,32 +633,42 @@ tcCasePatterns scrut scrutInfo ps@(_:_)
     -- missing allConstrs ps = allConstrs List.\\ map patConstr ps
     -- overlap ps = duplicates (map patConstr ps)
 
-    patternInfo :: Map Name (LName, [Type]) -> Pattern -> InferM TypeInfo
-    patternInfo enumConstrs (PatConstr c pats)
-      = case Map.lookup (locVal c) enumConstrs of
+    tcPattern :: Pattern -> InferM ()
+    tcPattern = addConstr scrut scrutInfo <=< patternInfo
+
+    patternInfo :: Pattern -> InferM TypeInfo
+    patternInfo (PatConstr c pats)
+      = Map.lookup (locVal c) . constructorToType <$> ask >>= \case
           Nothing -> throwErrInferM (UnknownConstructor c) (located c)
-          Just (enumName, _) -> return TypeInfo
-            { ttype = TEnum (locVal enumName)
-            , torig = CasePattern enumName
-            , tloc = located c
-            }
+          Just (typeConstr, paramTys) -> do
 
-    patternInfo _ (PatLit l) = tcLLit l
+            zipWithM tcPattern paramTys pats
+            return TypeInfo
+              { ttype = TEnum (locVal typeConstr)
+              , torig = CasePattern typeConstr
+              , tloc = located c
+              }
+      where
+        patZip :: [(Type, Name)] -> [Pattern] -> InferM ()
+        patZip [] p@(_:_)
 
-    patternInfo _ (PatVar v) = do
-        tvar <- freshTVar
-        pure $ TypeInfo tvar (FromVariablePattern v) (located v)
+    patternInfo (PatLit l) = tcLLit l
+
+    patternInfo (PatVar v)
+      = TypeInfo
+        <$> freshTVar
+        <*> pure (FromVariablePattern v)
+        <*> pure (located v)
 
 tcLLit :: LLit -> InferM TypeInfo
-tcLLit (Located loc lit) = do
-  enumConstrs <- constructorToType <$> ask
-  case tcLit enumConstrs lit of
+tcLLit (Located loc lit)
+  = case tcLit lit of
     Left err  -> throwErrInferM err loc
     Right typ -> pure $
       TypeInfo typ (InferredFromLit lit) loc
 
-tcLit :: Map Name (LName, [Type]) -> Lit -> Either TypeErrInfo Type
-tcLit enumConstrs lit =
+tcLit :: Lit -> Either TypeErrInfo Type
+tcLit lit =
   case lit of
     LNum (Decimal p v)        -> Right (TNum $ NPDecimalPlaces p)
     LBool _                   -> Right TBool
@@ -672,10 +681,6 @@ tcLit enumConstrs lit =
     LState label              -> Right TState
     LDateTime _               -> Right TDateTime
     LTimeDelta _              -> Right TTimeDelta
-    LConstr c                 ->
-      case Map.lookup c enumConstrs of
-        Nothing -> Left (Impossible "Reference to unknown enum constructor")
-        Just (lEnum, _) -> Right . TEnum $ locVal lEnum
 
 -------------------------------------------------------------------------------
   -- Type checking of prim op calls

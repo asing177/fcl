@@ -300,6 +300,24 @@ handleArithError m = do
 -- Evaluation
 -------------------------------------------------------------------------------
 
+
+evalLit :: Lit -> Value
+evalLit lit = case lit of
+  LNum n      -> VNum (NumDecimal n)
+  LVoid       -> VVoid
+  LBool n     -> VBool n
+  LAccount n  -> VAccount n
+  LAsset n    -> VAsset n
+  LContract n -> VContract n
+  LText n      -> VText n
+  LSig n      -> VSig n
+  LState pl   -> VState pl
+  LDateTime d -> VDateTime d
+  LTimeDelta d -> VTimeDelta d
+
+evalLLit :: LLit -> Value
+evalLLit (Located _ lit) = evalLit lit
+
 -- | Evaluator for expressions
 evalLExpr :: (World world, Show (AccountError' world), Show (AssetError' world))
   => LExpr -> (EvalM world) Value

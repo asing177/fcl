@@ -163,7 +163,7 @@ type LUnOp  = Located UnOp
 type LPattern = Located Pattern
 
 -- | Enum constructor.
-data EnumConstr = EnumConstr { enumConstrId :: LName, enumConstrParams :: [Type] }
+data EnumConstr = EnumConstr { enumConstrId :: LName, enumConstrParams :: [(Type, Name)] }
   deriving (Eq, Show, Ord, Generic, Hash.Hashable, FromJSON, ToJSON, Serialize)
 
 -- | Variable names
@@ -212,6 +212,7 @@ data Expr
   | ENoOp                          -- ^ Empty method body
   | EMap     (Map LExpr LExpr)     -- ^ Map k v
   | ESet     (Set LExpr)           -- ^ Set v
+  | EConstr Name [LExpr]           -- ^ Constructor
   deriving (Eq, Ord, Show, Generic, FromJSON, ToJSON, Hash.Hashable)
 
 data BinOp
@@ -244,7 +245,7 @@ data Lit
   | LSig       (SafeInteger, SafeInteger)
   | LDateTime  DateTime
   | LTimeDelta TimeDelta
-  | LConstr    Name
+  -- | LConstr    Name
   | LVoid
   deriving (Eq, Ord, Show, Generic, FromJSON, ToJSON, Hash.Hashable)
 
@@ -265,6 +266,7 @@ data Value
   | VMap (Map Value Value)         -- ^ Map of values to values
   | VSet (Set Value)               -- ^ Set of values
   | VUndefined                     -- ^ Undefined
+  | VConstr Name [Value]           -- ^ Constructor
   deriving (Eq, Ord, Show, Generic, Serialize, Hash.Hashable)
 
 -- | Type variables used in inference
@@ -495,7 +497,7 @@ mapType einfo   (VSet vset)   =
     (v:_) -> TColl <$> (TSet <$> mapType einfo v)
 
 data EnumInfo = EnumInfo
-  { constructorToType :: Map Name (LName, [Type])
+  { constructorToType :: Map Name (LName, [(Type, Name)])
   , enumToConstrs :: Map Name [EnumConstr]
   }
 
@@ -505,7 +507,7 @@ data EnumInfo = EnumInfo
 createEnumInfo :: [EnumDef] -> EnumInfo
 createEnumInfo enums = EnumInfo m1 m2
   where
-    m1 :: Map Name (LName, [Type])
+    m1 :: Map Name (LName, [(Type, Name)])
     m1
       = Map.fromList
       . concatMap
@@ -588,7 +590,9 @@ instance Pretty Name where
 
 instance Pretty EnumConstr where
   ppr (EnumConstr id []) = ppr id
-  ppr (EnumConstr id types) = ppr id <> tupleOf types
+  ppr (EnumConstr id namedTyParams)
+    = ppr id
+      <> tupleOf (map (\(ty, nm) -> ppr ty <+> ppr nm) namedTyParams)
 
 instance Pretty Expr where
   ppr = \case
@@ -672,7 +676,6 @@ instance Pretty Lit where
     LState name    -> token Token.colon <> ppr name
     LDateTime dt   -> dquotes $ ppr $ (DT.formatDatetime (unDateTime dt) :: [Char])
     LTimeDelta d   -> ppr d
-    LConstr ec     -> text "`" <> ppr ec
 
 instance Pretty Type where
   ppr = \case

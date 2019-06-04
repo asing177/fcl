@@ -169,7 +169,6 @@ lit =  try timedeltaLit
    <|> datetimeLit
    <|> textLit
    <|> voidLit
-   <|> enumConstrLit
    <?> "literal"
 
 locLit :: Parser LLit
@@ -281,9 +280,6 @@ voidLit :: Parser Lit
 voidLit = LVoid <$ try (reserved Token.void)
  <?> "void literal"
 
-enumConstrLit :: Parser Lit
-enumConstrLit = LConstr <$> Lexer.nameUpper
-
 -------------------------------------------------------------------------------
 -- Types
 -------------------------------------------------------------------------------
@@ -301,7 +297,7 @@ type_ =  intType
      <|> textType
      <|> dateType
      <|> timedeltaType
-     <|> enumType
+     <|> try enumType
      <|> collectionType
      <?> "type"
 
@@ -352,7 +348,7 @@ timedeltaType :: Parser Type
 timedeltaType = TTimeDelta <$ try (reserved Token.timedelta)
 
 enumType :: Parser Type
-enumType = TEnum <$> try (reserved Token.type_ *> Lexer.name)
+enumType = TEnum <$> Lexer.nameUpper
 
 collectionType :: Parser Type
 collectionType =
@@ -517,6 +513,7 @@ expr = buildExpressionParser opTable locExpr
               <|> callExpr
               <|> litExpr
               <|> varExpr
+              <|> constructorExpr
               <|> try mapExpr -- backtrack on failure and try parsing as set
               <|> setExpr
               <|> holeExpr
@@ -537,6 +534,9 @@ litExpr = ELit <$> locLit
 varExpr :: Parser Expr
 varExpr = EVar <$> locName
  <?> "variable"
+
+constructorExpr :: Parser Expr
+constructorExpr = EConstr <$> nameUpper <*> (parens (commaSep expr) <|> pure [])
 
 assignExpr :: Parser Expr
 assignExpr = do
@@ -680,7 +680,9 @@ enumDef = do
   where
     constructor = EnumConstr
       <$> Lexer.locNameUpper
-      <*> (parens (commaSep type_) <|> pure [])
+      <*> (parens (commaSep namedType) <|> pure [])
+
+    namedType = (,) <$> type_ <* whiteSpace <*> name
 
 -------------------------------------------------------------------------------
 -- Script
@@ -688,7 +690,7 @@ enumDef = do
 
 script :: Parser Script
 script = do
-  enums <- endBy enumDef semi
+  enums <- many enumDef
   defns <- endBy def semi
   graph <- endBy transition semi
   methods <- many method
