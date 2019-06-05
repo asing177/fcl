@@ -1,9 +1,15 @@
 type Size { Big; Small }
 
+// type Size { Grand; Petit } // DONE: duplicate type definition
+
+type Taille { Big; Small } // TODO: constructor name shadowing check
+
+type Dup { MkDup(int n, int n) } // TODO: field name shadowing check
+
 type Item {
-  Chips(Size size);
-  Milkshake(int millilitres, bool sprinkles);
-  Salad;
+  Chips(Size size);                            // DONE: Parameterised constructors with field names
+  Milkshake(int millilitres, bool sprinkles);  // ok
+  Salad;                                       // ok
 }
 
 Bogus1 bog1 = Nope; // DONE: undefined constructor check
