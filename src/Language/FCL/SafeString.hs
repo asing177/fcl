@@ -41,7 +41,6 @@ import Data.ByteString.Char8 as B
 import Data.Aeson hiding (encode)
 import Data.Aeson.Types (typeMismatch)
 import qualified Data.Aeson as A
-import qualified Data.Binary as BI
 
 import Language.FCL.Pretty (Pretty(..))
 import qualified Language.FCL.Hash as Hash

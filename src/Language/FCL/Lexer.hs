@@ -45,11 +45,8 @@ import qualified Text.Parsec.Language as Lang
 import Data.Functor.Identity (Identity)
 import qualified Data.Text as T
 
-import Language.FCL.AST (Name(..), Loc(..), Located(..), LName, BinOp(..), UnOp(..), EnumConstr(..))
+import Language.FCL.AST (Name(..), Loc(..), Located(..), LName, BinOp(..), UnOp(..))
 import qualified Language.FCL.Token as Token
-import Language.FCL.SafeString (fromBytes')
-
-import qualified Data.Text.Encoding as Text
 
 -------------------------------------------------------------------------------
 -- Lexer

@@ -138,7 +138,7 @@ instance ToJSON Value where
     VDateTime n  -> object ["tag" .= ("VDateTime" :: Text), "contents" .= toJSON n]
     VTimeDelta n -> object ["tag" .= ("VTimeDelta" :: Text), "contents" .= toJSON n]
     VState n     -> object ["tag" .= ("VState" :: Text), "contents" .= toJSON (prettyPrint n)]
-    VEnum c      -> object ["tag" .= ("VEnum" :: Text), "contents" .= toJSON c]
+    -- VConstr c vs -> object ["tag" .= ("VConstr" :: Text), "contents" .= toJSON c]
     VMap vmap    -> object ["tag" .= ("VMap" :: Text), "contents" .= toJSON vmap]
     VSet vset    -> object ["tag" .= ("VSet" :: Text), "contents" .= toJSON vset]
     VUndefined   -> object ["tag" .= ("VUndefined" :: Text), "contents" .= A.Null]

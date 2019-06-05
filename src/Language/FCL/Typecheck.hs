@@ -52,7 +52,6 @@ import Language.FCL.Utils ((?), duplicates, zipWith3M_)
 import Control.Monad.State.Strict (modify')
 
 import qualified Data.Aeson as A
-import qualified Data.List as List
 import Data.List.NonEmpty (NonEmpty)
 import qualified Data.List.NonEmpty as NonEmpty
 import Data.Serialize (Serialize)
@@ -88,7 +87,7 @@ data TypeErrInfo
   | ExpectedStatement Type              -- ^ Expected statement but got expression
   | MethodUnspecifiedTransition Name    -- ^ Method doesn't specify where to transition to
   | CaseOnNotEnum TypeInfo              -- ^ Case analysis on non-enum type
-  | UnknownConstructor LName            -- ^ Reference to undefined constructor
+  | UnknownConstructor Name             -- ^ Reference to undefined constructor
   | UnknownEnum Name                    -- ^ Reference to unknown enum type
   | EmptyMatches                        -- ^ Case statement with empty matches
   | PatternMatchError
@@ -106,8 +105,9 @@ data TypeErrInfo
     { typeInfo1 :: TypeInfo
     , typeInfo2 :: TypeInfo
     }
-  | TooManyPatterns LName Pattern
-  | NotEnoughPatterns LName (Type, Name)
+  | TooManyPatterns Name Pattern
+  | TooManyArguments Name LExpr
+  | NotEnoughArguments Name (Type, Name)
   deriving (Eq, Show, Generic, Serialize, A.FromJSON, A.ToJSON)
 
 -- | Type error
@@ -147,8 +147,8 @@ data TypeOrigin
   | Assignment            -- ^ From var assignment
   | FunctionArg Int Name  -- ^ Expr passed as function argument + it's position
   | FunctionRet Name      -- ^ Returned from prip op
-  | FromConstructorPattern LName     -- ^ Enum type of pattern
-  | FromConstructorParameterPattern LName Name
+  | FromConstructor Name  -- ^ Enum type of pattern
+  | FromConstructorField { constructor :: Name, field :: Name }
   | CaseBody Expr         -- ^ Body of case match
   | FromCase Loc
   | FromVariablePattern LName
@@ -588,8 +588,31 @@ tcLExpr le@(Located loc expr) = case expr of
     TypeInfo ty _ _ <- tcLExprs s
     pure $ TypeInfo (TColl (TSet ty)) SetExpr loc
 
+  EConstr constructor es ->
+    Map.lookup constructor . constructorToType <$> ask >>= \case
+      Nothing -> throwErrInferM (UnknownConstructor constructor) loc
+      Just (typeConstr, paramTys) -> do
+        econstrZip paramTys es
+        pure TypeInfo
+          { ttype = TEnum (locVal typeConstr)
+          , torig = FromConstructor constructor
+          , tloc = loc }
+    where
+      econstrZip
+        :: [(Type, Name)] -- ^ the types and names of the constructor fields
+        -> [LExpr] -- ^ the constructor arguments
+        -> InferM ()
+      econstrZip ((ty, field):ts) (e:es) = do
+        let tyExpected = TypeInfo ty FromConstructorField{ constructor, field } (located e)
+        tyActual <- tcLExpr e
+        addConstraint e tyExpected tyActual
+        econstrZip ts es
+      econstrZip [] [] = pure ()
+      econstrZip [] (e:es) = throwErrInferM (TooManyArguments constructor e) (located e) *> econstrZip [] es
+      econstrZip (t:ts) [] = throwErrInferM (NotEnoughArguments constructor t) loc *> econstrZip ts []
+
   where
-    tcLExprs :: Foldable t => t LExpr -> InferM TypeInfo
+    tcLExprs :: Foldable f => f LExpr -> InferM TypeInfo
     tcLExprs = foldM step zero
       where
         step prevTyInfo e = do
@@ -629,16 +652,17 @@ tcPattern tyExpected (PatVar v)
   = pure [(locVal v, PatternVar, TypeInfo (ttype tyExpected) (FromVariablePattern v) (located v))]
 
 tcPattern _ PatWildCard = pure []
-tcPattern tyExpected (PatConstr c pats)
-  = Map.lookup (locVal c) . constructorToType <$> ask >>= \case
+
+tcPattern tyExpected (PatConstr (Located loc c) pats)
+  = Map.lookup c . constructorToType <$> ask >>= \case
       Nothing -> do
-        throwErrInferM (UnknownConstructor c) (located c)
+        throwErrInferM (UnknownConstructor c) loc
         pure []
       Just (typeConstr, paramTys) -> do
         addConstraint' tyExpected TypeInfo
           { ttype = TEnum (locVal typeConstr)
-          , torig = FromConstructorPattern typeConstr
-          , tloc = located c}
+          , torig = FromConstructor c
+          , tloc = loc }
         patZip paramTys pats []
   where
     patZip
@@ -647,11 +671,11 @@ tcPattern tyExpected (PatConstr c pats)
       -> PatContext -- ^ accumulator of the pattern context (bindings that get created through matches)
       -> InferM PatContext
     patZip ((ty, nm):ts) (p:ps) acc = do
-      patCtx <- tcPattern (TypeInfo ty (FromConstructorParameterPattern c nm) (located c)) p
+      patCtx <- tcPattern (TypeInfo ty (FromConstructorField c nm) (patLoc p)) p
       patZip ts ps (patCtx <> acc)
     patZip [] [] acc = pure acc
     patZip [] (p:ps) acc = throwErrInferM (TooManyPatterns c p) (patLoc p) *> patZip [] ps acc
-    patZip (t:ts) [] acc = throwErrInferM (NotEnoughPatterns c t) (located c) *> patZip ts [] acc
+    patZip (t:ts) [] acc = throwErrInferM (NotEnoughArguments c t) loc *> patZip ts [] acc
 
 tcLLit :: LLit -> InferM TypeInfo
 tcLLit (Located loc lit)
@@ -1600,8 +1624,8 @@ instance Pretty TypeOrigin where
     DateTimeGuardBody   -> "must be a void because it is the body of a datetime guard"
     FunctionArg n nm    -> "inferred from the type signature of argument" <+> ppr n <+> "of function" <+> sqppr nm
     FunctionRet nm      -> "inferred from the return type of the function" <+> sqppr nm
-    FromConstructorPattern ty -> "inferred from type of constructor pattern" <+> sqppr ty
-    FromConstructorParameterPattern c paramName
+    FromConstructor ty -> "inferred from type of constructor" <+> sqppr ty
+    FromConstructorField c paramName
       -> "inferred from type of field" <+> sqppr paramName <+> "of constructor" <+> sqppr c
     FromCase loc -> "inferred from" <+> sqppr Token.case_ <+> "at" <+> ppr loc
     CaseBody e          -> "inferred from type of case body" <+> sqppr e
@@ -1668,7 +1692,8 @@ instance Pretty TypeErrInfo where
                                   <$$+> vsep (map ((" - Missing case for:" <+>) . ppr) misses)
                                   <$$+> vsep (map ((" - Duplicate case for:" <+>) . ppr) dups)
     TooManyPatterns c p           -> "Constructor" <+> sqppr c <+> "is applied to too many patterns (" <> sqppr p <> ")"
-    NotEnoughPatterns c (t,n)     -> "Constructor" <+> sqppr c <+> "is not applied to enough patterns; expecting a pattern of type" <+> sqppr t <+> "for field" <+> sqppr n
+    TooManyArguments c e          -> "Constructor" <+> sqppr c <+> "is applied to too many arguments (" <> sqppr e <> ")"
+    NotEnoughArguments c (t,n)    -> "Constructor" <+> sqppr c <+> "is not applied to enough arguments; expecting an argument of type" <+> sqppr t <+> "for field" <+> sqppr n
     EmptyMatches                  -> "Case expression with no matches"
     InvalidPrecision              -> "Invalid precision argument; must be an integer (whole number) literal."
     Impossible msg                -> "The impossible happened:" <+> ppr msg

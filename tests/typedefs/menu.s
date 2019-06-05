@@ -6,14 +6,20 @@ type Item {
   Salad;
 }
 
-// @initial
-// foo(int volume) {
-//   z = Milkshake(volume, False); // TODO: typecheck constructor expressions
-//   terminate()
-// }
+Bogus1 bog1 = Nope; // DONE: undefined constructor check
+Bogus2 bog2;        // TODO: undefined type check
 
 @initial
-bar(Item it, Bogus b) {           // TODO: 'Bogus' is not a valid type
+foo(int volume) {
+  z = Milkshake(volume, False);  // DONE: typecheck constructor expressions
+  y = Milkshake(volume, volume); // DONE: typecheck constructor expressions
+  x = Milkshake(1, True, 1);     // DONE: constructor arity check
+  w = Chips;                     // DONE: constructor arity check
+  terminate()
+}
+
+@initial
+bar(Item it, Bogus b) {           // DONE: 'Bogus' is not a valid type
   x = case it {
     Milkshake(p) -> p;            // DONE: not enough arguments
     Milkshake(p1,p2) -> p2;       // DONE: pattern ok, but body is of type bool

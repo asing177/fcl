@@ -485,9 +485,10 @@ evalLExpr (Located loc e) = case e of
       then evalLExpr e1
       else evalLExpr e2
 
-  ECase scrut ms -> do
-    VEnum c <- evalLExpr scrut
-    evalLExpr (match ms c)
+  ECase scrut ms -> undefined
+  --  do
+  --   VEnum c <- evalLExpr scrut
+  --   evalLExpr (match ms c)
 
   ENoOp -> noop
 
@@ -1187,7 +1188,7 @@ hashValue = \case
   VVoid          -> pure ""
   VDateTime dt   -> pure $ S.encode dt
   VTimeDelta d   -> pure $ S.encode d
-  VEnum c        -> pure (show c)
+  VConstr c vs   -> undefined -- pure (show c)
   VMap vmap      -> pure (show vmap)
   VSet vset      -> pure (show vset)
   VSig _         -> throwError $ Impossible "Cannot hash signature"

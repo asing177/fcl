@@ -196,6 +196,7 @@ patLoc = \case
   PatConstr nm _ -> located nm
   PatLit lit -> located lit
   PatVar nm -> located nm
+  PatWildCard -> NoLoc
 
 data Match
   = Match { matchPat :: LPattern
@@ -269,7 +270,6 @@ data Value
   | VVoid                          -- ^ Void
   | VDateTime DateTime             -- ^ A datetime with a timezone
   | VTimeDelta TimeDelta           -- ^ A difference in time
-  | VEnum EnumConstr               -- ^ Constructor of the given enum type
   | VState WorkflowState           -- ^ Named state label
   | VMap (Map Value Value)         -- ^ Map of values to values
   | VSet (Set Value)               -- ^ Set of values
@@ -483,7 +483,7 @@ eseq loc es = case es of
 mapType :: EnumInfo -> Value -> Maybe Type
 mapType _        (VNum (NumRational _)) = pure (TNum NPArbitrary)
 mapType _        (VNum (NumDecimal f))  = (pure . TNum . NPDecimalPlaces . decimalPlaces) f
-mapType enumInfo (VEnum c)    = TEnum . locVal . fst <$> Map.lookup (locVal $ enumConstrId c) (constructorToType enumInfo)
+mapType enumInfo (VConstr c _) = TEnum . locVal . fst <$> Map.lookup c (constructorToType enumInfo)
 mapType _        VBool{}      = pure TBool
 mapType _        VAccount{}   = pure TAccount
 mapType _        VAsset{}     = pure (TAsset TAny)
@@ -653,6 +653,8 @@ instance Pretty Expr where
                         Located _ e2' = e2
     EMap m -> tupleOf $ map (\(k,v) -> ppr k <+> ":" <+> ppr v) (Map.toList m)
     ESet s -> setOf s
+    EConstr nm [] -> ppr nm
+    EConstr nm es -> ppr nm <> tupleOf es
 
 instance Pretty Pattern where
   ppr = \case
@@ -706,7 +708,7 @@ instance Pretty Type where
     TDateTime   -> token Token.datetime
     TTimeDelta  -> token Token.timedelta
     TState      -> token Token.state
-    TEnum e     -> token Token.type_ <+> ppr e
+    TEnum e     -> ppr e
     TFun as r   -> tupleOf (map ppr as) <+> "->" <+> ppr r
     TColl tcol  -> ppr tcol
     TTransition -> token Token.transition
@@ -734,10 +736,11 @@ instance Pretty Value where
     VVoid        -> token Token.void
     VDateTime dt -> ppr (DT.formatDatetime (unDateTime dt) :: [Char])
     VTimeDelta d -> ppr d
-    VEnum c      -> ppr c
     VState n     -> ppr n
     VMap vmap    -> ppr vmap
     VSet vset    -> tupleOf (Set.toList vset)
+    VConstr nm [] -> ppr nm
+    VConstr nm vs -> ppr nm <> tupleOf vs
     VUndefined   -> "undefined"
 
 instance Pretty Arg where
