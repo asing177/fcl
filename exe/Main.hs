@@ -119,6 +119,7 @@ driverScript cmd
         Right checked -> do
           putText . Pretty.prettyPrint $ checked
 
+    -- transitions
     Transitions scriptFile -> do
       ast <- Parser.parseFile scriptFile
       let transitions = Analysis.inferTransitions ast

@@ -50,7 +50,7 @@ import Language.FCL.Storage
 import Language.FCL.Error as Error
 import Language.FCL.Prim (PrimOp(..))
 import Language.FCL.Address as Addr
-import Language.FCL.ReachabilityGraph (applyTransition)
+import Language.FCL.Reachability (applyTransition)
 import Language.FCL.Utils (panicImpossible)
 import Language.FCL.Asset as Asset
 import qualified Language.FCL.Delta as Delta

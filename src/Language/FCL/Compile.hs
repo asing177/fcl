@@ -72,7 +72,7 @@ import qualified Language.FCL.Parser as Parser
 import qualified Language.FCL.Duplicate as Dupl
 import qualified Language.FCL.Effect as Effect
 import qualified Language.FCL.Typecheck as Typecheck
-import qualified Language.FCL.ReachabilityGraph as Reachability
+import qualified Language.FCL.Reachability as Reachability
 import qualified Language.FCL.Undefinedness as Undef
 import Language.FCL.Warning (Warning(..))
 import Language.FCL.Utils ((?))
@@ -162,21 +162,24 @@ compileScript ast = do
     _       <- first DuplicationErr (Dupl.duplicateCheck ast)
     sigs    <- first TypecheckErr (Typecheck.signatures ast)
     (updatedAst, _inferredWarns) <- first TransitionErr (Analysis.checkInferTransitions ast)
-    graph   <- first WorkflowErr (wfsoundness updatedAst)
+    _       <- first WorkflowErr (wfsoundness updatedAst)
     traces  <- first UndefinednessErr (Undef.undefinednessAnalysis updatedAst)
     effects <- first EffectErr (Effect.effectCheckScript updatedAst)
     let sigsEffects = Effect.combineSigsEffects sigs effects
         warnings = Undef.unusedVars traces
     pure (CheckedScript updatedAst warnings sigsEffects)
   where
-    wfsoundness = Reachability.checkTransitions . Set.fromList . scriptTransitions
+    wfsoundness = checkSound . Reachability.checkTransitions . Set.fromList . scriptTransitions
+    checkSound errs = case errs of
+      [] -> Right ()
+      _  -> Left errs
 
 compileScriptPrettyErr :: Script -> Either Text CheckedScript
 compileScriptPrettyErr = ppCompilationErr . compileScript
 
 -- | Given a list of transitions, return any workflow errors
 transitionSoundness :: [Transition] -> [Reachability.WFError]
-transitionSoundness = Set.toList . fst . Reachability.reachabilityGraph . Set.fromList
+transitionSoundness = Reachability.checkTransitions . Set.fromList
 
 -- | Given a file path, make sure the script parses, returning any parser errors
 lintFile :: FilePath -> IO [Parser.ParseErrInfo]

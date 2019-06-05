@@ -2,14 +2,11 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE DeriveAnyClass #-}
 
-module Language.FCL.ReachabilityGraph
-  ( ReachabilityGraph
-  , WFError(..)
+module Language.FCL.Reachability
+  ( WFError(..)
   , allPlaces
   , applyTransition
   , checkTransitions
-  , pprReachabilityGraph
-  , reachabilityGraph
   ) where
 
 import Protolude
@@ -27,7 +24,7 @@ import Language.FCL.AST (Place(..), Transition(..), WorkflowState, (\\), endStat
 import Language.FCL.Pretty (Doc, Pretty(..), (<+>), listOf, squotes, text, vcat)
 
 -- | A reason why the workflow is unsound. (Refer to 'Pretty' instance for
--- explanations.
+-- explanations.)
 data WFError
   = NotOneBounded WorkflowState Transition (Set Place)
   | ImproperCompletion WorkflowState Transition WorkflowState
@@ -90,20 +87,14 @@ type GraphBuilderM = RWS
   (Set WFError, Set Transition) -- W: errors and used transitions
   ReachabilityGraph -- S: the graph we are currently building
 
--- | Given a set of transitions, check whether they describe a sound workflow.
-checkTransitions :: Set Transition -> Either [WFError] ReachabilityGraph
-checkTransitions ts = case first S.toList $ reachabilityGraph ts of
-    ([], graph) -> Right graph
-    (errs@(_:_), _) -> Left errs
-
 -- | Return all places that are mentioned in a set of transitions.
 allPlaces :: Set Transition -> Set Place
 allPlaces = foldMap (\(Arrow (places -> src) (places -> dst)) -> src <> dst)
 
--- | Build a (partial) reachability graph. When the set of errors is empty,
--- then the graph is complete and the workflow is sound.
-reachabilityGraph :: Set Transition -> (Set WFError, ReachabilityGraph)
-reachabilityGraph declaredTransitions = (allErrs, graph)
+-- | Given a set of transitions, check whether they describe a sound workflow,
+-- or the set of errors is empty and the graph is complete.
+checkTransitions :: Set Transition -> [WFError]
+checkTransitions declaredTransitions = S.toList allErrs
 
   where
     graph :: ReachabilityGraph
@@ -224,24 +215,24 @@ reachabilityGraph declaredTransitions = (allErrs, graph)
         yell err = tell (S.singleton err, mempty)
         {-# INLINE yell #-}
 
--- Given a reachability graph, make a coreachability graph:
--- 1. reverse all the arrows in the reachability graph
--- 2. traverse the graph from the end state and collect all reachable states
-coreachabilityGraph :: ReachabilityGraph -> ReachabilityGraph
-coreachabilityGraph rGraph = go endState mempty
-  where
-    go :: WorkflowState -> ReachabilityGraph -> ReachabilityGraph
-    go st acc
-        | st `M.member` acc = acc
-        | otherwise = foldr go newAcc neighbours
+    -- Given a reachability graph, make a coreachability graph:
+    -- 1. reverse all the arrows in the reachability graph
+    -- 2. traverse the graph from the end state and collect all reachable states
+    coreachabilityGraph :: ReachabilityGraph -> ReachabilityGraph
+    coreachabilityGraph rGraph = go endState mempty
       where
-        neighbours = M.findWithDefault mempty st flippedArrows
-        newAcc = M.insert st neighbours acc
-        flippedArrows = M.fromListWith (<>)
-            [ (dst, S.singleton src)
-            | (src, dsts) <- M.toList rGraph
-            , dst <- S.toList dsts
-            ]
+        go :: WorkflowState -> ReachabilityGraph -> ReachabilityGraph
+        go st acc
+            | st `M.member` acc = acc
+            | otherwise = foldr go newAcc neighbours
+          where
+            neighbours = M.findWithDefault mempty st flippedArrows
+            newAcc = M.insert st neighbours acc
+            flippedArrows = M.fromListWith (<>)
+                [ (dst, S.singleton src)
+                | (src, dsts) <- M.toList rGraph
+                , dst <- S.toList dsts
+                ]
 
 -- | Given a current global workflow state, apply a (local) transition.
 -- Returns:

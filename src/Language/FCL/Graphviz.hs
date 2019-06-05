@@ -24,7 +24,7 @@ import Language.FCL.AST
 import Language.FCL.Analysis (actualTransitions)
 import Language.FCL.Parser (parseFile)
 import Language.FCL.Pretty (hsep, prettyPrint, ppr, panicppr)
-import Language.FCL.ReachabilityGraph (allPlaces)
+import Language.FCL.Reachability (allPlaces)
 import Language.FCL.Utils ((?))
 
 type SVG = Text
