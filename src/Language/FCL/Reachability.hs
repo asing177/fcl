@@ -65,7 +65,6 @@ instance Pretty [WFError] where
 instance Pretty (Set WFError) where
   ppr = ppr . S.toList
 
-
 -- | A Workflow reachability graph: maps a state to its immediate neighbours.
 type ReachabilityGraph = Map WorkflowState (Set WorkflowState)
 
@@ -91,8 +90,39 @@ type GraphBuilderM = RWS
 allPlaces :: Set Transition -> Set Place
 allPlaces = foldMap (\(Arrow (places -> src) (places -> dst)) -> src <> dst)
 
+-- | Branching processes of petri nets.
+type Net       = Set Node
+data Node      = CNode Condition | ENode Event    deriving (Eq, Ord)
+data Condition = Condition Place (Maybe Event)    deriving (Eq, Ord)
+data Event     = Event Transition (Set Condition) deriving (Eq, Ord)
+
+-- | Parents of branching process nodes.
+parents :: Node -> Net
+parents (CNode (Condition _ me)) = S.map ENode . S.fromList . maybeToList $ me
+parents (ENode (Event _ cs))     = S.map CNode cs
+
+-- | Ascendants of branching process nodes.
+ascendants :: Node -> Net
+ascendants node = S.singleton node <> foldMap ascendants (parents node)
+
+-- | Two nodes x and y are in concurrent relation if they are neither in causal
+-- nor in conflict relation.
+concurrent :: Node -> Node -> Bool
+concurrent x y = not (causal x y || causal y x || conflict x y)
+  where
+    -- Two nodes x and y are in causal relation if the net contains a path with
+    -- at least one arc leading from x to y.
+    causal :: Node -> Node -> Bool
+    causal x y = x /= y && elem x (ascendants y)
+    -- Two nodes x and y are in conflict relation if the net contains two paths
+    -- leading to x and y which start at the same place and immediately diverge.
+    conflict :: Node -> Node -> Bool
+    conflict x y = isNonEmpty
+      [(x, y) | x' <- S.toList (ascendants x), y' <- S.toList (ascendants y),
+                x' /= y', isNonEmpty (S.intersection (parents x) (parents y))]
+
 -- | Given a set of transitions, check whether they describe a sound workflow,
--- or the set of errors is empty and the graph is complete.
+-- and if the set of errors is empty then the graph is complete.
 checkTransitions :: Set Transition -> [WFError]
 checkTransitions declaredTransitions = S.toList allErrs
 
