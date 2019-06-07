@@ -7,6 +7,7 @@ module Language.FCL.Reachability
   , allPlaces
   , applyTransition
   , checkTransitions
+  , unfolding
   ) where
 
 import Protolude
@@ -98,18 +99,38 @@ data Node      = CN Condition | EN Event      deriving (Eq, Ord, Show)
 data Condition = C Place (Maybe Event)        deriving (Eq, Ord, Show)
 data Event     = E Transition (Set Condition) deriving (Eq, Ord, Show)
 
+-- | Condition nodes of a branching process.
+conditions :: Set Node -> Set Condition
+conditions = foldr getCondition mempty
+  where
+    -- Condition folder.
+    getCondition :: Node -> Set Condition -> Set Condition
+    getCondition (CN c) cs = S.insert c cs
+    getCondition _      cs = cs
+
+-- | Event nodes of a branching process.
+events :: Set Node -> Set Event
+events = foldr getEvent mempty
+  where
+    -- Event folder.
+    getEvent :: Node -> Set Event -> Set Event
+    getEvent (EN e) es = S.insert e es
+    getEvent _      es = es
+
+-- | Parents of a node of a branching process.
+parents :: Node -> Set Node
+parents (CN (C _ me)) = S.map EN . S.fromList . maybeToList $ me
+parents (EN (E _ cs)) = S.map CN cs
+
+-- | Ascendants of a node of a branching process.
+ascendants :: Node -> Set Node
+ascendants n = S.singleton n <> foldMap ascendants (parents n)
+
 -- | Two nodes x and y are in concurrent relation if they are neither in causal
 -- nor in conflict relation.
 concurrency :: Node -> Node -> Bool
 concurrency x y = not (causality x y || causality y x || conflicted x y)
   where
-    -- The parents of a node in a branching process.
-    parents :: Node -> Set Node
-    parents (CN (C _ me)) = S.map EN . S.fromList . maybeToList $ me
-    parents (EN (E _ cs)) = S.map CN cs
-    -- The ascendants of a node in a branching process.
-    ascendants :: Node -> Set Node
-    ascendants n = S.singleton n <> foldMap ascendants (parents n)
     -- Two nodes x and y are in causal relation if the net contains a path with
     -- at least one arc leading from x to y.
     causality :: Node -> Node -> Bool
@@ -131,43 +152,71 @@ possibleExtensions ns ts = S.fromList
   , notElem (EN (E t x)) ns                   -- event does not already occur
   ]
   where
-    -- A set of conditions of the branching process.
-    conditions :: Node -> Set Condition -> Set Condition
-    conditions (CN c) cs = S.insert c cs
-    conditions _      cs = cs
     -- A set whose elements are pairwise in concurrent relation.
     concurrent :: Set Condition -> Bool
     concurrent cs = and [concurrency (CN x) (CN y) |
                          x <- S.toList cs, y <- S.toList cs, x < y]
     -- The set of sets of concurrent conditions.
     cosets :: Set Node -> Set (Set Condition)
-    cosets = S.filter concurrent . S.powerSet . foldr conditions mempty
+    cosets = S.filter concurrent . S.powerSet . conditions
 
--- | McMillan's unfolding algorithm
-unfolding :: Set Transition -> Set Node
-unfolding = unfold initUNF
+-- | The local configuration of an event.
+localConfiguration :: Event -> Set Event
+localConfiguration = events . ascendants . EN
+
+-- | The adequate order on finite configurations.
+adequateOrder :: Event -> Event -> Ordering
+adequateOrder e e' = compare (norm e) (norm e')
   where
-    -- Initialise UNF.
-    initUNF :: Set Node
-    initUNF = S.singleton . CN $ C PlaceStart Nothing
+    norm = length . localConfiguration
+
+-- | The cutoff event of a branching process.
+cutoffEvent :: Event -> Set Node -> Bool
+cutoffEvent _ _ = False
+-- cutoffEvent e ns = undefined -- WIP
+
+-- | Improvement of McMillan's unfolding algorithm
+unfolding :: Set Transition -> Set Node
+unfolding ts = unfold initFin initPE initCO ts
+  where
+    -- Initialise the complete finite prefix.
+    initFin :: Set Node
+    initFin = S.singleton . CN $ C PlaceStart Nothing
+    -- Initialise the possible extensions.
+    initPE :: Set Event
+    initPE = possibleExtensions initFin ts
+    -- Initialise the cutoff events.
+    initCO :: Set Event
+    initCO = mempty
     -- Main unfolding loop.
-    unfold :: Set Node -> Set Transition -> Set Node
-    unfold unf ts
-      | null pe   = unf             -- end loop
-      | otherwise = unfold unf'' ts -- do unfolding
+    unfold :: Set Node -> Set Event -> Set Event -> Set Transition -> Set Node
+    unfold fin pe co ts
+      | null pe   = fin                     -- end loop
+      | null eco  = unfold fin'' pe' co' ts -- do unfolding
+      | otherwise = unfold fin pe'' co ts   -- choose a different event
       where
-        -- Set of possible extensions.
-        pe :: Set Event
-        pe = possibleExtensions unf ts
-        -- Choose an event of PE (nondeterministic, WIP).
+        -- Choose an event e = (t, x) in PE such that the local configuration
+        -- of e is minimal with respect to an adequate order.
         e :: Event
-        e@(E (Arrow _ (places -> ps)) _) = S.findMin pe
-        -- Add to UNF an event e = (t, x) of PE.
-        unf' :: Set Node
-        unf' = S.insert (EN e) unf
-        -- Add to UNF a condition (s, e) for each output place s of t.
-        unf'' :: Set Node
-        unf'' = S.union (S.map (CN . flip C (Just e)) ps) unf'
+        e@(E (Arrow _ (places -> ps)) _) = minimumBy adequateOrder pe
+        -- Intersection of the local configuration of e and the cutoff events.
+        eco :: Set Event
+        eco = S.intersection co $ localConfiguration e
+        -- Add to Fin an event e = (t, x) of PE.
+        fin' :: Set Node
+        fin' = S.insert (EN e) fin
+        -- Add to Fin a condition (s, e) for each output place s of t.
+        fin'' :: Set Node
+        fin'' = S.map (CN . flip C (Just e)) ps <> fin'
+        -- Reset the possible extensions.
+        pe' :: Set Event
+        pe' = possibleExtensions fin'' ts
+        -- Add e to the cutoff events.
+        co' :: Set Event
+        co' = co <> if cutoffEvent e fin'' then S.singleton e else mempty
+        -- Remove e from the possible extensions.
+        pe'' :: Set Event
+        pe'' = pe S.\\ S.singleton e
 
 -- Reachability analysis by unfolding (WIP)
 -------------------------------------------------------------------------------
