@@ -90,36 +90,87 @@ type GraphBuilderM = RWS
 allPlaces :: Set Transition -> Set Place
 allPlaces = foldMap (\(Arrow (places -> src) (places -> dst)) -> src <> dst)
 
+-------------------------------------------------------------------------------
+-- Reachability analysis by unfolding (WIP)
+
 -- | Branching processes of petri nets.
-type Net       = Set Node
-data Node      = CNode Condition | ENode Event    deriving (Eq, Ord)
-data Condition = Condition Place (Maybe Event)    deriving (Eq, Ord)
-data Event     = Event Transition (Set Condition) deriving (Eq, Ord)
-
--- | Parents of branching process nodes.
-parents :: Node -> Net
-parents (CNode (Condition _ me)) = S.map ENode . S.fromList . maybeToList $ me
-parents (ENode (Event _ cs))     = S.map CNode cs
-
--- | Ascendants of branching process nodes.
-ascendants :: Node -> Net
-ascendants node = S.singleton node <> foldMap ascendants (parents node)
+data Node      = CN Condition | EN Event      deriving (Eq, Ord, Show)
+data Condition = C Place (Maybe Event)        deriving (Eq, Ord, Show)
+data Event     = E Transition (Set Condition) deriving (Eq, Ord, Show)
 
 -- | Two nodes x and y are in concurrent relation if they are neither in causal
 -- nor in conflict relation.
-concurrent :: Node -> Node -> Bool
-concurrent x y = not (causal x y || causal y x || conflict x y)
+concurrency :: Node -> Node -> Bool
+concurrency x y = not (causality x y || causality y x || conflicted x y)
   where
+    -- The parents of a node in a branching process.
+    parents :: Node -> Set Node
+    parents (CN (C _ me)) = S.map EN . S.fromList . maybeToList $ me
+    parents (EN (E _ cs)) = S.map CN cs
+    -- The ascendants of a node in a branching process.
+    ascendants :: Node -> Set Node
+    ascendants n = S.singleton n <> foldMap ascendants (parents n)
     -- Two nodes x and y are in causal relation if the net contains a path with
     -- at least one arc leading from x to y.
-    causal :: Node -> Node -> Bool
-    causal x y = x /= y && elem x (ascendants y)
+    causality :: Node -> Node -> Bool
+    causality x y = x /= y && elem x (ascendants y)
     -- Two nodes x and y are in conflict relation if the net contains two paths
     -- leading to x and y which start at the same place and immediately diverge.
-    conflict :: Node -> Node -> Bool
-    conflict x y = isNonEmpty
+    conflicted :: Node -> Node -> Bool
+    conflicted x y = isNonEmpty
       [(x, y) | x' <- S.toList (ascendants x), y' <- S.toList (ascendants y),
                 x' /= y', isNonEmpty (S.intersection (parents x) (parents y))]
+
+-- | The set of events that can be added to a given branching process.
+possibleExtensions :: Set Node -> Set Transition -> Set Event
+possibleExtensions ns ts = S.fromList
+  [ E t x
+  | x <- S.toList (cosets ns)                 -- cosets of the branching process
+  , t@(Arrow (places -> ps) _) <- S.toList ts -- transitions of the petri net
+  , S.map (\(C p _) -> p) x == ps             -- isomorphism of occurrence nets
+  , notElem (EN (E t x)) ns                   -- event does not already occur
+  ]
+  where
+    -- A set of conditions of the branching process.
+    conditions :: Node -> Set Condition -> Set Condition
+    conditions (CN c) cs = S.insert c cs
+    conditions _      cs = cs
+    -- A set whose elements are pairwise in concurrent relation.
+    concurrent :: Set Condition -> Bool
+    concurrent cs = and [concurrency (CN x) (CN y) |
+                         x <- S.toList cs, y <- S.toList cs, x < y]
+    -- The set of sets of concurrent conditions.
+    cosets :: Set Node -> Set (Set Condition)
+    cosets = S.filter concurrent . S.powerSet . foldr conditions mempty
+
+-- | McMillan's unfolding algorithm
+unfolding :: Set Transition -> Set Node
+unfolding = unfold initUNF
+  where
+    -- Initialise UNF.
+    initUNF :: Set Node
+    initUNF = S.singleton . CN $ C PlaceStart Nothing
+    -- Main unfolding loop.
+    unfold :: Set Node -> Set Transition -> Set Node
+    unfold unf ts
+      | null pe   = unf             -- end loop
+      | otherwise = unfold unf'' ts -- do unfolding
+      where
+        -- Set of possible extensions.
+        pe :: Set Event
+        pe = possibleExtensions unf ts
+        -- Choose an event of PE (nondeterministic, WIP).
+        e :: Event
+        e@(E (Arrow _ (places -> ps)) _) = S.findMin pe
+        -- Add to UNF an event e = (t, x) of PE.
+        unf' :: Set Node
+        unf' = S.insert (EN e) unf
+        -- Add to UNF a condition (s, e) for each output place s of t.
+        unf'' :: Set Node
+        unf'' = S.union (S.map (CN . flip C (Just e)) ps) unf'
+
+-- Reachability analysis by unfolding (WIP)
+-------------------------------------------------------------------------------
 
 -- | Given a set of transitions, check whether they describe a sound workflow,
 -- and if the set of errors is empty then the graph is complete.
