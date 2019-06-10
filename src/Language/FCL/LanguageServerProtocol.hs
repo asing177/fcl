@@ -203,8 +203,8 @@ toLSP cErr = case cErr of
             -> startErrLSP violationLocation err
           err@(Effect.HelperEffect{..})
             -> startErrLSP helperLocation err
-          err@(Effect.CollectionEffect{..})
-            -> startErrLSP collectionLocation err
+          err@(Effect.OnlyReadEffectsAllowed{..})
+            -> startErrLSP effectLocation err
           err@(Effect.PreconditionsEffect{..})
             -> startErrLSP preconditionLocation err
        ) <$> effectErrors
