@@ -28,8 +28,12 @@ Hole at Line 10, Column 13:
          global variable x
 
 Error at Line 12, Column 11:
-   Invalid binary operation: 
-      '+' does not accept types decimal<1> and i
+   Implicit loss of numeric precision
+      'int' inferred from the assignment to variable 'x' on Line 12, Column 11
+      'decimal<1>' inferred from literal '0.5' on Line 12, Column 7
+   Possible fixes:
+      • round the higher precision expression to match the lower precision
+      • use types with more (e.g. arbitrary) precision
 
 Hole at Line 12, Column 13:
-   Expecting an expression or statement here.
+   Expecting something of type 'decimal<1>'.

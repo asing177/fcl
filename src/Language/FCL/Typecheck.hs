@@ -1104,6 +1104,7 @@ tcMult opLoc torig e1 e2 = do
     (TTimeDelta, _)   -> addConstrAndRetInfo' (tDeltaInfo torig eLoc) (TypeInfo (TNum nPInt) torig opLoc, tinfo2)
     (_, TTimeDelta)   -> addConstrAndRetInfo' (tDeltaInfo torig eLoc) (tinfo1, TypeInfo (TNum nPInt) torig opLoc)
     (TVar a, _)       -> addConstrAndRetInfo' tinfo1 (tinfo1, tinfo2)
+    (_, TVar a)       -> addConstrAndRetInfo' tinfo1 (tinfo1, tinfo2)
     (t1,t2)           -> do
       throwErrInferM (InvalidBinOp Mul t1 t2) opLoc
       return $ TypeInfo TError torig eLoc
@@ -1132,6 +1133,7 @@ tcAddSub op opLoc torig e1 e2 = do
     -- TMsg + TMsg (concatenation, no subtraction)
     (TText, _)         -> tcAddNoSub tinfo1 tinfo2
     (TVar a, _)       -> addConstrAndRetInfo' tinfo1 (tinfo1, tinfo2)
+    (_, TVar a)       -> addConstrAndRetInfo' tinfo1 (tinfo1, tinfo2)
     (t1, t2)          -> do
       throwErrInferM (InvalidBinOp op t1 t2) opLoc
       return $ TypeInfo TError torig eLoc
@@ -1162,6 +1164,7 @@ tcDiv opLoc torig e1 e2 = do
   case (ttype tinfo1, ttype tinfo2) of
     (TNum _, TNum _)  -> pure $ TypeInfo (TNum NPArbitrary) torig eLoc
     (TVar a, _)       -> addConstrAndRetInfo' tinfo1 (tinfo1, tinfo2)
+    (_, TVar a)       -> addConstrAndRetInfo' tinfo1 (tinfo1, tinfo2)
     (t1,t2)           -> do
       throwErrInferM (InvalidBinOp Div t1 t2) opLoc
       return $ TypeInfo TError torig eLoc
@@ -1190,7 +1193,8 @@ tcEqual op opLoc torig e1 e2 = do
     (TDateTime, _) -> addConstrAndRetBool (tDatetimeInfo torig opLoc, tinfo2)
     (TTimeDelta, _) -> addConstrAndRetBool (tDeltaInfo torig opLoc, tinfo2)
     (TText, _)      -> addConstrAndRetBool (tMsgInfo torig opLoc, tinfo2)
-    (TVar a, _)     -> addConstrAndRetBool (tinfo1, tinfo2)
+    (TVar _, _)     -> addConstrAndRetBool (tinfo1, tinfo2)
+    (_, TVar _)     -> addConstrAndRetBool (tinfo1, tinfo2)
     (TNum _, TNum _) -> return $ tBoolInfo torig eLoc
     (t1,t2)        -> do
       throwErrInferM (InvalidBinOp op t1 t2) opLoc
@@ -1206,8 +1210,9 @@ tcLEqual op opLoc torig e1 e2 = do
   case (ttype tinfo1, ttype tinfo2) of
     (TDateTime, _)   -> addConstrAndRetBool (tDatetimeInfo torig opLoc, tinfo2)
     (TTimeDelta, _)  -> addConstrAndRetBool (tDeltaInfo torig opLoc, tinfo2)
-    (TVar a, _)      -> addConstrAndRetBool (tinfo1, tinfo2)
-    (TNum _, TNum _) -> return $ tBoolInfo torig eLoc
+    (TVar _, _)      -> addConstrAndRetBool (tinfo1, tinfo2)
+    (_, TVar _)      -> addConstrAndRetBool (tinfo1, tinfo2)
+    (TNum _, _)      -> addConstrAndRetBool (tinfo1, tinfo2)
     (t1,t2)          -> do
       throwErrInferM (InvalidBinOp op t1 t2) opLoc
       return $ TypeInfo TError torig eLoc
