@@ -378,7 +378,6 @@ effectCheckExpr gnms expr = case locVal expr of
     EBetween g1 g2 e -> meetsErr [onlyReadEffectsAllowed g1, onlyReadEffectsAllowed g2, effectCheckExpr gnms e]
     EAssign v e -> meetsErr ([onlyReadEffectsAllowed e] <> if v `elem` gnms then [Right $ writeVar v] else [])
     ECall f args -> meetsErr (Right (callEffect f) : map onlyReadEffectsAllowed args)
-    -- ECall (Right _) args -> effectCheckExprs gnms args
     ENoOp -> Right noEffect
     EMap m -> meetsErr . map onlyReadEffectsAllowed $ Map.keys m <> Map.elems m
     ESet s -> meetsErr . map onlyReadEffectsAllowed $ toList s
