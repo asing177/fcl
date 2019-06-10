@@ -2,7 +2,7 @@
 
 Storage for deployed contracts.
 
---}
+-}
 
 {-# LANGUAGE StrictData #-}
 {-# LANGUAGE LambdaCase #-}
@@ -29,10 +29,6 @@ module Language.FCL.Storage (
 
   -- ** Validation
   validateStorage,
-
-  -- ** Hashing
-  -- hashStorage,
-
 ) where
 
 import Protolude hiding (Type)
@@ -211,6 +207,3 @@ instance Hash.Hashable Key where
 
 base16HashToInteger :: Hash.Hash Encoding.Base16ByteString -> Integer
 base16HashToInteger = os2ip
-
--- hashStorage :: Storage -> Integer
--- hashStorage = base16HashToInteger . Hash.toHash

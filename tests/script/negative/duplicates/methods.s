@@ -1,0 +1,5 @@
+@initial
+f() {}
+
+@initial
+f() {}

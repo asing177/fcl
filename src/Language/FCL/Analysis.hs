@@ -1,6 +1,12 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE DeriveAnyClass #-}
-module Language.FCL.Analysis where
+module Language.FCL.Analysis (
+  TransitionError(..),
+  TransitionErrors(..),
+  checkInferTransitions,
+  actualTransitions,
+  inferTransitions,
+) where
 
 import Protolude hiding ((<>))
 

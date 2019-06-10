@@ -8,6 +8,7 @@ ByteString types with serializers that consume finite, bounded data.
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE DeriveGeneric #-}
+{-# OPTIONS_GHC -fno-warn-orphans #-}
 
 module Language.FCL.SafeString (
   SafeString,

@@ -1,6 +1,9 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE DeriveAnyClass #-}
-module Language.FCL.Warning where
+
+module Language.FCL.Warning (
+  Warning(..),
+) where
 
 import Protolude hiding ((<>))
 

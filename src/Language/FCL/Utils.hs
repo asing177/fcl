@@ -1,10 +1,10 @@
-{-# LANGUAGE ScopedTypeVariables #-}
-
 {-|
 
 Utility functions.
 
 -}
+
+{-# LANGUAGE ScopedTypeVariables #-}
 
 module Language.FCL.Utils (
   toByteList,

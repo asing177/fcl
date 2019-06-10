@@ -85,6 +85,7 @@ data TypeErrInfo
   | TransitionOnlyInOneBranch           -- ^ Transition only in one branch of @if@ statement
   | UnreachableStatement Loc            -- ^ The following statement is unreachable because of a transition
   | ExpectedStatement Type              -- ^ Expected statement but got expression
+  | ExpectedExpressionAssRHS LExpr      -- ^ Expected expression but got statement
   | MethodUnspecifiedTransition Name    -- ^ Method doesn't specify where to transition to
   | CaseOnNotEnum TypeInfo              -- ^ Case analysis on non-enum type
   | UnknownConstructor Name             -- ^ Reference to undefined constructor
@@ -498,10 +499,11 @@ tcLExpr le@(Located loc expr) = case expr of
                 throwErrInferM terr (located helperNm)
 
   EAssign nm e -> do
+    eTypeInfo@(TypeInfo eType _ eLoc) <- tcLExpr e
+    when (eType == TVoid) (void $ throwErrInferM (ExpectedExpressionAssRHS e) eLoc)
     lookupVarType (Located loc nm) >>= \case
 
       Nothing -> do -- New temp variable, instantiate it
-        eTypeInfo@(TypeInfo eType _ eLoc) <- tcLExpr e
         let typeInfo = TypeInfo eType (InferredFromExpr $ locVal e) eLoc
         extendContextInferM (nm, Temp, typeInfo)
 
@@ -510,7 +512,6 @@ tcLExpr le@(Located loc expr) = case expr of
           tvar <- freshTVar
           let retTypeInfo = TypeInfo tvar (InferredFromAssignment nm) (located e)
           addConstraint e varTypeInfo retTypeInfo
-          eTypeInfo@(TypeInfo eType _ eLoc) <- tcLExpr e
           addConstraint e retTypeInfo eTypeInfo
         else void $ throwErrInferM (Shadow nm meta varTypeInfo) loc
 
@@ -1119,6 +1120,7 @@ tcMult opLoc torig e1 e2 = do
     (TTimeDelta, _)   -> addConstrAndRetInfo' (tDeltaInfo torig eLoc) (TypeInfo (TNum nPInt) torig opLoc, tinfo2)
     (_, TTimeDelta)   -> addConstrAndRetInfo' (tDeltaInfo torig eLoc) (tinfo1, TypeInfo (TNum nPInt) torig opLoc)
     (TVar a, _)       -> addConstrAndRetInfo' tinfo1 (tinfo1, tinfo2)
+    (_, TVar a)       -> addConstrAndRetInfo' tinfo1 (tinfo1, tinfo2)
     (t1,t2)           -> do
       throwErrInferM (InvalidBinOp Mul t1 t2) opLoc
       return $ TypeInfo TError torig eLoc
@@ -1147,6 +1149,7 @@ tcAddSub op opLoc torig e1 e2 = do
     -- TMsg + TMsg (concatenation, no subtraction)
     (TText, _)         -> tcAddNoSub tinfo1 tinfo2
     (TVar a, _)       -> addConstrAndRetInfo' tinfo1 (tinfo1, tinfo2)
+    (_, TVar a)       -> addConstrAndRetInfo' tinfo1 (tinfo1, tinfo2)
     (t1, t2)          -> do
       throwErrInferM (InvalidBinOp op t1 t2) opLoc
       return $ TypeInfo TError torig eLoc
@@ -1177,6 +1180,7 @@ tcDiv opLoc torig e1 e2 = do
   case (ttype tinfo1, ttype tinfo2) of
     (TNum _, TNum _)  -> pure $ TypeInfo (TNum NPArbitrary) torig eLoc
     (TVar a, _)       -> addConstrAndRetInfo' tinfo1 (tinfo1, tinfo2)
+    (_, TVar a)       -> addConstrAndRetInfo' tinfo1 (tinfo1, tinfo2)
     (t1,t2)           -> do
       throwErrInferM (InvalidBinOp Div t1 t2) opLoc
       return $ TypeInfo TError torig eLoc
@@ -1205,7 +1209,8 @@ tcEqual op opLoc torig e1 e2 = do
     (TDateTime, _) -> addConstrAndRetBool (tDatetimeInfo torig opLoc, tinfo2)
     (TTimeDelta, _) -> addConstrAndRetBool (tDeltaInfo torig opLoc, tinfo2)
     (TText, _)      -> addConstrAndRetBool (tMsgInfo torig opLoc, tinfo2)
-    (TVar a, _)     -> addConstrAndRetBool (tinfo1, tinfo2)
+    (TVar _, _)     -> addConstrAndRetBool (tinfo1, tinfo2)
+    (_, TVar _)     -> addConstrAndRetBool (tinfo1, tinfo2)
     (TNum _, TNum _) -> return $ tBoolInfo torig eLoc
     (t1,t2)        -> do
       throwErrInferM (InvalidBinOp op t1 t2) opLoc
@@ -1221,8 +1226,9 @@ tcLEqual op opLoc torig e1 e2 = do
   case (ttype tinfo1, ttype tinfo2) of
     (TDateTime, _)   -> addConstrAndRetBool (tDatetimeInfo torig opLoc, tinfo2)
     (TTimeDelta, _)  -> addConstrAndRetBool (tDeltaInfo torig opLoc, tinfo2)
-    (TVar a, _)      -> addConstrAndRetBool (tinfo1, tinfo2)
-    (TNum _, TNum _) -> return $ tBoolInfo torig eLoc
+    (TVar _, _)      -> addConstrAndRetBool (tinfo1, tinfo2)
+    (_, TVar _)      -> addConstrAndRetBool (tinfo1, tinfo2)
+    (TNum _, _)      -> addConstrAndRetBool (tinfo1, tinfo2)
     (t1,t2)          -> do
       throwErrInferM (InvalidBinOp op t1 t2) opLoc
       return $ TypeInfo TError torig eLoc
@@ -1619,7 +1625,7 @@ instance Pretty TypeOrigin where
     BinaryOperator op   -> "inferred from use of binary operator" <+> sqppr op
     UnaryOperator op    -> "inferred from use of unary operator" <+> sqppr op
     Assignment          -> "inferred from variable assignment"
-    IfCondition         -> "must be a bool because of if statement"
+    IfCondition         -> "inferred from the condition of an if statement"
     DateTimeGuardPred   -> "must be a datetime because it is a datetime guard predicate"
     DateTimeGuardBody   -> "must be a void because it is the body of a datetime guard"
     FunctionArg n nm    -> "inferred from the type signature of argument" <+> ppr n <+> "of function" <+> sqppr nm
@@ -1678,6 +1684,8 @@ instance Pretty TypeErrInfo where
         <+> ppr loc <+> "unreachable."
     ExpectedStatement ty
       -> "Expected a statement but got something of type" <+> sqppr ty
+    ExpectedExpressionAssRHS stmt
+      -> "Expected an expression on the right hand side of an assignment but got the statement" <+> sqppr stmt
     MethodUnspecifiedTransition name
       -> "Method" <+> sqppr name <+> "does not specify where to transition to."
         <$$+> "If the method should not transition, use the" <+> squotes (ppr Stay <> "()")

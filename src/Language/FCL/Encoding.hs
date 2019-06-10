@@ -1,11 +1,11 @@
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-
 {-|
 
 Byte encoding schemes.
 
 -}
+
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
 module Language.FCL.Encoding (
   -- ** ByteStringEncoding
