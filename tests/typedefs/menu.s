@@ -2,9 +2,9 @@ type Size { Big; Small }
 
 // type Size { Grand; Petit } // DONE: duplicate type definition
 
-type Taille { Big; Small } // TODO: constructor name shadowing check
+// type Taille { Big; Small } // DONE: constructor name shadowing check
 
-type Dup { MkDup(int n, int n) } // TODO: field name shadowing check
+type Dup { MkDup(int n, int n) } // DONE: field name shadowing check
 
 type Item {
   Chips(Size size);                            // DONE: Parameterised constructors with field names

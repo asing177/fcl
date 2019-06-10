@@ -163,7 +163,7 @@ type LUnOp  = Located UnOp
 type LPattern = Located Pattern
 
 -- | Enum constructor.
-data EnumConstr = EnumConstr { enumConstrId :: LName, enumConstrParams :: [(Type, Name)] }
+data EnumConstr = EnumConstr { enumConstrId :: LName, enumConstrParams :: [(Type, LName)] }
   deriving (Eq, Show, Ord, Generic, Hash.Hashable, FromJSON, ToJSON, Serialize)
 
 -- | Variable names
@@ -504,7 +504,7 @@ mapType einfo   (VSet vset)   =
     (v:_) -> TColl <$> (TSet <$> mapType einfo v)
 
 data EnumInfo = EnumInfo
-  { constructorToType :: Map Name (LName, [(Type, Name)])
+  { constructorToType :: Map Name (LName, [(Type, LName)])
   , enumToConstrs :: Map Name [EnumConstr]
   }
 
@@ -514,7 +514,7 @@ data EnumInfo = EnumInfo
 createEnumInfo :: [EnumDef] -> EnumInfo
 createEnumInfo enums = EnumInfo m1 m2
   where
-    m1 :: Map Name (LName, [(Type, Name)])
+    m1 :: Map Name (LName, [(Type, LName)])
     m1
       = Map.fromList
       . concatMap

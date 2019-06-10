@@ -108,7 +108,7 @@ data TypeErrInfo
     }
   | TooManyPatterns Name Pattern
   | TooManyArguments Name LExpr
-  | NotEnoughArguments Name (Type, Name)
+  | NotEnoughArguments Name (Type, LName)
   deriving (Eq, Show, Generic, Serialize, A.FromJSON, A.ToJSON)
 
 -- | Type error
@@ -149,7 +149,7 @@ data TypeOrigin
   | FunctionArg Int Name  -- ^ Expr passed as function argument + it's position
   | FunctionRet Name      -- ^ Returned from prip op
   | FromConstructor Name  -- ^ Enum type of pattern
-  | FromConstructorField { constructor :: Name, field :: Name }
+  | FromConstructorField { constructor :: Name, field :: LName }
   | CaseBody Expr         -- ^ Body of case match
   | FromCase Loc
   | FromVariablePattern LName
@@ -600,7 +600,7 @@ tcLExpr le@(Located loc expr) = case expr of
           , tloc = loc }
     where
       econstrZip
-        :: [(Type, Name)] -- ^ the types and names of the constructor fields
+        :: [(Type, LName)] -- ^ the types and names of the constructor fields
         -> [LExpr] -- ^ the constructor arguments
         -> InferM ()
       econstrZip ((ty, field):ts) (e:es) = do
@@ -667,7 +667,7 @@ tcPattern tyExpected (PatConstr (Located loc c) pats)
         patZip paramTys pats []
   where
     patZip
-      :: [(Type, Name)] -- ^ the types and names of the constructor fields
+      :: [(Type, LName)] -- ^ the types and names of the constructor fields
       -> [Pattern] -- ^ the constructor argument patterns to check
       -> PatContext -- ^ accumulator of the pattern context (bindings that get created through matches)
       -> InferM PatContext

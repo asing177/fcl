@@ -159,7 +159,7 @@ toLSP cErr = case cErr of
         Dupl.DuplicateFunction lname
           -> fullErrLSP (Script.located lname) (Text.length (Script.unName (Script.locVal lname))) dupErr
         Dupl.DuplicateConstructor l
-          -> fullErrLSP (Script.located l) (BS.length (SafeString.toBytes $ Script.unEnumConstr (Script.locVal l))) dupErr
+          -> fullErrLSP (Script.located l) (BS.length (SafeString.toBytes $ _ (Script.locVal l))) dupErr
         Dupl.DuplicateEnumDef lname
           -> fullErrLSP (Script.located lname) (Text.length (Script.unName (Script.locVal lname))) dupErr
         Dupl.DuplicateVariable varA varB lname

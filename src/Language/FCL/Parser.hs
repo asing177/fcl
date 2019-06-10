@@ -168,7 +168,6 @@ lit =  try timedeltaLit
    <|> stateLit
    <|> datetimeLit
    <|> textLit
-   <|> voidLit
    <?> "literal"
 
 locLit :: Parser LLit
@@ -276,10 +275,6 @@ rawTextLit = do
     ascii = alphaNum
          <|> (oneOf $ "!@#$%^&*()-=_+[]{};:',<.>/?\\| ")
 
-voidLit :: Parser Lit
-voidLit = LVoid <$ try (reserved Token.void)
- <?> "void literal"
-
 -------------------------------------------------------------------------------
 -- Types
 -------------------------------------------------------------------------------
@@ -289,7 +284,6 @@ type_ =  intType
      <|> numType
      <|> decimalType
      <|> boolType
-     <|> voidType
      <|> accountType
      <|> assetType
      <|> contractType
@@ -317,9 +311,6 @@ decimalType = do
 
 boolType :: Parser Type
 boolType = TBool <$ try (reserved Token.bool)
-
-voidType :: Parser Type
-voidType = TVoid <$ try (reserved Token.void)
 
 accountType :: Parser Type
 accountType = TAccount <$ try (reserved Token.account)
@@ -687,7 +678,7 @@ enumDef = do
       <$> Lexer.locNameUpper
       <*> (parens (commaSep namedType) <|> pure [])
 
-    namedType = (,) <$> type_ <* whiteSpace <*> name
+    namedType = (,) <$> type_ <* whiteSpace <*> locName
 
 -------------------------------------------------------------------------------
 -- Script
