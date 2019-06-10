@@ -88,7 +88,6 @@ arbValue n
       , VAsset <$> arbitrary
       , VText <$> arbitrary
       , VSig <$> arbitrary
-      , pure VVoid
       , VDateTime <$> arbitrary
       , VTimeDelta <$> arbitrary
       , VEnum <$> arbitrary
