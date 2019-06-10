@@ -4,7 +4,27 @@
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE LambdaCase #-}
 
-module Language.FCL.LanguageServerProtocol where
+module Language.FCL.LanguageServerProtocol
+  ( ReqScript(..)
+  , ReqMethod(..)
+  , ReqDef(..)
+  , RespScript(..)
+  , RespMethod(..)
+  , RespDef(..)
+  , ReqEnumDef(..)
+  , ReqTransition(..)
+  , ReqMethodArg(..)
+  , scriptCompile
+  , scriptCompileRaw
+  , scriptParse
+  , methodCompile
+  , methodCompileRaw
+  , defCompile
+  , defCompileRaw
+  , LSPErr(..)
+  , LSP(..)
+  , toLSP
+  ) where
 
 import Protolude
 
@@ -58,13 +78,17 @@ data ReqMethodArg
   , argType :: Text
   } deriving (Eq, Ord, Show, Generic, ToJSON, FromJSON)
 
--- TODO: Add other defs (GlobalDefNull)
 data ReqDef
   = ReqGlobalDef
-  { defName :: Text
-  , defType :: Text
-  , defValue :: Text
-  } deriving (Eq, Ord, Show, Generic, ToJSON, FromJSON)
+    { defName :: Text
+    , defType :: Text
+    , defValue :: Text
+    }
+  | ReqGlobalDefNull
+    { defNullName :: Text
+    , defNullType :: Text
+    }
+  deriving (Eq, Ord, Show, Generic, ToJSON, FromJSON)
 
 data ReqEnumDef
   = ReqEnumDef
@@ -72,56 +96,36 @@ data ReqEnumDef
   , enumConstr :: [Script.EnumConstr]
   } deriving (Eq, Ord, Show, Generic, ToJSON, FromJSON)
 
+------------------------
+-- Response datatypes --
+------------------------
+
 data RespMethod
   = RespMethod
   { respMethod :: Script.Method
   , respPpMethod :: Text
   } deriving (Eq, Show, Generic, ToJSON, FromJSON)
 
-parseMethod :: ReqMethod -> Either Parser.ParseErrInfo Script.Method
-parseMethod  reqMethod@ReqMethod{..} = do
-  parsedMethodBody <- Parser.parseBlock methodBodyText
-  argTypes <- sequence $ (\a -> Parser.parseType (argType a)) <$> methodArgs
-  let args = zipWith Script.Arg argTypes (Script.Located Script.NoLoc . argName <$> methodArgs)
-  pure Script.Method
-        { methodInputPlaces = methodInputPlaces
-        , methodPreconditions = methodPreconditions
-        , methodName = (Script.Located Script.NoLoc methodName)
-        , methodBody = parsedMethodBody
-        , methodArgs = args
-        }
-
-parseScript :: ReqScript -> Either Parser.ParseErrInfo Script.Script
-parseScript reqScript@ReqScript{..} = do
-  methods <- sequence $ parseMethod <$> methods
-  defs <- sequence $ Parser.parseDefn . textifyReqDef <$> defs
-  pure Script.Script
-      { scriptDefs = defs
-      , scriptEnums = (\e -> Script.EnumDef
-                                (Script.Located Script.NoLoc (enumName e))
-                                (Script.Located Script.NoLoc <$> (enumConstr e))
-                             ) <$> enums
-      , scriptMethods = methods
-      , scriptTransitions = []
-      , scriptHelpers = []
-      }
-
-compileScript :: ReqScript -> Either Compile.CompilationErr Compile.CheckedScript
-compileScript reqScript@ReqScript{..} = do
-  ast <- first Compile.ParseErr (parseScript reqScript)
-  Compile.compileScript ast
-
 data RespScript = RespScript
-  { respScript :: Script.Script -- TODO: Keep method body text as it came
+  { respScript :: Script.Script
   , respPpScript :: Text
   , respScriptWarnings :: [Warning]
   , respScriptSigs :: [(Script.Name, Typecheck.Sig, Effect.Effects)]
   , respGraphviz :: Graphviz.Graphviz
   } deriving (Show, Generic, ToJSON, FromJSON)
 
-validateScript :: ReqScript -> Either Compile.CompilationErr RespScript
-validateScript reqScript@ReqScript{..} = do
-  cs <- compileScript reqScript
+data RespDef
+  = RespDef Script.Def
+  deriving (Show, Generic, ToJSON, FromJSON)
+
+-------------
+-- Scripts --
+-------------
+
+scriptCompile :: ReqScript -> Either LSPErr RespScript
+scriptCompile req@ReqScript{..} = do
+  ast <- respScript <$> scriptParse req
+  cs <- first toLSPErr (Compile.compileScript ast)
   let script = Compile.checkedScript cs
   pure $ RespScript
     { respScript = script
@@ -131,11 +135,93 @@ validateScript reqScript@ReqScript{..} = do
     , respGraphviz = Graphviz.methodsToGraphviz (Script.scriptMethods script)
     }
 
+scriptCompileRaw :: Text -> Either LSPErr RespScript
+scriptCompileRaw text
+  = first toLSPErr $ Compile.compile text >>= \cs -> do
+  let script = Compile.checkedScript cs
+  pure $ RespScript
+    { respScript = script
+    , respPpScript = toS $ Pretty.prettyPrint script
+    , respScriptWarnings = Compile.checkedScriptWarnings cs
+    , respScriptSigs = Compile.checkedScriptSigs cs
+    , respGraphviz = Graphviz.methodsToGraphviz (Script.scriptMethods script)
+    }
+
+scriptParse :: ReqScript -> Either LSPErr RespScript
+scriptParse reqScript@ReqScript{..} = do
+  methods <- sequence $ methodCompile <$> methods
+  defs <- first (toLSPErr . Compile.ParseErr) (sequence $ Parser.parseDefn . textifyReqDef <$> defs)
+  let enums' = (\e -> Script.EnumDef
+                   (Script.Located Script.NoLoc (enumName e))
+                   (Script.Located Script.NoLoc <$> (enumConstr e))
+                 ) <$> enums
+  let script = Script.Script enums' defs [] (respMethod <$> methods) []
+  pure $ RespScript
+           script
+           (Pretty.prettyPrint script)
+           []
+           []
+           (Graphviz.methodsToGraphviz (Script.scriptMethods script))
+
+-------------
+-- Methods --
+-------------
+
+methodCompile :: ReqMethod -> Either LSPErr RespMethod
+methodCompile  reqMethod@ReqMethod{..} = do
+  parsedMethodBody <- first (toLSPErr . Compile.ParseErr) (Parser.parseBlock methodBodyText)
+  argTypes <- first (toLSPErr . Compile.ParseErr) (sequence $ (Parser.parseType . argType) <$> methodArgs)
+  let args = zipWith Script.Arg argTypes (Script.Located Script.NoLoc . argName <$> methodArgs)
+  let method = Script.Method
+        { methodInputPlaces = methodInputPlaces
+        , methodPreconditions = methodPreconditions
+        , methodName = (Script.Located Script.NoLoc methodName)
+        , methodBody = parsedMethodBody
+        , methodArgs = args
+        }
+  pure $ RespMethod method (toS $ Pretty.prettyPrint method)
+
+
+methodCompileRaw :: Text -> Either LSPErr RespMethod
+methodCompileRaw text
+  = first (toLSPErr . Compile.ParseErr) $ do
+  method <- (Parser.parseMethod text)
+  pure $ RespMethod method text
+
+----------
+-- Defs --
+----------
+
+defCompile :: ReqDef -> Either LSPErr RespDef
+defCompile def = first (toLSPErr . Compile.ParseErr) $ do
+  defn <- Parser.parseDefn . textifyReqDef $ def
+  pure $ RespDef defn
+
+defCompileRaw :: Text -> Either LSPErr RespDef
+defCompileRaw text = do
+  defn <- first (toLSPErr . Compile.ParseErr) (Parser.parseDefn text)
+  first (toLSPErr . Compile.TypecheckErr) (Typecheck.runSolverM . snd
+                $ Typecheck.runInferM
+                (Script.EnumInfo mempty mempty)
+                Typecheck.emptyInferState
+                (Typecheck.tcDefn defn))
+  pure $ RespDef defn
+
 (<..>) :: Text -> Text -> Text
 (<..>) t1 t2 = t1 <> " " <> t2
 
+-- Change it pprint
 textifyReqDef :: ReqDef -> Text
 textifyReqDef ReqGlobalDef{..} = defType <..> defName <..> "=" <..> defValue <> ";"
+textifyReqDef ReqGlobalDefNull{..} = defNullType <..> defNullName <> ";"
+
+data LSPErr = LSPErr
+  { lsp :: [LSP]
+  , err :: Compile.CompilationErr
+  } deriving (Generic, ToJSON, FromJSON)
+
+toLSPErr :: Compile.CompilationErr -> LSPErr
+toLSPErr err = LSPErr (toLSP err) err
 
 -- Language Server Protocol (LSP)
 data LSP = LSP
@@ -147,7 +233,6 @@ data LSP = LSP
   , severity :: Int
   } deriving (Show, Generic, ToJSON, FromJSON)
 
--- TODO: Return the type of the compilation error
 toLSP :: Compile.CompilationErr -> [LSP]
 toLSP cErr = case cErr of
   Compile.ParseErr Parser.ParseErrInfo{..}

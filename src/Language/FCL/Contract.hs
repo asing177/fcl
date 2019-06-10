@@ -32,7 +32,7 @@ module Language.FCL.Contract (
   signContract,
 ) where
 
-import Protolude hiding (state, Type(..))
+import Protolude hiding (state, Type)
 
 import Language.FCL.Time (Timestamp)
 import Language.FCL.Address

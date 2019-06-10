@@ -1,10 +1,10 @@
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE EmptyDataDecls             #-}
 {-# LANGUAGE FlexibleContexts           #-}
 {-# LANGUAGE GADTs                      #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE DeriveGeneric #-}
-
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE FlexibleInstances          #-}
 module API where
@@ -17,13 +17,10 @@ import Servant
 import Servant.Swagger
 import Servant.Swagger.UI
 
-import Language.FCL.AST as Script
 import Language.FCL.Parser as Parser
-import Language.FCL.Typecheck as Typecheck
-import Language.FCL.Pretty as Pretty
 import Language.FCL.Compile as Compile
-import Language.FCL.Graphviz as Graphviz
 import qualified Language.FCL.LanguageServerProtocol as LSP
+import Data.Aeson as A (ToJSON(..), (.=), object)
 
 import SwaggerSchema()
 
@@ -31,7 +28,7 @@ data Config = Config
 
 newtype AppT m a = AppT
   { runApp :: ReaderT Config (ExceptT ServantErr m) a
-  } deriving ( Functor, Applicative, Monad, MonadReader Config, MonadError ServantErr, MonadIO)
+  } deriving (Functor, Applicative, Monad, MonadReader Config, MonadError ServantErr, MonadIO)
 
 type App = AppT IO
 
@@ -41,101 +38,109 @@ type SwaggerAPI = "swagger.json" :> Get '[JSON] Swagger
 
 type API = SwaggerSchemaUI "swagger-ui" "swagger.json" :<|> AppAPI
 
+data RPCResponseError
+  = RPCLSPErr LSP.LSPErr
+  | RPCCompileErr Compile.CompilationErr
+  | RPCParseErr Parser.ParseErrInfo
+  deriving (Generic)
+
+instance ToSchema RPCResponseError
+
+instance ToJSON RPCResponseError where
+  toJSON (RPCLSPErr msg) = toJSON msg
+  toJSON (RPCParseErr parseErr) = object
+    [ "errorType"      .= ("ContractParse" :: Text)
+    , "errorMsg"       .= Parser.errMsg parseErr
+    , "errorPosition"  .= object [
+          "line"   .= Parser.line parseErr
+        , "column" .= Parser.column parseErr
+        ]
+    ]
+  toJSON (RPCCompileErr script) = toJSON script
+
+-- | An RPC response body
+data RPCResponse a
+  = RPCResp { contents :: a }
+  | RPCRespError RPCResponseError
+  | RPCRespOK
+  deriving (Generic)
+
+instance ToJSON a => ToJSON (RPCResponse a)
+
+instance (ToSchema a) => ToSchema (RPCResponse a) where
+  declareNamedSchema = genericDeclareNamedSchemaUnrestricted defaultSchemaOptions
+
 --------------------
 -- Scripts
 --------------------
 
-type ScriptCompile = ReqBody '[JSON] LSP.ReqScript :> Post '[JSON] LSP.RespScript
-type ScriptCompileRaw = "raw" :> ReqBody '[PlainText] Text :> Post '[JSON] LSP.RespScript
-type ScriptParse = ReqBody '[JSON] LSP.ReqScript :> Post '[JSON] LSP.RespScript
+type ScriptCompile = ReqBody '[JSON] LSP.ReqScript :> Post '[JSON] (RPCResponse LSP.RespScript)
+type ScriptCompileRaw = "raw" :> ReqBody '[PlainText] Text :> Post '[JSON] (RPCResponse LSP.RespScript)
+type ScriptParse = ReqBody '[JSON] LSP.ReqScript :> Post '[JSON] (RPCResponse LSP.RespScript)
 
 type ScriptsAPI = "scripts" :>
  ("compile" :> (ScriptCompile :<|> ScriptCompileRaw)) :<|>
  ("parse" :> ScriptParse)
 
-scriptsCompile :: LSP.ReqScript -> App LSP.RespScript
+scriptsCompile :: LSP.ReqScript -> App (RPCResponse LSP.RespScript)
 scriptsCompile req
-  = case LSP.validateScript req of
-      Left err -> panic $ "Validation error"
-      Right resp -> pure resp
+  = case LSP.scriptCompile req of
+      Left err -> pure . RPCRespError . RPCLSPErr $ err
+      Right resp -> pure  . RPCResp $ resp
 
-scriptsCompileRaw :: Text -> App LSP.RespScript
+scriptsCompileRaw :: Text -> App (RPCResponse LSP.RespScript)
 scriptsCompileRaw body
-  = case Compile.compile body of
-        Left err -> do
-          panic . show $ LSP.toLSP err
-        Right cs -> do
-          let script = Compile.checkedScript cs
-          pure
-            $ LSP.RespScript
-              { respScript = script
-              , respPpScript = toS $ Pretty.prettyPrint script
-              , respScriptWarnings = Compile.checkedScriptWarnings cs
-              , respScriptSigs = Compile.checkedScriptSigs cs
-              , respGraphviz = Graphviz.methodsToGraphviz (Script.scriptMethods script)
-              }
+  = case LSP.scriptCompileRaw body of
+      Left err -> pure . RPCRespError . RPCLSPErr $ err
+      Right script -> pure  . RPCResp $ script
 
-scriptsParse :: LSP.ReqScript -> App LSP.RespScript
+scriptsParse :: LSP.ReqScript -> App (RPCResponse LSP.RespScript)
 scriptsParse req
- = case LSP.parseScript req of
-     Left err -> panic $ show err
-     Right script -> pure
-       $ LSP.RespScript
-            script
-            (Pretty.prettyPrint script)
-            []
-            []
-            (Graphviz.methodsToGraphviz (Script.scriptMethods script))
+ = case LSP.scriptParse req of
+     Left err -> pure $ RPCRespError . RPCLSPErr $ err
+     Right script -> pure $ RPCResp script
 
 --------------------
 -- Methods
 --------------------
 
-type MethodsCompile = ReqBody '[JSON] LSP.ReqMethod :> Post '[JSON] LSP.RespMethod
-type MethodsCompileRaw = "raw" :> ReqBody '[PlainText] Text :> Post '[JSON] LSP.RespMethod
-type MethodsParse = ReqBody '[JSON] LSP.ReqMethod :> Post '[JSON] LSP.RespMethod
+type MethodsCompileRaw = "raw" :> ReqBody '[PlainText] Text :> Post '[JSON] (RPCResponse LSP.RespMethod)
+type MethodsCompile = ReqBody '[JSON] LSP.ReqMethod :> Post '[JSON] (RPCResponse LSP.RespMethod)
 
 type MethodsAPI = "methods" :>
- ("compile" :> (MethodsCompile :<|> MethodsCompileRaw)) :<|>
- ("parse" :> MethodsParse)
+ ("parse" :> MethodsCompile :<|> MethodsCompileRaw)
 
-methodsCompile = notImplemented
-methodsCompileRaw = notImplemented
+methodCompileRaw :: Text -> App (RPCResponse LSP.RespMethod)
+methodCompileRaw text
+  = case LSP.methodCompileRaw text of
+      Left err -> pure . RPCRespError . RPCLSPErr $ err
+      Right method -> pure . RPCResp $ method
 
-methodsParse :: LSP.ReqMethod -> App LSP.RespMethod
-methodsParse req
-  = case LSP.parseMethod req of
-        Left err -> panic $ show err
-        Right method -> pure
-          $ LSP.RespMethod method (toS $ Pretty.prettyPrint method)
+methodCompile :: LSP.ReqMethod -> App (RPCResponse LSP.RespMethod)
+methodCompile req
+  = case LSP.methodCompile req of
+        Left err -> pure . RPCRespError . RPCLSPErr $ err
+        Right method -> pure . RPCResp $ method
 
 --------------------
 -- Defs
 --------------------
 
-type DefsCompile = ReqBody '[JSON] LSP.ReqDef :> Post '[JSON] Def
-type DefsCompileRaw = ReqBody '[JSON] Text :> Post '[JSON] Def
-type DefsParse = ReqBody '[JSON] LSP.ReqDef :> Post '[JSON] Def
+type DefsCompileRaw = ReqBody '[JSON] Text :> Post '[JSON] (RPCResponse LSP.RespDef)
+type DefsCompile = ReqBody '[JSON] LSP.ReqDef :> Post '[JSON] (RPCResponse LSP.RespDef)
 
 type DefsAPI = "defs" :>
-  ("compile" :> (DefsCompile :<|> DefsCompileRaw)) :<|>
-  ("parse" :> DefsParse)
+  ("compile" :> DefsCompile :<|> DefsCompileRaw)
 
-defsCompileRaw :: Text -> App Def
-defsCompileRaw def
-  = case Parser.parseDefn (toS def) of
-      Left err -> panic $ show err
-      Right defn
-        -> case Typecheck.runSolverM . snd
-                $ Typecheck.runInferM
-                (Script.EnumInfo mempty mempty)
-                Typecheck.emptyInferState
-                (Typecheck.tcDefn defn) of
-             Left err -> panic $ show (Pretty.ppr err)
-             Right _ -> pure defn
+defsCompileRaw :: Text -> App (RPCResponse LSP.RespDef)
+defsCompileRaw text = case LSP.defCompileRaw text of
+  Left err -> pure . RPCRespError . RPCLSPErr $ err
+  Right defn -> pure . RPCResp $ defn
 
-defsCompile = notImplemented
-defsParse = notImplemented
+defsCompile :: LSP.ReqDef -> App (RPCResponse LSP.RespDef)
+defsCompile req = case LSP.defCompile req of
+  Left err -> pure . RPCRespError . RPCLSPErr $ err
+  Right defn -> pure . RPCResp $ defn
 
 ----------------------
 -- Server
@@ -151,8 +156,8 @@ server :: ServerT AppAPI App
 server = scripts :<|> methods :<|> defs
   where
     scripts = (scriptsCompile :<|> scriptsCompileRaw) :<|> scriptsParse
-    methods =  (methodsCompile :<|> methodsCompileRaw) :<|> methodsParse
-    defs =  (defsCompile :<|> defsCompileRaw) :<|> defsParse
+    methods =  methodCompile :<|> methodCompileRaw
+    defs = defsCompile :<|> defsCompileRaw
 
 runAppAsHandler :: Config -> App a -> Handler a
 runAppAsHandler cfg app = Handler $ runReaderT (runApp app) cfg

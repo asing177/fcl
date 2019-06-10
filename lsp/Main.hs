@@ -5,17 +5,15 @@ module Main where
 import Protolude
 
 import Web.Scotty as WS
-import qualified Data.Text.Lazy as TL
 
 import Language.FCL.AST as Script
-import qualified Language.FCL.Utils as Utils
 import qualified Language.FCL.Compile as Compile
 import qualified Language.FCL.Pretty as Pretty
 import qualified Language.FCL.Graphviz as Graphviz
 import qualified Language.FCL.Typecheck as Typecheck
 import qualified Language.FCL.Parser as Parser
 import qualified Language.FCL.LanguageServerProtocol as LSP
-import Data.Aeson as A (ToJSON(..), FromJSON(..), Value, (.=), (.:), object)
+import Data.Aeson as A (ToJSON(..), Value, (.=), object)
 
 data RPCResponseError
   = LSPErr [LSP.LSP]
@@ -46,7 +44,6 @@ data RPCResponse
   = RPCResp { contents :: A.Value }
   | RPCRespError RPCResponseError
   | RPCRespOK
-  | RPCTransactionOK { txHash :: Text }
   deriving (Generic, ToJSON)
 
 rpcApi :: ScottyM ()
@@ -92,7 +89,7 @@ rpcApi = do
     -- It returns RespScript
     post "/scripts/compile" $ do
       body <- WS.jsonData
-      case LSP.validateScript body of
+      case LSP.scriptCompile body of
         Left err -> jsonCompilationErr err
         Right resp -> jsonRPCRespM resp
 
@@ -100,24 +97,17 @@ rpcApi = do
     -- It returns RespMethod
     post "/methods/parse" $ do
       body <- WS.jsonData
-      case LSP.parseMethod body of
+      case LSP.methodCompile body of
         Left err -> jsonContractParseErr err
-        Right method -> jsonRPCRespM
-          $ LSP.RespMethod method (toS $ Pretty.prettyPrint method)
+        Right method -> jsonRPCRespM method
 
     -- | Parse a script given a JSON encoding of a ReqScript type
     -- It returns RespScript
     post "/scripts/parse" $ do
       body <- WS.jsonData
-      case LSP.parseScript body of
+      case LSP.scriptParse body of
         Left err -> jsonContractParseErr err
-        Right script -> jsonRPCRespM
-          $ LSP.RespScript
-            script
-            (Pretty.prettyPrint script)
-            []
-            []
-            (Graphviz.methodsToGraphviz (Script.scriptMethods script))
+        Right scriptResp -> jsonRPCRespM scriptResp
     where
       jsonLSPErr :: [LSP.LSP] -> WS.ActionM ()
       jsonLSPErr = WS.json . RPCRespError . LSPErr

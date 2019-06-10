@@ -9,16 +9,10 @@
 {-# LANGUAGE FlexibleInstances          #-}
 module SwaggerSchema where
 
-import Network.Wai.Handler.Warp
 import Protolude hiding (get, from, Type)
-import Servant.Server
 import Data.Swagger
-import Servant
-import Servant.Swagger
-import Servant.Swagger.UI
 
 import Datetime.Types
-import qualified Data.Hourglass as Hourglass
 
 import Language.FCL.AST as Script
 import Language.FCL.Prim
@@ -26,11 +20,13 @@ import Language.FCL.Unsafe
 import Language.FCL.Address
 import Language.FCL.Parser as Parser
 import Language.FCL.Typecheck as Typecheck
-import Language.FCL.Pretty as Pretty
 import Language.FCL.Compile as Compile
-import Language.FCL.Graphviz as Graphviz
 import Language.FCL.Warning as Warning
 import Language.FCL.Effect as Effect
+import Language.FCL.Analysis as Analysis
+import Language.FCL.Undefinedness as Undefinedness
+import Language.FCL.ReachabilityGraph as Reachability
+import qualified Language.FCL.Duplicate as Dupl
 import Numeric.Lossless.Decimal
 import qualified Language.FCL.LanguageServerProtocol as LSP
 
@@ -103,6 +99,25 @@ instance ToSchema LSP.ReqMethod
 instance ToSchema LSP.ReqMethodArg
 instance ToSchema LSP.RespScript
 instance ToSchema LSP.RespMethod
+instance ToSchema LSP.RespDef
+instance ToSchema Parser.ParseErrInfo
+instance ToSchema Dupl.VarSrc where
+  declareNamedSchema = genericDeclareNamedSchemaUnrestricted defaultSchemaOptions
+instance ToSchema Dupl.DuplicateError
+instance ToSchema Typecheck.TypeError
+instance ToSchema Typecheck.TypeErrInfo where
+  declareNamedSchema proxy =
+    return $ NamedSchema Nothing $ mempty
+instance ToSchema Analysis.TransitionErrors
+instance ToSchema Analysis.TransitionError
+instance ToSchema Reachability.WFError
+instance ToSchema Undefinedness.InvalidStackTrace where
+  declareNamedSchema proxy =
+    return $ NamedSchema Nothing $ mempty
+instance ToSchema Effect.EffectError
+instance ToSchema Compile.CompilationErr
+instance ToSchema LSP.LSPErr
+instance ToSchema LSP.LSP
 instance ToSchema Sig
 instance ToSchema Effects
 instance ToSchema Effect
