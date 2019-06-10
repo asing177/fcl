@@ -172,7 +172,7 @@ instance FromJSON Value where
         "VTimeDelta" -> VTimeDelta  <$> o .: "contents"
         "VSig"      -> VSig      <$> o .: "contents"
         "VText"     -> VText     <$> o .: "contents"
-        "VEnum"     -> VEnum     <$> o .: "contents"
+        "VEnum"     -> undefined -- VEnum     <$> o .: "contents"
         "VMap"      -> VMap      <$> o .: "contents"
         "VSet"      -> VSet      <$> o .: "contents"
         "VState"    -> VState <$> (parseWorkflowStateJSON =<< o .: "contents")

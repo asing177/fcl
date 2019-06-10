@@ -46,8 +46,8 @@ instance Pretty DuplicateError where
     = "Duplicate method:" <+> ppr (locVal lname) <+> "at" <+> ppr (located lname)
   ppr (DuplicateFunction lname)
     = "Duplicate helper function:" <+> ppr (locVal lname) <+> "at" <+> ppr (located lname)
-  ppr (DuplicateConstructor c)
-    = "Duplicate constructor:" <+> ppr c <+> "at" <+> ppr (located $ enumConstrId c)
+  ppr (DuplicateConstructor EnumConstr{ enumConstrId })
+    = "Duplicate constructor:" <+> ppr enumConstrId <+> "at" <+> ppr (located enumConstrId)
   ppr (DuplicateEnumDef lname)
     = "Duplicate enum:" <+> ppr (locVal lname) <+> "at" <+> ppr (located lname)
   ppr (DuplicateVariable varA varB lnm)
@@ -104,11 +104,11 @@ duplicateCheck scr@(Script enums defns transitions methods helpers)
           . map enumName
           $ enums
 
-      -- enumConstrErrs
-      --   = map DuplicateConstructor
-      --     . duplicatesOn locVal
-      --     . concatMap enumConstrs
-      --     $ enums
+      enumConstrErrs
+        = map DuplicateConstructor
+          . duplicatesOn enumConstrId
+          . concatMap enumConstrs
+          $ enums
 
       transErrs
         = map DuplicateTransition
