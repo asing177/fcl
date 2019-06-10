@@ -3,11 +3,12 @@
 {-# LANGUAGE DeriveAnyClass #-}
 
 module Language.FCL.Reachability
-  ( WFError(..)
+  ( ReachabilityGraph
+  , WFError(..)
   , allPlaces
   , applyTransition
   , checkTransitions
-  , unfolding
+  , pprReachabilityGraph
   ) where
 
 import Protolude
@@ -223,8 +224,8 @@ unfolding ts = unfold initFin initPE initCO ts
 
 -- | Given a set of transitions, check whether they describe a sound workflow,
 -- and if the set of errors is empty then the graph is complete.
-checkTransitions :: Set Transition -> [WFError]
-checkTransitions declaredTransitions = S.toList allErrs
+checkTransitions :: Set Transition -> ([WFError], ReachabilityGraph)
+checkTransitions declaredTransitions = (S.toList allErrs, graph)
 
   where
     graph :: ReachabilityGraph

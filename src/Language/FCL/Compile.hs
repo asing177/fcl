@@ -162,7 +162,7 @@ compileScript ast = do
     _       <- first DuplicationErr (Dupl.duplicateCheck ast)
     sigs    <- first TypecheckErr (Typecheck.signatures ast)
     (updatedAst, _inferredWarns) <- first TransitionErr (Analysis.checkInferTransitions ast)
-    _       <- first WorkflowErr (wfsoundness updatedAst)
+    graph   <- first WorkflowErr (wfsoundness updatedAst)
     traces  <- first UndefinednessErr (Undef.undefinednessAnalysis updatedAst)
     effects <- first EffectErr (Effect.effectCheckScript updatedAst)
     let sigsEffects = Effect.combineSigsEffects sigs effects
@@ -170,16 +170,14 @@ compileScript ast = do
     pure (CheckedScript updatedAst warnings sigsEffects)
   where
     wfsoundness = checkSound . Reachability.checkTransitions . Set.fromList . scriptTransitions
-    checkSound errs = case errs of
-      [] -> Right ()
-      _  -> Left errs
+    checkSound (errs, graph) = if null errs then Right graph else Left errs
 
 compileScriptPrettyErr :: Script -> Either Text CheckedScript
 compileScriptPrettyErr = ppCompilationErr . compileScript
 
 -- | Given a list of transitions, return any workflow errors
 transitionSoundness :: [Transition] -> [Reachability.WFError]
-transitionSoundness = Reachability.checkTransitions . Set.fromList
+transitionSoundness = fst . Reachability.checkTransitions . Set.fromList
 
 -- | Given a file path, make sure the script parses, returning any parser errors
 lintFile :: FilePath -> IO [Parser.ParseErrInfo]
