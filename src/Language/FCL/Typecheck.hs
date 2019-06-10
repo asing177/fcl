@@ -1593,7 +1593,7 @@ instance Pretty TypeOrigin where
     BinaryOperator op   -> "inferred from use of binary operator" <+> squotes (ppr op)
     UnaryOperator op    -> "inferred from use of unary operator" <+> squotes (ppr op)
     Assignment          -> "inferred from variable assignment"
-    IfCondition         -> "must be a bool because of if statement"
+    IfCondition         -> "inferred from the condition of an if statement"
     DateTimeGuardPred   -> "must be a datetime because it is a datetime guard predicate"
     DateTimeGuardBody   -> "must be a void because it is the body of a datetime guard"
     FunctionArg n nm    -> "inferred from the type signature of argument" <+> ppr n <+> "of function" <+> squotes (ppr nm)
