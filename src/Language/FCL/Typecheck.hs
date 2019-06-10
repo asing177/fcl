@@ -85,6 +85,7 @@ data TypeErrInfo
   | TransitionOnlyInOneBranch           -- ^ Transition only in one branch of @if@ statement
   | UnreachableStatement Loc            -- ^ The following statement is unreachable because of a transition
   | ExpectedStatement Type              -- ^ Expected statement but got expression
+  | ExpectedExpressionAssRHS LExpr      -- ^ Expected expression but got statement
   | MethodUnspecifiedTransition Name    -- ^ Method doesn't specify where to transition to
   | CaseOnNotEnum TypeInfo              -- ^ Case analysis on non-enum type
   | UnknownConstructor EnumConstr       -- ^ Reference to undefined constructor
@@ -498,10 +499,11 @@ tcLExpr le@(Located loc expr) = case expr of
                 throwErrInferM terr (located helperNm)
 
   EAssign nm e -> do
+    eTypeInfo@(TypeInfo eType _ eLoc) <- tcLExpr e
+    when (eType == TVoid) (void $ throwErrInferM (ExpectedExpressionAssRHS e) eLoc)
     lookupVarType (Located loc nm) >>= \case
 
       Nothing -> do -- New temp variable, instantiate it
-        eTypeInfo@(TypeInfo eType _ eLoc) <- tcLExpr e
         let typeInfo = TypeInfo eType (InferredFromExpr $ locVal e) eLoc
         extendContextInferM (nm, Temp, typeInfo)
 
@@ -510,7 +512,6 @@ tcLExpr le@(Located loc expr) = case expr of
           tvar <- freshTVar
           let retTypeInfo = TypeInfo tvar (InferredFromAssignment nm) (located e)
           addConstr e varTypeInfo retTypeInfo
-          eTypeInfo@(TypeInfo eType _ eLoc) <- tcLExpr e
           addConstr e retTypeInfo eTypeInfo
         else void $ throwErrInferM (Shadow nm meta varTypeInfo) loc
 
@@ -1647,7 +1648,9 @@ instance Pretty TypeErrInfo where
       -> "This statement transitions, leaving the following statement at"
         <+> ppr loc <+> "unreachable."
     ExpectedStatement ty
-      -> "Expected a statement but got something of type" <+> squotes (ppr ty)
+      -> "Expected a statement but got something of type" <+> sqppr ty
+    ExpectedExpressionAssRHS stmt
+      -> "Expected an expression on the right hand side of an assignment but got the statement" <+> sqppr stmt
     MethodUnspecifiedTransition name
       -> "Method" <+> squotes (ppr name) <+> "does not specify where to transition to."
         <$$+> "If the method should not transition, use the" <+> squotes (ppr Stay <> "()")
