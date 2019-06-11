@@ -6,7 +6,7 @@ transition initial -> initial;
 
 @initial
 f () {
-  if (True) {
+  if (true) {
     terminate();
   } else {
     a = 5;

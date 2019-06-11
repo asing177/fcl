@@ -1,11 +1,6 @@
-enum trivial { unit };
-
-global int someInt = 0;
-
-transition initial -> terminal;
+type T = C;
 
 @initial
-run(enum trivial arg) {
-  someInt = case(arg) { };
-  terminate();
+run(T arg) {
+  case(arg) { }
 }

@@ -1,3 +1,3 @@
-Error at Line 4, Column 22:
+Error at Line 2, Column 7:
    Reference to undefined enum type:
-      nonExisting
+      T

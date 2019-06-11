@@ -11,6 +11,6 @@ f (account a, decimal<3> v) {
 }
 
 calcAndInsert(map<account, decimal<2>> n, account b, decimal<2> v) {
-  v' = round(2,v * rate + 26.0);
-  mapInsert(b, v', n);
+  v2 = round(2,v * rate + 26.0);
+  mapInsert(b, v2, n);
 }

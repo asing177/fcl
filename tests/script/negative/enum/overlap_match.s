@@ -1,12 +1,10 @@
-enum enumOne { Foo, Bar };
-
-transition initial -> terminal;
+type T = A | B;
 
 @initial
-run(enum enumOne arg) {
+run(T arg) {
   case(arg) {
-    `Foo -> terminate();
-    `Bar -> terminate();
-    `Foo -> terminate();
-  };
+    A -> terminate();
+    B -> terminate();
+    A -> terminate();
+  }
 }

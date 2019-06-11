@@ -1,15 +1,10 @@
-enum trivial { unit };
-
-global int someInt = 0;
-
-transition initial -> terminal;
+type T = C;
 
 @initial
-run(enum trivial arg) {
+run(T arg) {
   someInt = case(arg) {
-   `weird -> 10;
-   `unit -> 20;
+    A -> 10;
+    B -> 20;
   };
-
-  terminate();
+  terminate()
 }

@@ -1,14 +1,10 @@
-enum items { First, Second, Third };
-
-global int i = 0;
-
-transition initial -> terminal;
+type T = A | B | C;
 
 @initial
-foo(enum items item) {
-  i = case(item) {
-        `First -> 1;
-	`Second -> 2;
+foo(T it) {
+  x = case(it) {
+        A -> 1;
+        B -> 2
       };
   terminate();
 }

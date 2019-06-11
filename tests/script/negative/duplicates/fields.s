@@ -1,1 +1,1 @@
-type T { C(int f, int f) }
+type T = C(int f, int f);

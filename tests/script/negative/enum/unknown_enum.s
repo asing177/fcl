@@ -1,6 +1,4 @@
-transition initial -> terminal;
-
 @initial
-run(enum nonExisting arg) {
+run(T arg) {
   terminate();
 }

@@ -198,8 +198,8 @@ decimal = do
 -- for backwards compatibility, support capitalised version
 boolLit :: Parser Lit
 boolLit =
-     LBool False <$ try ((reserved Token.false) <|> (() <$ string "False" <* whiteSpace))
- <|> LBool True  <$ try ((reserved Token.true)  <|> (() <$ string "True"  <* whiteSpace))
+     LBool False <$ try (reserved Token.false)
+ <|> LBool True  <$ try (reserved Token.true)
  <?> "boolean literal"
 
 rawAddress :: forall (a :: AddrType). Parser (Address a)
@@ -671,8 +671,8 @@ enumDef :: Parser EnumDef
 enumDef = do
     _ <- reserved Token.type_
     EnumDef
-      <$> Lexer.locNameUpper
-      <*> braces (constructor `sepEndBy` semi)
+      <$> (Lexer.locNameUpper <* reservedOp Token.assign)
+      <*> ((constructor `sepEndBy1` (char '|' <* whiteSpace)) <* semi)
   where
     constructor = EnumConstr
       <$> Lexer.locNameUpper

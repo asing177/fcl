@@ -17,9 +17,9 @@ Bogus2 bog2;        // TODO: undefined type check
 
 @initial
 foo(int volume) {
-  z = Milkshake(volume, False);  // DONE: typecheck constructor expressions
+  z = Milkshake(volume, false);  // DONE: typecheck constructor expressions
   y = Milkshake(volume, volume); // DONE: typecheck constructor expressions
-  x = Milkshake(1, True, 1);     // DONE: constructor arity check
+  x = Milkshake(1, true, 1);     // DONE: constructor arity check
   w = Chips;                     // DONE: constructor arity check
   terminate()
 }
