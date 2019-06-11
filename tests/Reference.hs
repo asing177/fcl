@@ -9,7 +9,6 @@ Test fixtures.
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE TypeApplications #-}
-{-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE TypeFamilies #-}
@@ -344,7 +343,7 @@ genesisWorld = World mempty mempty mempty
 -------------------------------------------------------------------------------
 
 testScript :: Script
-testScript = $([| unsafePerformIO (parseFile "tests/script/positive/typecheck/reference.s") |])
+testScript = unsafePerformIO (parseFile "tests/script/positive/typecheck/reference.s")
 
 -------------------------------------------------------------------------------
 -- Key
