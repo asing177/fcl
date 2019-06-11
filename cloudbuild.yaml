@@ -57,6 +57,7 @@ steps:
         --no-terminal \
         stylish-haskell hlint weeder
 
+      apt install liblzma-dev
       stack install lzma
 
       stack build \
