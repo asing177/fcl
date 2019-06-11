@@ -45,7 +45,9 @@ import qualified Text.Parsec.Language as Lang
 import Data.Functor.Identity (Identity)
 import qualified Data.Text as T
 
-import Language.FCL.AST (Name(..), Loc(..), Located(..), LName, BinOp(..), UnOp(..))
+import Language.FCL.AST
+  (Name(..), NameUpper(..), Loc(..), Located(..), LName, LNameUpper, BinOp(..)
+  , UnOp(..))
 import qualified Language.FCL.Token as Token
 
 -------------------------------------------------------------------------------
@@ -87,14 +89,14 @@ name = do
 locName :: Parser LName
 locName = mkLocated name
 
-nameUpper :: Parser Name
+nameUpper :: Parser NameUpper
 nameUpper = do
   hd <- upper
   tl <- many (alphaNum <|> oneOf "_")
   _ <- whiteSpace
-  pure . Name . T.pack $ hd : tl
+  pure . MkNameUpper . T.pack $ hd : tl
 
-locNameUpper :: Parser LName
+locNameUpper :: Parser LNameUpper
 locNameUpper = mkLocated nameUpper
 
 unOpToken :: UnOp -> T.Text

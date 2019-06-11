@@ -34,7 +34,7 @@ data DuplicateError
   | DuplicateFunction LName
   | DuplicateConstructor EnumConstr
   | DuplicateField LName
-  | DuplicateEnumDef LName
+  | DuplicateEnumDef LNameUpper
   | DuplicateVariable VarSrc VarSrc LName
   | DuplicateTransition Transition
   | DuplicatePrecondition (Precondition, LExpr)

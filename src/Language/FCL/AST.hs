@@ -39,6 +39,7 @@ module Language.FCL.AST (
   LUnOp,
   LLit,
   LName,
+  LNameUpper,
   LType,
   LPattern,
   -- ** Values
@@ -46,6 +47,7 @@ module Language.FCL.AST (
 
   -- ** Name
   Name(..),
+  NameUpper(..),
   defnName,
   defnLName,
 
@@ -158,17 +160,21 @@ type LExpr = Located Expr
 type LLit  = Located Lit
 type LType = Located Type
 type LName = Located Name
+type LNameUpper = Located NameUpper
 type LBinOp = Located BinOp
 type LUnOp  = Located UnOp
 type LPattern = Located Pattern
 
 -- | Enum constructor.
-data EnumConstr = EnumConstr { enumConstrId :: LName, enumConstrParams :: [(Type, LName)] }
+data EnumConstr = EnumConstr { enumConstrId :: LNameUpper, enumConstrParams :: [(Type, LName)] }
   deriving (Eq, Show, Ord, Generic, Hash.Hashable, FromJSON, ToJSON, Serialize)
 
 -- | Variable names
 newtype Name = Name { unName :: Text }
   deriving (Eq, Show, Ord, Generic, B.Binary, Serialize, FromJSONKey, ToJSONKey, Hash.Hashable)
+
+newtype NameUpper = MkNameUpper Text
+  deriving (Eq, Show, Ord, Generic, B.Binary, Serialize, FromJSON, ToJSON, Hash.Hashable)
 
 -- | Datetime literals
 newtype DateTime = DateTime { unDateTime :: DT.Datetime }
@@ -184,7 +190,7 @@ instance Hash.Hashable DateTime where
   toHash = Hash.toHash . (toS :: [Char] -> ByteString) . show
 
 data Pattern
-  = PatConstr LName [Pattern]
+  = PatConstr LNameUpper [Pattern]
   | PatLit LLit
   | PatVar LName
   | PatWildCard
@@ -218,7 +224,7 @@ data Expr
   | ENoOp                          -- ^ Empty method body
   | EMap     (Map LExpr LExpr)     -- ^ Map k v
   | ESet     (Set LExpr)           -- ^ Set v
-  | EConstr Name [LExpr]           -- ^ Constructor
+  | EConstr NameUpper [LExpr]           -- ^ Constructor
   deriving (Eq, Ord, Show, Generic, FromJSON, ToJSON, Hash.Hashable)
 
 data BinOp
@@ -271,7 +277,7 @@ data Value
   | VMap (Map Value Value)         -- ^ Map of values to values
   | VSet (Set Value)               -- ^ Set of values
   | VUndefined                     -- ^ Undefined
-  | VConstr Name [Value]           -- ^ Constructor
+  | VConstr NameUpper [Value]      -- ^ Constructor
   deriving (Eq, Ord, Show, Generic, Serialize, Hash.Hashable)
 
 -- | Type variables used in inference
@@ -328,7 +334,7 @@ data Type
   | TDateTime       -- ^ DateTime with Timezone
   | TTimeDelta      -- ^ Type of difference in time
   | TState          -- ^ Contract state
-  | TEnum Name      -- ^ Enumeration type
+  | TEnum NameUpper -- ^ Enumeration type
   | TFun [Type] Type -- ^ Type signature of helper functions--argument types and return type
   | TColl TCollection -- ^ Type of collection values
   | TTransition     -- ^ Transition type
@@ -387,7 +393,7 @@ data Helper = Helper
 
 -- | Enumeration
 data EnumDef = EnumDef
-  { enumName :: LName
+  { enumName :: LNameUpper
   , enumConstrs :: [EnumConstr]
   } deriving (Eq, Ord, Show, Generic, ToJSON, FromJSON, Hash.Hashable)
 
@@ -502,8 +508,8 @@ mapType einfo   (VSet vset)   =
     (v:_) -> TColl <$> (TSet <$> mapType einfo v)
 
 data EnumInfo = EnumInfo
-  { constructorToType :: Map Name (LName, [(Type, LName)])
-  , enumToConstrs :: Map Name [EnumConstr]
+  { constructorToType :: Map NameUpper (LNameUpper, [(Type, LName)])
+  , enumToConstrs :: Map NameUpper [EnumConstr]
   }
 
 -- | Create the dictionaries for the constructor/enum type membership
@@ -512,7 +518,7 @@ data EnumInfo = EnumInfo
 createEnumInfo :: [EnumDef] -> EnumInfo
 createEnumInfo enums = EnumInfo m1 m2
   where
-    m1 :: Map Name (LName, [(Type, LName)])
+    m1 :: Map NameUpper (LNameUpper, [(Type, LName)])
     m1
       = Map.fromList
       . concatMap
@@ -523,7 +529,7 @@ createEnumInfo enums = EnumInfo m1 m2
             lconstrs)
       $ enums
 
-    m2 :: Map Name [EnumConstr]
+    m2 :: Map NameUpper [EnumConstr]
     m2
       = Map.fromList
       . map (\(EnumDef lname constrsAndTypes)
@@ -592,6 +598,9 @@ instance (Pretty a) => Pretty (Located a) where
 
 instance Pretty Name where
   ppr (Name nm) = ppr nm
+
+instance Pretty NameUpper where
+  ppr (MkNameUpper nm) = ppr nm
 
 instance Pretty EnumConstr where
   ppr (EnumConstr id []) = ppr id

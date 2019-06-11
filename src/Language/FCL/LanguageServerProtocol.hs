@@ -66,7 +66,7 @@ data ReqDef
 
 data ReqEnumDef
   = ReqEnumDef
-  { enumName :: AST.Name
+  { enumName :: AST.NameUpper
   , enumConstr :: [AST.EnumConstr]
   } deriving (Eq, Ord, Show, Generic, ToJSON, FromJSON)
 
@@ -156,10 +156,10 @@ toLSP cErr = case cErr of
           -> fullErrLSP (AST.located lname) (Text.length (AST.unName (AST.locVal lname))) dupErr
         Dupl.DuplicateFunction lname
           -> fullErrLSP (AST.located lname) (Text.length (AST.unName (AST.locVal lname))) dupErr
-        Dupl.DuplicateConstructor (AST.EnumConstr lname _)
-          -> fullErrLSP (AST.located lname) (Text.length (AST.unName (AST.locVal lname))) dupErr
-        Dupl.DuplicateEnumDef lname
-          -> fullErrLSP (AST.located lname) (Text.length (AST.unName (AST.locVal lname))) dupErr
+        Dupl.DuplicateConstructor (AST.EnumConstr (AST.Located loc (AST.MkNameUpper nm)) _)
+          -> fullErrLSP loc (Text.length nm) dupErr
+        Dupl.DuplicateEnumDef (AST.Located loc (AST.MkNameUpper nm))
+          -> fullErrLSP loc (Text.length nm) dupErr
         Dupl.DuplicateVariable varA varB lname
           -> fullErrLSP (AST.located lname) (Text.length (AST.unName (AST.locVal lname))) dupErr
         -- TODO: Get location information for Duplicate Transition

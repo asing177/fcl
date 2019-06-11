@@ -47,7 +47,7 @@ import Language.FCL.AST
 import Language.FCL.Prim
 import Language.FCL.Pretty hiding ((<>))
 import qualified Language.FCL.Token as Token (case_)
-import Language.FCL.Utils ((?), duplicates, zipWith3M_)
+import Language.FCL.Utils ((?), zipWith3M_)
 -- import Control.Exception (assert)
 import Control.Monad.State.Strict (modify')
 
@@ -88,8 +88,8 @@ data TypeErrInfo
   | ExpectedExpressionAssRHS LExpr      -- ^ Expected expression but got statement
   | MethodUnspecifiedTransition Name    -- ^ Method doesn't specify where to transition to
   | CaseOnNotEnum TypeInfo              -- ^ Case analysis on non-enum type
-  | UnknownConstructor Name             -- ^ Reference to undefined constructor
-  | UnknownEnum Name                    -- ^ Reference to unknown enum type
+  | UnknownConstructor NameUpper        -- ^ Reference to undefined constructor
+  | UnknownEnum NameUpper               -- ^ Reference to unknown enum type
   | EmptyMatches                        -- ^ Case statement with empty matches
   | PatternMatchError
     { patMatchErrorMissing :: [EnumConstr]
@@ -106,9 +106,9 @@ data TypeErrInfo
     { typeInfo1 :: TypeInfo
     , typeInfo2 :: TypeInfo
     }
-  | TooManyPatterns Name Pattern
-  | TooManyArguments Name LExpr
-  | NotEnoughArguments Name (Type, LName)
+  | TooManyPatterns NameUpper Pattern
+  | TooManyArguments NameUpper LExpr
+  | NotEnoughArguments NameUpper (Type, LName)
   deriving (Eq, Show, Generic, Serialize, A.FromJSON, A.ToJSON)
 
 -- | Type error
@@ -148,8 +148,8 @@ data TypeOrigin
   | Assignment            -- ^ From var assignment
   | FunctionArg Int Name  -- ^ Expr passed as function argument + it's position
   | FunctionRet Name      -- ^ Returned from prip op
-  | FromConstructor Name  -- ^ Enum type of pattern
-  | FromConstructorField { constructor :: Name, field :: LName }
+  | FromConstructor NameUpper -- ^ Enum type of pattern
+  | FromConstructorField { constructor :: NameUpper, field :: LName }
   | CaseBody Expr         -- ^ Body of case match
   | FromCase Loc
   | FromVariablePattern LName
