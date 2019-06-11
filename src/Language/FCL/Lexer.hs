@@ -63,8 +63,8 @@ style = Lang.emptyDef
   , Tok.commentEnd      = "*/"
   , Tok.commentLine     = "//"
   , Tok.nestedComments  = True
-  , Tok.identStart      = letter
-  , Tok.identLetter     = alphaNum <|> oneOf "_'"
+  , Tok.identStart      = lower
+  , Tok.identLetter     = alphaNum <|> oneOf "_"
   , Tok.opStart         = Tok.opLetter style
   , Tok.opLetter        = oneOf ":!#$%&*+./<=>?@\\^|-~"
   , Tok.reservedOpNames = fmap T.unpack Token.operators
@@ -75,16 +75,9 @@ style = Lang.emptyDef
 lexeme :: Parser a -> Parser a
 lexeme = Tok.lexeme lexer
 
--- identifier :: Parser T.Text
--- identifier = T.pack <$> Tok.identifier lexer
---   <?> "identifier"
-
 name :: Parser Name
-name = do
-  hd <- lower
-  tl <- many (alphaNum <|> oneOf "_")
-  _ <- whiteSpace
-  pure . Name . T.pack $ hd : tl
+name = Name . T.pack <$> Tok.identifier lexer
+  <?> "name"
 
 locName :: Parser LName
 locName = mkLocated name
