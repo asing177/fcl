@@ -519,8 +519,7 @@ match val (PatLit (Located _ lit))
   | otherwise          = Nothing
 match (VConstr nm1 vals) (PatConstr (Located _ nm2) pats)
   | nm1 == nm2 = concat <$> zipWithM match vals pats
-match val pat = panicImpossible . prettyPrint $
-  "Illtyped patternmatch, trying to match" <+> sqppr val <+> "with pattern" <+> sqppr pat
+match _ _ = Nothing
 
 -- | Evaluate a binop and two Fractional Num args
 evalBinOpF :: (Fractional a, Ord a) => BinOp -> (a -> Value) -> a -> a -> (EvalM world) Value
