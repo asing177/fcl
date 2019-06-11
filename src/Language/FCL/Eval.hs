@@ -496,6 +496,10 @@ evalLExpr (Located loc e) = case e of
         mapM_ (uncurry insertTempVar) bindings *> evalLExpr body
       [] -> throwError $ PatternMatchFailure scrutinee loc
 
+  EConstr nm args -> do
+    args <- mapM evalLExpr args
+    pure $ VConstr nm args
+
   ENoOp -> noop
 
   EMap m ->
