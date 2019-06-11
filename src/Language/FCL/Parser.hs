@@ -500,7 +500,7 @@ expr = buildExpressionParser opTable locExpr
               <|> afterExpr
               <|> betweenExpr
               <|> ifElseExpr
-              <|> try caseExpr
+              <|> caseExpr
               <|> callExpr
               <|> litExpr
               <|> varExpr
@@ -596,7 +596,7 @@ betweenExpr = do
 
 caseExpr :: Parser Expr
 caseExpr = do
-    _ <- reserved Token.case_
+    _ <- try $ reserved Token.case_
     scrutinee <- expr
     _ <- symbol Token.lbrace
     matches <- match `sepEndBy1` semi
