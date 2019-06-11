@@ -155,8 +155,8 @@ arbNumLogicExpr n
       , EUnOp <$> arbitrary <*> addLoc (arbNumLogicExpr n')
       ]
 
-arbMatches :: Int -> Gen [Match]
-arbMatches n = listOf1 (Match <$> arbPat <*> arbLExpr n)
+arbMatches :: Int -> Gen [CaseBranch]
+arbMatches n = listOf1 (CaseBranch <$> arbPat <*> arbLExpr n)
 
 arbPat :: Gen LPattern
 arbPat = Located <$> arbitrary <*> (PatLit <$> arbitrary)

@@ -569,7 +569,7 @@ tcLExpr le@(Located loc expr) = case expr of
 
   ECase scrut matches -> do
     scrutTypeInfo <- tcLExpr scrut
-    bodiesTys <- mapM (\m@(Match _ e) -> (e,) <$> tcCaseBranch scrutTypeInfo m) matches
+    bodiesTys <- mapM (\m@(CaseBranch _ e) -> (e,) <$> tcCaseBranch scrutTypeInfo m) matches
     case bodiesTys of
       [] -> throwErrInferM EmptyMatches $ located scrut
       ((bodyExpr, tyInfo):eis) -> do
@@ -626,13 +626,13 @@ tcLExpr le@(Located loc expr) = case expr of
 tcLExprScoped :: LExpr -> InferM TypeInfo
 tcLExprScoped = bracketScopeTmpEnvM . tcLExpr
 
--- | Type check 'Match' patterns (lhs) against the scrutinee type and return the
+-- | Type check 'CaseBranch' patterns (lhs) against the scrutinee type and return the
 -- expression type (rhs).
 tcCaseBranch
   :: TypeInfo -- ^ scrutinee type
-  -> Match -- ^ a branch of a case statement
+  -> CaseBranch -- ^ a branch of a case statement
   -> InferM TypeInfo -- ^ return the type of the branch body
-tcCaseBranch tyExpected (Match (Located patLoc pat) body)
+tcCaseBranch tyExpected (CaseBranch (Located patLoc pat) body)
   = bracketScopeTmpEnvM $ do
       patContext <- tcPattern tyExpected pat
       mapM_ extendContextInferM patContext

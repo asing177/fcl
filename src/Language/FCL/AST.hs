@@ -18,7 +18,7 @@ module Language.FCL.AST (
   Expr(..),
   Pattern(..),
   patLoc,
-  Match(..),
+  CaseBranch(..),
   Method(..),
   Preconditions(..),
   Precondition(..),
@@ -197,10 +197,8 @@ patLoc = \case
   PatVar nm -> located nm
   PatWildCard -> NoLoc
 
-data Match
-  = Match { matchPat :: LPattern
-          , matchBody :: LExpr
-          }
+data CaseBranch
+  = CaseBranch{ matchPat :: LPattern, matchBody :: LExpr }
   deriving (Eq, Ord, Show, Generic, FromJSON, ToJSON, Hash.Hashable)
 
 data Expr
@@ -214,7 +212,7 @@ data Expr
   | EBefore  LExpr LExpr           -- ^ Time guard
   | EAfter   LExpr LExpr           -- ^ Time guard
   | EBetween LExpr LExpr LExpr     -- ^ Time guard
-  | ECase    LExpr [Match]         -- ^ Case statement
+  | ECase    LExpr [CaseBranch]         -- ^ Case statement
   | EAssign  Name  LExpr           -- ^ Variable update
   | ECall    (Either PrimOp LName) [LExpr] -- ^ Function call
   | ENoOp                          -- ^ Empty method body
@@ -570,7 +568,7 @@ instance Serialize Def where
 instance Serialize Arg where
 instance Serialize Type where
 instance Serialize Pattern where
-instance Serialize Match where
+instance Serialize CaseBranch where
 instance Serialize Expr where
 instance Serialize BinOp where
 instance Serialize UnOp where
@@ -662,8 +660,8 @@ instance Pretty Pattern where
     PatVar v -> ppr v
     PatWildCard -> "_"
 
-instance Pretty Match where
-  ppr (Match pat expr)
+instance Pretty CaseBranch where
+  ppr (CaseBranch pat expr)
     = ppr pat <+> token Token.rarrow <+> maybeBrace expr
     where
       -- Wrap braces around the expression in case it is a sequence of

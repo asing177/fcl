@@ -604,7 +604,7 @@ caseExpr = do
     pure $ ECase scrutinee matches
   where
 
-    match = Match
+    match = CaseBranch
       <$> mkLocated pattern
       <*  reserved Token.rarrow
       <*> (block <|> expr)
