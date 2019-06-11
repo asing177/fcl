@@ -2,7 +2,7 @@ type Bit = O | I;
 
 @initial
 go(Bit bit) {
-  b = flip(bit);
+  b = zero(bit);
   terminate()
 }
 
