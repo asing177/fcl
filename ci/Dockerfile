@@ -2,6 +2,8 @@
 
 FROM haskell:8.6.3
 
+ADD sudo apt install liblzma-dev
+
 # Install `gcloud` and `gsutil`
 ADD https://packages.cloud.google.com/apt/doc/apt-key.gpg google-apt-key.gpg
 RUN \
