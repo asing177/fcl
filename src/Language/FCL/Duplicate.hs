@@ -114,9 +114,10 @@ duplicateCheck scr@(Script enums defns transitions methods helpers)
 
       enumFieldErrs
         = map DuplicateField
-          . duplicatesOn locVal
-          . concatMap (map snd . enumConstrParams)
-          . concatMap enumConstrs
+          . concat
+          . (concatMap (map (duplicatesOn locVal)))
+          . map (map (map snd . enumConstrParams))
+          . map enumConstrs
           $ enums
 
       transErrs
