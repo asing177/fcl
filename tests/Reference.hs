@@ -200,7 +200,7 @@ testStorage = Map.fromList [
   , ("c", VBool True)
   , ("d", VAccount testAddr)
   , ("e", VVoid)
-  , ("g", VConstr "Foo" [])
+  , ("g", VConstr "Foo" [VNum 0, VNum 1])
   , ("h", VAsset testAddr2)
   , ("i", VContract testAddr)
   ]

@@ -11,6 +11,7 @@ import Test.Tasty.QuickCheck
 
 import qualified Data.Map as Map
 import qualified Data.ByteString as BS
+import Data.String (fromString)
 import Language.FCL.Address as Address
 import Language.FCL.Metadata as Metadata
 import qualified Language.FCL.Encoding as Encoding
@@ -49,7 +50,7 @@ genByteString =
   (arbitrary `suchThat` (\s -> length s < SS.maxSize))
 
 instance Arbitrary SS.SafeString where
-  arbitrary = SS.fromBytes' . toS <$> (arbitrary :: Gen Text)
+  arbitrary = SS.fromBytes' . toS <$> listOf alphaNum
 
 instance Arbitrary (Address a) where
   arbitrary = Address . Hash.getRawHash . (Hash.toHash :: ByteString -> Hash.Hash Encoding.Base58ByteString) <$> genByteString
@@ -110,7 +111,13 @@ instance Arbitrary TimeDelta where
   arbitrary = TimeDelta <$> arbitrary
 
 instance Arbitrary Name where
-  arbitrary = Name <$> arbitrary
+  arbitrary = fromString <$> ((:) <$> elements ['a'..'z'] <*> listOf alphaNum)
+
+instance Arbitrary NameUpper where
+  arbitrary = fromString <$> ((:) <$> elements ['A'..'Z'] <*> listOf alphaNum)
+
+alphaNum :: Gen Char
+alphaNum = elements $ ['A'..'Z'] <> ['a'..'z'] <> ['0'..'9']
 
 instance Arbitrary Place where
   arbitrary = Place <$> arbitrary
@@ -125,12 +132,6 @@ instance Arbitrary WorkflowState where
     , pure endState
     ]
 
-instance Arbitrary T.Text where
-  arbitrary = do -- generate non-empty printable ASCII strings
-    x <- choose ('\65', '\90')
-    xs <- listOf (choose ('\65', '\90'))
-    pure (toS (x:xs))
-
 instance Arbitrary Reference.Ref where
   arbitrary = elements [ minBound.. maxBound ]
 
@@ -142,7 +143,10 @@ instance Arbitrary Asset.AssetType where
     ]
 
 instance Arbitrary Metadata where
-  arbitrary = Metadata <$> arbitrary
+  arbitrary = Metadata . Map.fromList <$> listOf arbitraryPairs
+    where
+      arbitraryPairs = (,) <$> arbitraryText <*> arbitraryText
+      arbitraryText = fromString <$> listOf alphaNum
 
 instance Arbitrary Asset.Holder where
   arbitrary = oneof

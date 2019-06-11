@@ -120,6 +120,7 @@ import qualified Datetime.Types as DT
 
 import Data.Aeson (ToJSON(..), FromJSON(..), FromJSONKey(..), ToJSONKey(..))
 import qualified Data.Binary as B
+import Data.Char (isUpper)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import qualified Data.List.NonEmpty as NE
@@ -545,7 +546,16 @@ instance Serialize (NonEmpty LExpr) where
   get = NE.fromList <$> get
 
 instance IsString Name where
-  fromString = Name . toS
+  fromString "" = panic "empty name"
+  fromString s@(c:_)
+    | isUpper c = panic "expected lowercase name"
+    | otherwise = Name $ toS s
+
+instance IsString NameUpper where
+  fromString "" = panic "empty name"
+  fromString s@(c:_)
+    | isUpper c = MkNameUpper $ toS s
+    | otherwise = panic "expected uppercase name"
 
 instance IsString TVar where
   fromString = TV . toS
