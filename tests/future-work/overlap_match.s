@@ -5,6 +5,6 @@ run(T arg) {
   case(arg) {
     A -> terminate();
     B -> terminate();
-    A -> terminate();
+    A -> terminate(); // unreachable match
   }
 }
