@@ -159,6 +159,6 @@ appToServer cfg =
 
 runAPI :: IO ()
 runAPI = do
-  let port = 8000
+  let port = 8080
   putText $ "Running on port " <> show port
   run port . simpleCors . serve api $ (appToServer Config)
