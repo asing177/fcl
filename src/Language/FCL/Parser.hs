@@ -611,9 +611,9 @@ caseExpr = do
 
     pattern :: Parser Pattern
     pattern = foldr1 (<|>)
-        [ PatConstr <$> try Lexer.locNameUpper <*> (parens (commaSep pattern) <|> pure [])
+        [ PatLit <$> try locLit
         , PatVar <$> try Lexer.locName
-        , PatLit <$> locLit
+        , PatConstr <$> try Lexer.locNameUpper <*> (parens (commaSep pattern) <|> pure [])
         , PatWildCard <$ (char '_' *> whiteSpace)
         ]
 

@@ -88,7 +88,7 @@ module Language.FCL.AST (
   createEnumInfo,
 
   eseq,
-  unseq,
+  flattenExprs,
   argtys,
   argtys',
   argLits,
@@ -142,10 +142,12 @@ data Loc
   | Loc { line :: Int, col :: Int }
   deriving (Eq, Show, Ord, Generic, Serialize, FromJSON, ToJSON, Hash.Hashable)
 
-data Located a = Located
-  { located :: Loc
-  , locVal  :: a
-  } deriving (Generic, Show, FromJSON, ToJSON, FromJSONKey, ToJSONKey, Hash.Hashable)
+data Located a = Located{ located :: Loc, locVal :: a }
+  deriving (Generic, Show, FromJSON, ToJSON, FromJSONKey, ToJSONKey, Hash.Hashable)
+
+-- -- For debugging (reduces clutter)
+-- instance Show a => Show (Located a) where
+--   show = show . locVal
 
 instance Functor Located where
   fmap f (Located l v) = Located l (f v)
@@ -465,14 +467,14 @@ at :: a -> Loc -> Located a
 at = flip Located
 
 -- | Unroll a sequence of statements into a list.
-unseq :: LExpr -> [LExpr]
-unseq (Located l e) = case e of
-  ESeq a b       -> unseq a ++ unseq b
-  EIf cond tr fl -> unseq tr ++ unseq fl
-  EBefore _ s    -> unseq s
-  EAfter _ s     -> unseq s
-  EBetween _ _ s -> unseq s
-  ECase _ ms     -> concatMap (unseq . matchBody) ms
+flattenExprs :: LExpr -> [LExpr]
+flattenExprs (Located l e) = case e of
+  ESeq a b       -> flattenExprs a ++ flattenExprs b
+  EIf cond tr fl -> flattenExprs tr ++ flattenExprs fl
+  EBefore _ s    -> flattenExprs s
+  EAfter _ s     -> flattenExprs s
+  EBetween _ _ s -> flattenExprs s
+  ECase _ ms     -> concatMap (flattenExprs . matchBody) ms
   _              -> [Located l e]
 
 -- | Roll a list of expressions into a sequence.
@@ -700,7 +702,7 @@ instance Pretty Lit where
     LContract addr -> "c" <> squotes (ppr addr)
     LSig (r,s)     -> tupleOf [ppr r, ppr s]
     LVoid          -> token Token.void
-    LState name    -> token Token.colon <> ppr name
+    LState name    -> token Token.at <> ppr name
     LDateTime dt   -> dquotes $ ppr $ (DT.formatDatetime (unDateTime dt) :: [Char])
     LTimeDelta d   -> ppr d
 
@@ -712,7 +714,7 @@ instance Pretty Type where
         (NPDecimalPlaces p) -> token Token.decimal <> angles (ppr p)
         _                   -> panic $ "Expected normalised num precision"
     TBool       -> token Token.bool
-    TAny        -> token Token.any
+    TAny        -> "<any-type>" -- not in syntax
     TAsset t    -> token Token.asset <> angles (ppr t)
     TAccount    -> token Token.account
     TContract   -> token Token.contract
@@ -723,7 +725,7 @@ instance Pretty Type where
     TVar v      -> ppr v
     TDateTime   -> token Token.datetime
     TTimeDelta  -> token Token.timedelta
-    TState      -> token Token.state
+    TState      -> "<workflow-state>" -- not in syntax
     TEnum e     -> ppr e
     TFun as r   -> tupleOf (map ppr as) <+> "->" <+> ppr r
     TColl tcol  -> ppr tcol

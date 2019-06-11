@@ -4,14 +4,19 @@ module TestArbitrary where
 
 import Protolude
 
-import qualified Language.FCL.SafeInteger as SI
-import qualified Language.FCL.SafeString as SS
-
-import Test.Tasty.QuickCheck
-
 import qualified Data.Map as Map
 import qualified Data.ByteString as BS
 import Data.String (fromString)
+import qualified Datetime.Types as DT
+import qualified Data.Hourglass as DH
+import qualified Data.Set as Set (fromList)
+import qualified Data.Time.Calendar as DC
+import qualified Data.Text as T
+import Test.Tasty.QuickCheck
+
+import qualified Language.FCL.SafeInteger as SI
+import qualified Language.FCL.SafeString as SS
+import Language.FCL.Token (keywords)
 import Language.FCL.Address as Address
 import Language.FCL.Metadata as Metadata
 import qualified Language.FCL.Encoding as Encoding
@@ -19,13 +24,7 @@ import qualified Language.FCL.Hash as Hash
 import Language.FCL.AST
 import qualified Language.FCL.Asset as Asset
 
-import qualified Datetime.Types as DT
-import qualified Data.Hourglass as DH
-import qualified Data.Set as Set (fromList)
-import qualified Data.Time.Calendar as DC
-import qualified Data.Text as T
 import Reference
-
 import TestNumber()
 
 -- TODO: Should we avoid orphan instances?
@@ -111,7 +110,9 @@ instance Arbitrary TimeDelta where
   arbitrary = TimeDelta <$> arbitrary
 
 instance Arbitrary Name where
-  arbitrary = fromString <$> ((:) <$> elements ['a'..'z'] <*> listOf alphaNum)
+  arbitrary = fromString
+    <$> ((:) <$> elements ['a'..'z'] <*> listOf alphaNum)
+      `suchThat` (not . (`elem` keywords) . toS)
 
 instance Arbitrary NameUpper where
   arbitrary = fromString <$> ((:) <$> elements ['A'..'Z'] <*> listOf alphaNum)

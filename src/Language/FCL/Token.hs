@@ -25,17 +25,13 @@ int      = "int"
 num      = "num"
 decimal  = "decimal"
 bool     = "bool"
-ref      = "ref"
 sig      = "sig"
 text     = "text"
 datetime = "datetime"
 timedelta = "timedelta"
-any      = "any"
-state    = "state"
 type_    = "type"
 map      = "map"
 set      = "set"
-
 if_      = "if"
 else_    = "else"
 before   = "before"
@@ -43,6 +39,11 @@ after    = "after"
 between  = "between"
 case_    = "case"
 hole = "?"
+initial    = "initial"
+terminal   = "terminal"
+transition = "transition"
+role       = "role"
+roles      = "roles"
 
 assign   = "="
 mult     = "*"
@@ -72,46 +73,43 @@ rbracket = "]"
 
 rarrow   = "->"
 
-initial    = "initial"
-terminal   = "terminal"
-transition = "transition"
-role       = "role"
-roles      = "roles"
 
 intBinOps  = [mult,add,sub,div]
 boolBinOps = [and, or]
 boolUnops  = [not]
 
-keywords = [
-    global
+keywords =
+  [ global
   , local
   , asset
-  , contract
   , account
-  , sig
-  , text
+  , contract
   , true
   , false
+  , void
   , int
   , num
   , decimal
   , bool
-  , void
+  , sig
+  , text
   , datetime
   , timedelta
+  , type_
+  , map
+  , set
   , if_
   , else_
-  , after
   , before
+  , after
   , between
+  , case_
+  , hole
   , initial
   , terminal
   , transition
   , role
   , roles
-  , type_
-  , case_
-  , hole
   ]
 
 operators = [
