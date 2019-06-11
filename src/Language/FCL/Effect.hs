@@ -84,15 +84,15 @@ data EffectError
     , helperEffects  :: Effects
     , helperLocation :: Loc
     }
-  | CollectionEffect
-    { collectionEffects  :: Effects
-    , collectionLocation :: Loc
-    }
   | PreconditionsEffect
     { preconditionExpr     :: LExpr
     , preconditionName     :: Precondition
     , preconditionLocation :: Loc
     , preconditionEffects  :: Effects
+    }
+  | OnlyReadEffectsAllowed
+    { disallowedEffects :: Effects
+    , effectLocation :: Loc
     }
   deriving (Show, Generic, A.FromJSON, A.ToJSON)
 
@@ -142,13 +142,13 @@ instance Pretty EffectError where
     = "Helper effect violation:" <+> ppr helperName
       <$$+> "Helper effects:" <+> ppr helperEffects
       <$$+> "location:" <+> ppr helperLocation
-  ppr CollectionEffect {..}
-    = "Collection effect violation at" <+> ppr collectionLocation
-      <$$+> "Collection effects:" <+> ppr collectionEffects
   ppr PreconditionsEffect {..}
     = "Disallowed write effects in" <+> ppr preconditionName <+> "precondition:"
       <$$+> squotes (ppr preconditionExpr) <+> "with effects" <+> squotes (ppr preconditionEffects)
       <$$+> "location:" <+> ppr preconditionLocation
+  ppr OnlyReadEffectsAllowed {disallowedEffects, effectLocation}
+    = "Only read effects are allowed in this context, but the following disallowed effects were inferred:"
+      <$$+> sqppr disallowedEffects
 
 data ScriptEffects
   = ScriptEffects
@@ -217,13 +217,13 @@ effectCheckScript scr
         . scriptHelpers
         $ scr
 
-doesOnly
+errorUnless
   :: (Effect -> Bool) -- allowed effects
   -> (a -> Either [EffectError] Effects) -- the check to run
   -> (a -> Effects -> EffectError) -- make an error if disallowed effects happen
   -> a -- the thing to check
   -> Either [EffectError] Effects
-doesOnly allowed check mkError x = do
+errorUnless allowed check mkError x = do
   eff <- check x
   let disallowedEffects = Set.filter (not . allowed) . effectSet $ eff
   if null disallowedEffects
@@ -240,7 +240,7 @@ effectCheckDef gnms = \case
       effectCheckPreconditions gnms precs
       pure (locVal n, noEffect)
   where
-    expectNoLedgerEffects = doesOnly allowed (effectCheckExpr gnms) mkDefError
+    expectNoLedgerEffects = errorUnless allowed (effectCheckExpr gnms) mkDefError
 
     allowed = \case
       Read _ -> False
@@ -325,11 +325,11 @@ effectCheckPrecondition
   :: [Name] -> (Precondition, LExpr) -> Either [EffectError] Effects
 effectCheckPrecondition gnms (p, e) = case p of
     PrecRoles ->
-      doesOnly allowedRoles (effectCheckExpr gnms) (mkPreconditionsErr p) e
+      errorUnless allowedRoles (effectCheckExpr gnms) (mkPreconditionsErr p) e
     PrecAfter ->
-      doesOnly allowedTemporal (effectCheckExpr gnms) (mkPreconditionsErr p) e
+      errorUnless allowedTemporal (effectCheckExpr gnms) (mkPreconditionsErr p) e
     PrecBefore ->
-      doesOnly allowedTemporal (effectCheckExpr gnms) (mkPreconditionsErr p) e
+      errorUnless allowedTemporal (effectCheckExpr gnms) (mkPreconditionsErr p) e
 
   where
 
@@ -365,53 +365,43 @@ effectCheckExpr
   :: [Name] -> LExpr -> Either [EffectError] Effects
 effectCheckExpr gnms expr = case locVal expr of
     ESeq e1 e2 -> effectCheckExprs gnms [e1, e2]
-    ELit _ -> pure noEffect
-    EVar v
-      | locVal v `elem` gnms -> pure $ readVar $ locVal v
-      | otherwise -> pure $ noEffect
+    ELit _ -> Right noEffect
+    EVar (Located _ v)
+      | v `elem` gnms -> Right $ readVar v
+      | otherwise -> Right noEffect
     EBinOp _ e1 e2 -> effectCheckExprs gnms [e1, e2]
     EUnOp _ s -> effectCheckExpr gnms s
-    EIf g e1 e2 -> effectCheckExprs gnms [g, e1, e2]
-    ECase s ms -> effectCheckExprs gnms (s : map matchBody ms)
-    EBefore g e -> effectCheckExprs gnms [g, e]
-    EAfter g e -> effectCheckExprs gnms [g, e]
-    EBetween g1 g2 e -> effectCheckExprs gnms [g1, g2, e]
-    EAssign name e
-      | name `elem` gnms ->
-          meetsErr [effectCheckExpr gnms e, pure $ writeVar name]
-      | otherwise -> effectCheckExpr gnms e
-    ECall (Left primOp) args ->
-      meetsErr [pure $ primEffect primOp, effectCheckExprs gnms args]
-    ECall (Right _) args -> effectCheckExprs gnms args
-    ENoOp -> pure noEffect
-    EMap m -> effectCheckCollectionExprs $ Map.keys m <> Map.elems m
-    ESet s -> effectCheckCollectionExprs s
+    EIf g e1 e2 -> meetsErr [onlyReadEffectsAllowed g, effectCheckExprs gnms [e1, e2]]
+    ECase s ms -> meetsErr [onlyReadEffectsAllowed s, effectCheckExprs gnms (map matchBody ms)]
+    EBefore g e -> meetsErr [onlyReadEffectsAllowed g, effectCheckExpr gnms e]
+    EAfter g e -> meetsErr [onlyReadEffectsAllowed g, effectCheckExpr gnms e]
+    EBetween g1 g2 e -> meetsErr [onlyReadEffectsAllowed g1, onlyReadEffectsAllowed g2, effectCheckExpr gnms e]
+    EAssign v e -> meetsErr ([onlyReadEffectsAllowed e] <> if v `elem` gnms then [Right $ writeVar v] else [])
+    ECall f args -> meetsErr (Right (callEffect f) : map onlyReadEffectsAllowed args)
+    ENoOp -> Right noEffect
+    EMap m -> meetsErr . map onlyReadEffectsAllowed $ Map.keys m <> Map.elems m
+    ESet s -> meetsErr . map onlyReadEffectsAllowed $ toList s
     EHole -> panic $ "Hole expression at " <> show (located expr) <> " in `effectCheckExpr`"
 
   where
-    effectCheckCollectionExprs
-      :: Foldable t
-      => t LExpr
-      -> Either [EffectError] Effects
-    effectCheckCollectionExprs
-      = doesOnly allowedInCollection (effectCheckExprs gnms) mkCollectionError
-      where
-        allowedInCollection :: Effect -> Bool
-        allowedInCollection = \case
-          Read _ -> True
-          ReadVar _ -> True
-          Write _ -> False
-          WriteVar _ -> False
+    onlyReadEffectsAllowed :: LExpr -> Either [EffectError] Effects
+    onlyReadEffectsAllowed = errorUnless isReadEffect (effectCheckExpr gnms)
+      (\(Located loc _) effs -> OnlyReadEffectsAllowed effs loc)
 
-        mkCollectionError _ eff =
-          CollectionEffect {collectionEffects = eff, collectionLocation = located expr}
+    isReadEffect :: Effect -> Bool
+    isReadEffect = \case
+        Read _ -> True
+        ReadVar _ -> True
+        Write _ -> False
+        WriteVar _ -> False
 
 -- | Effect check a bunch of expressions.
 effectCheckExprs :: Foldable t => [Name] -> t LExpr -> Either [EffectError] Effects
 effectCheckExprs gnms = meetsErr . map (effectCheckExpr gnms) . toList
 
-primEffect :: PrimOp -> Effects
-primEffect p = case p of
+callEffect :: Either PrimOp a -> Effects
+callEffect (Right _) = noEffect
+callEffect (Left p) = case p of
   Verify -> readEff p
   Sign -> readEff p
   Block -> readEff p

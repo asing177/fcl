@@ -1,0 +1,2 @@
+Error at Line 3, Column 12:
+   Expected an expression on the right hand side of an assignment but got the statement 'b = 10'

@@ -5,7 +5,7 @@ Hole at Line 22, Column 24:
          global variable totalMap
 
 Hole at Line 22, Column 27:
-   Expecting something of type '(int, c) -> int'.
+   Expecting something of type '(int, b) -> int'.
 
 Hole at Line 22, Column 30:
    Expecting an expression or statement here.
@@ -17,7 +17,7 @@ Hole at Line 23, Column 26:
          global variable totalMap
 
 Hole at Line 23, Column 29:
-   Expecting something of type '(int, j) -> int'.
+   Expecting something of type '(int, i) -> int'.
 
 Hole at Line 23, Column 32:
    Expecting an expression or statement here.

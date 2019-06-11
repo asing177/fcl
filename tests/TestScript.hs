@@ -90,7 +90,6 @@ instance Arbitrary Lit where
     , LAsset    <$> arbitrary
     , LContract <$> arbitrary
     , LConstr   <$> arbitrary
-    , pure LVoid
     ]
 
 instance Arbitrary Type where
@@ -100,7 +99,6 @@ instance Arbitrary Type where
     , pure TAccount
     , TAsset <$> arbitrary
     , pure TContract
-    , pure TVoid
     , TEnum <$> arbitrary
     ]
 

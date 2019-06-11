@@ -167,7 +167,6 @@ lit =  try timedeltaLit
    <|> stateLit
    <|> datetimeLit
    <|> textLit
-   <|> voidLit
    <|> enumConstrLit
    <?> "literal"
 
@@ -276,10 +275,6 @@ rawTextLit = do
     ascii = alphaNum
          <|> (oneOf $ "!@#$%^&*()-=_+[]{};:',<.>/?\\| ")
 
-voidLit :: Parser Lit
-voidLit = LVoid <$ try (reserved Token.void)
- <?> "void literal"
-
 enumConstrLit :: Parser Lit
 enumConstrLit = LConstr <$> try (symbol "`" *> Lexer.enumConstr)
 
@@ -292,7 +287,6 @@ type_ =  intType
      <|> numType
      <|> decimalType
      <|> boolType
-     <|> voidType
      <|> accountType
      <|> assetType
      <|> contractType
@@ -320,9 +314,6 @@ decimalType = do
 
 boolType :: Parser Type
 boolType = TBool <$ try (reserved Token.bool)
-
-voidType :: Parser Type
-voidType = TVoid <$ try (reserved Token.void)
 
 accountType :: Parser Type
 accountType = TAccount <$ try (reserved Token.account)

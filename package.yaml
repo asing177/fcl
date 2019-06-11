@@ -6,6 +6,16 @@ author:              "Adjoint Inc."
 maintainer:          "stephen@adjoint.io"
 category:            Compiler
 copyright:           "2016-2019 Adjoint Inc."
+default-extensions:
+- FlexibleContexts
+- FlexibleInstances
+- LambdaCase
+- NamedFieldPuns
+- NoImplicitPrelude
+- OverloadedStrings
+- RankNTypes
+- RecordWildCards
+- ScopedTypeVariables
 
 extra-source-files:
 - README.md
@@ -102,16 +112,6 @@ library:
     -fno-warn-unused-do-bind
     -Wmissing-export-lists
 
-  default-extensions:
-    - LambdaCase
-    - RecordWildCards
-    - OverloadedStrings
-    - NoImplicitPrelude
-    - FlexibleInstances
-    - FlexibleContexts
-    - ScopedTypeVariables
-    - RankNTypes
-
   exposed-modules:
     - Language.FCL.Contract
     - Language.FCL.AST
@@ -159,15 +159,6 @@ executables:
     - -threaded
     - -rtsopts
     - -with-rtsopts=-N
-    default-extensions:
-    - LambdaCase
-    - RecordWildCards
-    - OverloadedStrings
-    - NoImplicitPrelude
-    - FlexibleInstances
-    - FlexibleContexts
-    - ScopedTypeVariables
-    - RankNTypes
     dependencies:
     - fcl
     - optparse-applicative
@@ -180,15 +171,6 @@ executables:
     - -threaded
     - -rtsopts
     - -with-rtsopts=-N
-    default-extensions:
-    - LambdaCase
-    - RecordWildCards
-    - OverloadedStrings
-    - NoImplicitPrelude
-    - FlexibleInstances
-    - FlexibleContexts
-    - ScopedTypeVariables
-    - RankNTypes
     dependencies:
     - fcl
     - wai-logger
@@ -199,15 +181,6 @@ tests:
   fcl-test:
     main:                Main.hs
     source-dirs:         tests
-    default-extensions:
-    - LambdaCase
-    - RecordWildCards
-    - OverloadedStrings
-    - NoImplicitPrelude
-    - FlexibleInstances
-    - FlexibleContexts
-    - ScopedTypeVariables
-    - RankNTypes
     ghc-options:
     - -threaded
     - -rtsopts
