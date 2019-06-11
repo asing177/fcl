@@ -485,10 +485,16 @@ evalLExpr (Located loc e) = case e of
       then evalLExpr e1
       else evalLExpr e2
 
-  ECase scrut ms -> undefined
-  --  do
-  --   VEnum c <- evalLExpr scrut
-  --   evalLExpr (match ms c)
+  ECase scrutinee branches -> do
+    scrutinee <- evalLExpr scrutinee
+    let matchCaseBranch (CaseBranch (Located _ pat) body)
+          = case match scrutinee pat of
+            Nothing -> Nothing
+            Just bindings -> Just (bindings, body)
+    case mapMaybe matchCaseBranch branches of
+      (bindings, body):_ ->
+        mapM_ (uncurry insertTempVar) bindings *> evalLExpr body
+      [] -> throwError $ PatternMatchFailure scrutinee loc
 
   ENoOp -> noop
 
@@ -501,12 +507,16 @@ evalLExpr (Located loc e) = case e of
   EHole ->
     panicImpossible $ "Evaluating hole expression at " <> show loc
 
-match :: [Match] -> EnumConstr -> LExpr
-match ps c
-  = fromMaybe (panicImpossible "Cannot match constructor")
-  $ List.lookup (PatLit c)
-  $ map (\(Match pat body) -> (locVal pat, body))
-  $ ps
+match :: Value -> Pattern -> Maybe [(Name, Value)]
+match _   PatWildCard = Just []
+match val (PatVar (Located _ var)) = Just [(var, val)]
+match val (PatLit (Located _ lit))
+  | evalLit lit == val = Just []
+  | otherwise          = Nothing
+match (VConstr nm1 vals) (PatConstr (Located _ nm2) pats)
+  | nm1 == nm2 = concat <$> zipWithM match vals pats
+match val pat = panicImpossible . prettyPrint $
+  "Illtyped patternmatch, trying to match" <+> sqppr val <+> "with pattern" <+> sqppr pat
 
 -- | Evaluate a binop and two Fractional Num args
 evalBinOpF :: (Fractional a, Ord a) => BinOp -> (a -> Value) -> a -> a -> (EvalM world) Value
@@ -1188,7 +1198,7 @@ hashValue = \case
   VVoid          -> pure ""
   VDateTime dt   -> pure $ S.encode dt
   VTimeDelta d   -> pure $ S.encode d
-  VConstr c vs   -> undefined -- pure (show c)
+  c@VConstr{}    -> pure (toS $ prettyPrint c)
   VMap vmap      -> pure (show vmap)
   VSet vset      -> pure (show vset)
   VSig _         -> throwError $ Impossible "Cannot hash signature"

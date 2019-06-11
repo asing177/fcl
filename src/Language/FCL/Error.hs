@@ -47,6 +47,7 @@ data EvalFail
   | PrecNotSatAfter Method DateTime DateTime
   | PrecNotSatBefore Method DateTime DateTime
   | PrecNotSatCaller Method (Set (Address AAccount)) (Address AAccount)
+  | PatternMatchFailure Value Loc        -- ^ No matching pattern
   deriving (Eq, Show, Generic, Serialize)
 
 instance Pretty EvalFail where
@@ -93,3 +94,5 @@ instance Pretty EvalFail where
           [ "Transaction issuer: " <+> ppr accActual
           , "Authorized accounts: " <+> setOf setAccExpected
           ]
+    PatternMatchFailure val loc ->
+      "No matching pattern for value" <+> sqppr val <+> "at" <+> ppr loc
