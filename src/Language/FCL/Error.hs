@@ -43,11 +43,11 @@ data EvalFail
   | ModifyFail Text                     -- ^ Map modify fail
   | CallPrimOpFail Loc (Maybe Value) Text -- ^ Prim op call failed
   | NoTransactionContext Loc Text       -- ^ Asked for a bit of transaction context without a transaction context
+  | PatternMatchFailure Value Loc        -- ^ No matching pattern
   -- Precondition errors, all of the form `PrecNotSatX Method <expected> <actual>`
   | PrecNotSatAfter Method DateTime DateTime
   | PrecNotSatBefore Method DateTime DateTime
   | PrecNotSatCaller Method (Set (Address AAccount)) (Address AAccount)
-  | PatternMatchFailure Value Loc        -- ^ No matching pattern
   deriving (Eq, Show, Generic, Serialize)
 
 instance Pretty EvalFail where
