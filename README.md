@@ -1,14 +1,30 @@
 <p align="center">
-  <a href="http://www.adjoint.io"><img src="assets/uplink.png" width="250"/></a>
+  <a href="http://www.adjoint.io"><img src="https://www.adjoint.io/assets/img/adjoint-logo@2x.png" width="250"/></a>
 </p>
 
-FCL Compiler
-============
+FCL
+===
+
+FCL is the Adjoint financial modeling language. Adjoint provides domain modeling
+tool for building safe, secure, and transparent workflows for financial products
+and digital process automation.
+
+Adjoint offers solutions to allow enterprises to build auditable and
+synchronized business processes that scale across large vendor and consortium
+networks, enabling the next generation of international commerce.
+
+* [Adjoint Inc.](https://www.adjoint.io)
+* [FCL Documentation](https://www.adjoint.io/docs/workflows.html)
+* [Uplink Documentation](https://www.adjoint.io/docs/index.html)
 
 Quickstart
 ----------
 
+To install FCL from source install the standard
+[stack](https://docs.haskellstack.org/en/stable/README/) tooling.
+
 ```
+$ git clone git@github.com:adjoint-io/fcl.git
 $ stack install
 ```
 
@@ -34,7 +50,29 @@ Available commands:
 
 ### Examples:
 
-- Typecheck and dump method types
+We provide several examples programs which model financial workflows, data
+reconciliation, pre and post trade attestation, and structured product lifecycle
+management:
+
+* [Hello World 1](examples/minimal.s)
+* [Hello World 2](examples/simple.s)
+* [Swap](examples/swap.s)
+* [Zero Coupon Bond](examples/zcb.s)
+* [Novations](examples/novation.s)
+* [Gas Forward](examples/gas-forward.s)
+* [Structured Product](examples/product.s)
+* [Concurrent Workflows](examples/concurrent.s)
+* [Amendments](examples/amendment.s)
+* [Graph Example](examples/graph.s)
+* [Loan](examples/loan_contract.s)
+* [Private Storage](examples/locals.s)
+* [Notary Attestation](examples/notary.s)
+* [Role Access Controls & Datetime Preconditions](examples/preconditions.s)
+* [Noop Contract](examples/single.s)
+
+Example compiler usage:
+
+- Typecheck and print method names and type signatures
 
 ```
 $ fcl compile examples/minimal.s
@@ -46,7 +84,7 @@ $ fcl compile examples/minimal.s
 $ fcl graph examples/concurrent.s
 ```
 
-Will output the corresponding `dot` and `svg` files.
+This will output the corresponding `dot` and `svg` files.
 
 <p>
   <img src="assets/concurrent.svg" width="250"/>
@@ -57,3 +95,9 @@ Make sure you have `graphviz` installed before running `fcl graph`. In Ubuntu:
 ```
 $ sudo apt install graphviz
 ```
+
+### License
+
+Copyright (c) 2016-2019 Adjoint Inc.
+
+FCL is released under an Apache License.

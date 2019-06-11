@@ -1,14 +1,12 @@
-{-# LANGUAGE TupleSections #-}
-{-# LANGUAGE DeriveGeneric #-}
-{-# LANGUAGE DeriveAnyClass #-}
-
 {-|
 
 Check whether a script does not have any duplicate definitions.
 
-(Does not really take care of shadowing.)
-
 -}
+
+{-# LANGUAGE TupleSections #-}
+{-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE DeriveAnyClass #-}
 
 module Language.FCL.Duplicate
   ( duplicateCheck

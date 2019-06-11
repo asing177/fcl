@@ -2,7 +2,7 @@
 
 Metadata data structures and serialization.
 
---}
+-}
 
 
 {-# LANGUAGE DeriveGeneric #-}

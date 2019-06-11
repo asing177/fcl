@@ -8,6 +8,7 @@ ByteString types with serializers that consume finite, bounded data.
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE DeriveGeneric #-}
+{-# OPTIONS_GHC -fno-warn-orphans #-}
 
 module Language.FCL.SafeString (
   SafeString,
@@ -41,7 +42,6 @@ import Data.ByteString.Char8 as B
 import Data.Aeson hiding (encode)
 import Data.Aeson.Types (typeMismatch)
 import qualified Data.Aeson as A
-import qualified Data.Binary as BI
 
 import Language.FCL.Pretty (Pretty(..))
 import qualified Language.FCL.Hash as Hash

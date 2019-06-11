@@ -1,10 +1,10 @@
-{-# LANGUAGE DataKinds #-}
 {-|
 
 Script evaluation errors.
 
---}
+-}
 
+{-# LANGUAGE DataKinds #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DeriveDataTypeable #-}

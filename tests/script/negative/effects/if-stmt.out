@@ -1,0 +1,2 @@
+Only read effects are allowed in this context, but the following disallowed effects were inferred:
+   '{write via transferTo}'

@@ -2,7 +2,15 @@
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE KindSignatures #-}
-module Language.FCL.Asset where
+
+module Language.FCL.Asset (
+  Holder(..),
+  Balance(..),
+  AssetType(..),
+
+  holderToAccount,
+  holderToContract,
+) where
 
 import Protolude
 import Data.Serialize

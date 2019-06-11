@@ -6,6 +6,16 @@ author:              "Adjoint Inc."
 maintainer:          "stephen@adjoint.io"
 category:            Compiler
 copyright:           "2016-2019 Adjoint Inc."
+default-extensions:
+- FlexibleContexts
+- FlexibleInstances
+- LambdaCase
+- NamedFieldPuns
+- NoImplicitPrelude
+- OverloadedStrings
+- RankNTypes
+- RecordWildCards
+- ScopedTypeVariables
 
 extra-source-files:
 - README.md
@@ -34,45 +44,6 @@ dependencies:
   # Text
   - bytestring
 
-ghc-options:
-  -fwarn-tabs
-  -fwarn-incomplete-patterns
-  -fwarn-incomplete-uni-patterns
-  -fwarn-incomplete-record-updates
-  -fwarn-redundant-constraints
-  -fwarn-implicit-prelude
-  -fwarn-overflowed-literals
-  -fwarn-orphans
-  -fwarn-identities
-  -fwarn-dodgy-exports
-  -fwarn-dodgy-imports
-  -fwarn-duplicate-exports
-  -fwarn-overlapping-patterns
-  -fwarn-missing-fields
-  -fwarn-missing-methods
-  -fwarn-missing-signatures
-  -fwarn-noncanonical-monad-instances
-  -fwarn-unused-imports
-  -fwarn-unused-pattern-binds
-  -fwarn-unused-type-patterns
-  -fwarn-unrecognised-pragmas
-  -fwarn-wrong-do-bind
-  -fwarn-hi-shadowing
-  -fno-warn-name-shadowing
-  -fno-warn-unused-binds
-  -fno-warn-unused-matches
-  -fno-warn-unused-do-bind
-
-default-extensions:
-  - LambdaCase
-  - RecordWildCards
-  - OverloadedStrings
-  - NoImplicitPrelude
-  - FlexibleInstances
-  - FlexibleContexts
-  - ScopedTypeVariables
-  - RankNTypes
-
 library:
   source-dirs: src
   dependencies:
@@ -80,7 +51,6 @@ library:
   - directory
   - filepath
   - unix
-  - array
   - pretty-show
   - ansi-terminal
   - process-extras
@@ -106,12 +76,41 @@ library:
 
   # Cryptography
   - cryptonite
-  - memory
+  - arithmoi
   - pem
   - x509
   - asn1-types
   - asn1-encoding
-  - arithmoi
+
+  ghc-options:
+    -fwarn-tabs
+    -fwarn-incomplete-patterns
+    -fwarn-incomplete-uni-patterns
+    -fwarn-incomplete-record-updates
+    -fwarn-redundant-constraints
+    -fwarn-implicit-prelude
+    -fwarn-overflowed-literals
+    -fwarn-orphans
+    -fwarn-identities
+    -fwarn-dodgy-exports
+    -fwarn-dodgy-imports
+    -fwarn-duplicate-exports
+    -fwarn-overlapping-patterns
+    -fwarn-missing-fields
+    -fwarn-missing-methods
+    -fwarn-missing-signatures
+    -fwarn-noncanonical-monad-instances
+    -fwarn-unused-imports
+    -fwarn-unused-pattern-binds
+    -fwarn-unused-type-patterns
+    -fwarn-unrecognised-pragmas
+    -fwarn-wrong-do-bind
+    -fwarn-hi-shadowing
+    -fno-warn-name-shadowing
+    -fno-warn-unused-binds
+    -fno-warn-unused-matches
+    -fno-warn-unused-do-bind
+    -Wmissing-export-lists
 
   exposed-modules:
     - Language.FCL.Contract
