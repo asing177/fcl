@@ -98,7 +98,7 @@ instance Arbitrary Type where
     , pure TAccount
     , TAsset <$> arbitrary
     , pure TContract
-    , TEnum <$> arbitrary
+    , TADT <$> arbitrary
     ]
 
 instance Arbitrary NumPrecision where
@@ -130,11 +130,11 @@ instance Arbitrary Helper where
 instance Arbitrary Transition where
   arbitrary = Arrow <$> arbitrary <*> arbitrary
 
-instance Arbitrary EnumDef where
-  arbitrary = EnumDef <$> arbitrary <*> listOf1 arbitrary
+instance Arbitrary ADTDef where
+  arbitrary = ADTDef <$> arbitrary <*> listOf1 arbitrary
 
-instance Arbitrary EnumConstr where
-  arbitrary = EnumConstr <$> arbitrary <*> listOf arbitraryParam
+instance Arbitrary ADTConstr where
+  arbitrary = ADTConstr <$> arbitrary <*> listOf arbitraryParam
     where
       arbitraryParam = (,) <$> arbitrary <*> arbitrary
 

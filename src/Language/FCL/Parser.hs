@@ -291,7 +291,7 @@ type_ =  intType
      <|> textType
      <|> dateType
      <|> timedeltaType
-     <|> enumType
+     <|> adtType
      <|> collectionType
      <?> "type"
 
@@ -338,8 +338,8 @@ dateType = TDateTime <$ try (reserved Token.datetime)
 timedeltaType :: Parser Type
 timedeltaType = TTimeDelta <$ try (reserved Token.timedelta)
 
-enumType :: Parser Type
-enumType = TEnum <$> Lexer.nameUpper
+adtType :: Parser Type
+adtType = TADT <$> Lexer.nameUpper
 
 collectionType :: Parser Type
 collectionType =
@@ -664,17 +664,17 @@ transition = do
   <?> "transition"
 
 -------------------------------------------------------------------------------
--- Enumeration type definition
+-- ADTeration type definition
 -------------------------------------------------------------------------------
 
-enumDef :: Parser EnumDef
-enumDef = do
+adtDef :: Parser ADTDef
+adtDef = do
     _ <- reserved Token.type_
-    EnumDef
+    ADTDef
       <$> (Lexer.locNameUpper <* reservedOp Token.assign)
       <*> ((constructor `sepEndBy1` (char '|' <* whiteSpace)) <* semi)
   where
-    constructor = EnumConstr
+    constructor = ADTConstr
       <$> Lexer.locNameUpper
       <*> (parens (commaSep namedType) <|> pure [])
 
@@ -686,12 +686,12 @@ enumDef = do
 
 script :: Parser Script
 script = do
-  enums <- many enumDef
+  adts <- many adtDef
   defns <- endBy def semi
   graph <- endBy transition semi
   methods <- many method
   helpers <- many helper
-  return $ Script enums defns graph methods helpers
+  return $ Script adts defns graph methods helpers
  <?> "script"
 
 -------------------------------------------------------------------------------

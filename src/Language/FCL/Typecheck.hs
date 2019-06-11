@@ -87,13 +87,13 @@ data TypeErrInfo
   | ExpectedStatement Type              -- ^ Expected statement but got expression
   | ExpectedExpressionAssRHS LExpr      -- ^ Expected expression but got statement
   | MethodUnspecifiedTransition Name    -- ^ Method doesn't specify where to transition to
-  | CaseOnNotEnum TypeInfo              -- ^ Case analysis on non-enum type
+  | CaseOnNotADT TypeInfo              -- ^ Case analysis on non-adt type
   | UnknownConstructor NameUpper        -- ^ Reference to undefined constructor
-  | UnknownEnum NameUpper               -- ^ Reference to unknown enum type
+  | UnknownADT NameUpper               -- ^ Reference to unknown adt type
   | EmptyMatches                        -- ^ Case statement with empty matches
   | PatternMatchError
-    { patMatchErrorMissing :: [EnumConstr]
-    , patMatchErrorDuplicate :: [EnumConstr]
+    { patMatchErrorMissing :: [ADTConstr]
+    , patMatchErrorDuplicate :: [ADTConstr]
     }                                   -- ^ Pattern match failures
   | Impossible Text -- ^ Malformed syntax, impossible
   | UnknownHoleInProgram
@@ -148,7 +148,7 @@ data TypeOrigin
   | Assignment            -- ^ From var assignment
   | FunctionArg Int Name  -- ^ Expr passed as function argument + it's position
   | FunctionRet Name      -- ^ Returned from prip op
-  | FromConstructor NameUpper -- ^ Enum type of pattern
+  | FromConstructor NameUpper -- ^ ADT type of pattern
   | FromConstructorField { constructor :: NameUpper, field :: LName }
   | CaseBody Expr         -- ^ Body of case match
   | FromCase Loc
@@ -281,12 +281,12 @@ bracketScopeTmpEnvM thingToDo = do
 --------------------------------------------------------------------------------
 
 
-type InferM = ReaderT EnumInfo (State InferState)
+type InferM = ReaderT ADTInfo (State InferState)
 
 runInferM
-  :: EnumInfo -> InferState -> InferM a -> (a, InferState)
-runInferM enumInfo inferState act
-  = runState (runReaderT act enumInfo) inferState
+  :: ADTInfo -> InferState -> InferM a -> (a, InferState)
+runInferM adtInfo inferState act
+  = runState (runReaderT act adtInfo) inferState
 
 -------------------------------------------------------------------------------
 -- Type Signatures for Methods
@@ -294,17 +294,17 @@ runInferM enumInfo inferState act
 
 -- | Typechecks whether the values supplied as arguments to the method
 -- call match the method argument types expected
--- tcMethodCall :: EnumInfo -> Method -> [Value] -> Either TypeErrInfo ()
--- tcMethodCall enumInfo method argVals
+-- tcMethodCall :: ADTInfo -> Method -> [Value] -> Either TypeErrInfo ()
+-- tcMethodCall adtInfo method argVals
 --   = do
 --   actualTypes <- mapM valueType argVals
 --   zipWithM_ validateTypes expectedTypes actualTypes
 --   where
 --     valueType :: Value -> Either TypeErrInfo Type
 --     valueType val
---       = case (val, mapType enumInfo val) of
+--       = case (val, mapType adtInfo val) of
 --           (_, Just ty) -> pure ty
---           (VEnum c, Nothing) -> Left $ UnknownConstructor c
+--           (VADT c, Nothing) -> Left $ UnknownConstructor c
 --           (o, Nothing) -> Left $ Impossible $ "Malformed value: " <> show o
 
 --     expectedTypes = Language.FCL.AST.argtys' method
@@ -320,17 +320,17 @@ runInferM enumInfo inferState act
 --     validMethodArgType t1 t2 = t1 == t2
 
 signatures :: Script -> Either (NonEmpty TypeError) [(Name,Sig)]
-signatures (Script enums defns graph methods helpers) =
+signatures (Script adts defns graph methods helpers) =
     case tcErrs of
       []   -> Right methodSigs
       es:ess -> Left . NonEmpty.nub . sconcat $ es:|ess
   where
-    enumInfo = createEnumInfo enums
-    inferState = snd . runInferM enumInfo emptyInferState $
+    adtInfo = createADTInfo adts
+    inferState = snd . runInferM adtInfo emptyInferState $
         tcDefns defns >> tcHelpers helpers
 
     (tcErrs, methodSigs) =
-      partitionEithers $ map (methodSig enumInfo inferState) methods
+      partitionEithers $ map (methodSig adtInfo inferState) methods
 
 -- | Typechecks a top-level 'Method' function body and returns a type signature
 -- This type 'Sig' differs from helper functions because there is a distinct
@@ -338,17 +338,17 @@ signatures (Script enums defns graph methods helpers) =
 -- from other methods or functions, whereas helper functions are able to be
 -- called from any method or other helper functions.
 methodSig
-  :: EnumInfo
+  :: ADTInfo
   -> InferState
   -> Method
   -> Either (NonEmpty TypeError) (Name, Sig)
-methodSig enumInfo initInferState m@(Method _ precs lMethNm args body) =
+methodSig adtInfo initInferState m@(Method _ precs lMethNm args body) =
     case runSolverM resInferState of
       Right _ -> Right (locVal lMethNm, sig)
       Left es -> Left es
   where
     -- Typecheck body of method, generating constraints along the way
-    (sig, resInferState) = runInferM enumInfo initInferState $ do
+    (sig, resInferState) = runInferM adtInfo initInferState $ do
         tcPreconditions precs
         sig@(Sig _argTys typ) <- functionSig (locVal lMethNm, args, body)
         unless (typ == TTransition || typ == TError)
@@ -386,21 +386,31 @@ functionSig (fnm, args, body) = do
     retType <- tcLExprScoped body
     pure $ Sig (map argType args) (ttype retType)
 
+-- | Given a type, if that type is an undeclared ADT type, return error 'TypeInfo'.
+adtExistsCheck :: Loc -> Type -> InferM (Maybe TypeInfo)
+adtExistsCheck loc (TADT nm) = do
+    adtDoesExist <- Map.member nm . adtToConstrs <$> ask
+    if adtDoesExist then pure Nothing else Just <$> throwErrInferM (UnknownADT nm) loc
+adtExistsCheck _ _ = pure Nothing
+
 -- | Typechecks the argument and returns the type info of the function argument
 -- such that it can be added to the typing env in the manner the caller prefers.
 tcArg :: Name -> Arg -> Int -> InferM (Name, TMeta, TypeInfo)
-tcArg fnm (Arg typ (Located loc anm)) argPos =
-    case typ of
-      TEnum enm -> do
-        enumDoesExist <- Map.member enm . enumToConstrs <$> ask
-        if enumDoesExist
-           then pure argInfo
-           else do
-             terrInfo <- throwErrInferM (UnknownEnum enm) loc
-             pure (anm, FuncArg, terrInfo)
-      _ -> pure argInfo
-  where
-    argInfo = (anm, FuncArg, TypeInfo typ (FunctionArg argPos fnm) loc)
+tcArg fnm (Arg typ (Located loc anm)) argPos = do
+    adtExistsCheck loc typ >>= \case
+      Nothing -> pure (anm, FuncArg, TypeInfo typ (FunctionArg argPos fnm) loc)
+      Just err -> pure (anm, FuncArg, err)
+  --   case typ of
+  --     TADT enm -> do
+  --       adtDoesExist <- Map.member enm . adtToConstrs <$> ask
+  --       if adtDoesExist
+  --          then pure argInfo
+  --          else do
+  --            terrInfo <- throwErrInferM (UnknownADT enm) loc
+  --            pure (anm, FuncArg, terrInfo)
+  --     _ -> pure argInfo
+  -- where
+  --   argInfo =
 
 -------------------------------------------------------------------------------
 -- Typechecker (w/ inference)
@@ -409,21 +419,23 @@ tcArg fnm (Arg typ (Located loc anm)) argPos =
 tcDefn :: Def -> InferM ()
 tcDefn def = extendContextInferM =<< case def of
   -- GlobalDef variable can be any type
-  GlobalDefNull typ precs lnm -> do
+  GlobalDefNull typ precs (Located loc nm) -> do
     tcPreconditions precs
-    let Located loc nm = lnm
-        typeInfo = TypeInfo typ (VariableDefn nm) loc
-    return (nm, Global, typeInfo)
+    adtExistsCheck loc typ >>= \case
+      Nothing -> pure (nm, Global, TypeInfo typ (VariableDefn nm) loc)
+      Just err -> pure (nm, Global, err)
 
   GlobalDef typ precs nm lexpr -> do
     tcPreconditions precs
     exprTypeInfo@(TypeInfo _ _ loc) <- tcLExpr lexpr
-    let typeInfo = TypeInfo typ (VariableDefn nm) loc
-    case unifyDef nm lexpr typeInfo exprTypeInfo of
-      Left terr -> void $ throwErrInferM terr loc
-      Right _   -> pure ()
-    return (nm, Global, typeInfo)
-
+    adtExistsCheck loc typ >>= \case
+      Just err -> pure (nm, Global, err)
+      Nothing -> do
+        let typeInfo = TypeInfo typ (VariableDefn nm) loc
+        case unifyDef nm lexpr typeInfo exprTypeInfo of
+          Left terr -> void $ throwErrInferM terr loc
+          Right _   -> pure ()
+        pure (nm, Global, typeInfo)
   where
     -- Check if the stated definition type and the rhs expr type match
     unifyDef :: Name -> LExpr -> TypeInfo -> TypeInfo -> Either TypeErrInfo ()
@@ -595,7 +607,7 @@ tcLExpr le@(Located loc expr) = case expr of
       Just (typeConstr, paramTys) -> do
         econstrZip paramTys es
         pure TypeInfo
-          { ttype = TEnum (locVal typeConstr)
+          { ttype = TADT (locVal typeConstr)
           , torig = FromConstructor constructor
           , tloc = loc }
     where
@@ -661,7 +673,7 @@ tcPattern tyExpected (PatConstr (Located loc c) pats)
         pure []
       Just (typeConstr, paramTys) -> do
         addConstraint' tyExpected TypeInfo
-          { ttype = TEnum (locVal typeConstr)
+          { ttype = TADT (locVal typeConstr)
           , torig = FromConstructor c
           , tloc = loc }
         patZip paramTys pats []
@@ -960,7 +972,7 @@ tcPrim le eLoc prim argExprs = do
         TypeInfo t torig tloc -> pure ()
 
 arity :: PrimOp -> Int
-arity p = case runInferM (createEnumInfo []) emptyInferState (primSig p) of
+arity p = case runInferM (createADTInfo []) emptyInferState (primSig p) of
   (Sig ps _, _) -> length ps
 
 -- | Type signatures of builtin primitive operations.
@@ -1410,7 +1422,7 @@ instance Substitutable Type where
   apply s TState      = TState
   apply s TDateTime   = TDateTime
   apply s (TFun ats rt) = TFun (map (apply s) ats) (apply s rt)
-  apply s t@TEnum{}   = t
+  apply s t@TADT{}   = t
   apply s TTimeDelta  = TTimeDelta
   apply s (TColl tc)  = TColl (apply s tc)
   apply s TTransition = TTransition
@@ -1690,11 +1702,11 @@ instance Pretty TypeErrInfo where
       -> "Method" <+> sqppr name <+> "does not specify where to transition to."
         <$$+> "If the method should not transition, use the" <+> squotes (ppr Stay <> "()")
         <+> "primop."
-    CaseOnNotEnum e               -> "Case analysis on a non-enum type:"
+    CaseOnNotADT e               -> "Case analysis on a non-adt type:"
                                   <$$+> ppr e
     UnknownConstructor c          -> "Reference to undefined constructor:"
                                   <$$+> ppr c
-    UnknownEnum e                 -> "Reference to undefined enum type:"
+    UnknownADT e                 -> "Reference to undefined type:"
                                   <$$+> ppr e
     PatternMatchError misses dups -> "Pattern match failures:"
                                   <$$+> vsep (map ((" - Missing case for:" <+>) . ppr) misses)

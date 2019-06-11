@@ -61,7 +61,7 @@ rpcApi = do
         Right defn
           -> case Typecheck.runSolverM . snd
               $ Typecheck.runInferM
-                  (Script.EnumInfo mempty mempty)
+                  (Script.ADTInfo mempty mempty)
                   Typecheck.emptyInferState
                   (Typecheck.tcDefn defn) of
           Left err ->  WS.json . RPCRespError . TypeErr

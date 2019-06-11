@@ -23,7 +23,7 @@ module Language.FCL.AST (
   Preconditions(..),
   Precondition(..),
   Helper(..),
-  EnumDef(..),
+  ADTDef(..),
   Def(..),
   defnPreconditions,
   Arg(..),
@@ -51,8 +51,8 @@ module Language.FCL.AST (
   defnName,
   defnLName,
 
-  -- ** Enum constructor
-  EnumConstr(..),
+  -- ** ADT constructor
+  ADTConstr(..),
 
   -- ** State Labels
   Place(..),
@@ -84,8 +84,8 @@ module Language.FCL.AST (
   normaliseNumPrecision,
 
   -- ** Helpers
-  EnumInfo(..),
-  createEnumInfo,
+  ADTInfo(..),
+  createADTInfo,
 
   eseq,
   flattenExprs,
@@ -168,8 +168,8 @@ type LBinOp = Located BinOp
 type LUnOp  = Located UnOp
 type LPattern = Located Pattern
 
--- | Enum constructor.
-data EnumConstr = EnumConstr { enumConstrId :: LNameUpper, enumConstrParams :: [(Type, LName)] }
+-- | ADT constructor.
+data ADTConstr = ADTConstr { adtConstrId :: LNameUpper, adtConstrParams :: [(Type, LName)] }
   deriving (Eq, Show, Ord, Generic, Hash.Hashable, FromJSON, ToJSON, Serialize)
 
 -- | Variable names
@@ -337,7 +337,7 @@ data Type
   | TDateTime       -- ^ DateTime with Timezone
   | TTimeDelta      -- ^ Type of difference in time
   | TState          -- ^ Contract state
-  | TEnum NameUpper -- ^ Enumeration type
+  | TADT NameUpper -- ^ ADTeration type
   | TFun [Type] Type -- ^ Type signature of helper functions--argument types and return type
   | TColl TCollection -- ^ Type of collection values
   | TTransition     -- ^ Transition type
@@ -394,10 +394,10 @@ data Helper = Helper
   , helperBody :: LExpr
   } deriving (Eq, Ord, Show, Generic, FromJSON, ToJSON, Hash.Hashable)
 
--- | Enumeration
-data EnumDef = EnumDef
-  { enumName :: LNameUpper
-  , enumConstrs :: [EnumConstr]
+-- | ADTeration
+data ADTDef = ADTDef
+  { adtName :: LNameUpper
+  , adtConstrs :: [ADTConstr]
   } deriving (Eq, Ord, Show, Generic, ToJSON, FromJSON, Hash.Hashable)
 
 -- | Definition
@@ -421,7 +421,7 @@ defnPreconditions = \case
 
 -- | Script
 data Script = Script
-  { scriptEnums       :: [EnumDef]
+  { scriptADTs       :: [ADTDef]
   , scriptDefs        :: [Def]
   , scriptTransitions :: [Transition]
   , scriptMethods     :: [Method]
@@ -430,7 +430,7 @@ data Script = Script
 
 emptyScript :: Script
 emptyScript = Script
-  { scriptEnums       = []
+  { scriptADTs       = []
   , scriptDefs        = []
   , scriptTransitions = []
   , scriptMethods     = []
@@ -486,10 +486,10 @@ eseq loc es = case es of
     ESeq x $ eseq (located x) xs
 
 -- @Nothing@ in case of an unknown constructor.
-mapType :: EnumInfo -> Value -> Maybe Type
+mapType :: ADTInfo -> Value -> Maybe Type
 mapType _        (VNum (NumRational _)) = pure (TNum NPArbitrary)
 mapType _        (VNum (NumDecimal f))  = (pure . TNum . NPDecimalPlaces . decimalPlaces) f
-mapType enumInfo (VConstr c _) = TEnum . locVal . fst <$> Map.lookup c (constructorToType enumInfo)
+mapType adtInfo (VConstr c _) = TADT . locVal . fst <$> Map.lookup c (constructorToType adtInfo)
 mapType _        VBool{}      = pure TBool
 mapType _        VAccount{}   = pure TAccount
 mapType _        VAsset{}     = pure (TAsset TAny)
@@ -510,34 +510,34 @@ mapType einfo   (VSet vset)   =
     []        -> pure (TColl (TSet TAny))
     (v:_) -> TColl <$> (TSet <$> mapType einfo v)
 
-data EnumInfo = EnumInfo
+data ADTInfo = ADTInfo
   { constructorToType :: Map NameUpper (LNameUpper, [(Type, LName)])
-  , enumToConstrs :: Map NameUpper [EnumConstr]
+  , adtToConstrs :: Map NameUpper [ADTConstr]
   }
 
--- | Create the dictionaries for the constructor/enum type membership
+-- | Create the dictionaries for the constructor/adt type membership
 -- relations from the original list of definitionSet. Assumes that there
 -- are no duplicates in the input.
-createEnumInfo :: [EnumDef] -> EnumInfo
-createEnumInfo enums = EnumInfo m1 m2
+createADTInfo :: [ADTDef] -> ADTInfo
+createADTInfo adts = ADTInfo m1 m2
   where
     m1 :: Map NameUpper (LNameUpper, [(Type, LName)])
     m1
       = Map.fromList
       . concatMap
-        (\(EnumDef lname lconstrs) ->
+        (\(ADTDef lname lconstrs) ->
           map
-            (\(EnumConstr id types) ->
+            (\(ADTConstr id types) ->
               (locVal id, (lname, types)))
             lconstrs)
-      $ enums
+      $ adts
 
-    m2 :: Map NameUpper [EnumConstr]
+    m2 :: Map NameUpper [ADTConstr]
     m2
       = Map.fromList
-      . map (\(EnumDef lname constrsAndTypes)
+      . map (\(ADTDef lname constrsAndTypes)
                -> (locVal lname, constrsAndTypes))
-      $ enums
+      $ adts
 
 -------------------------------------------------------------------------------
 -- Serialization
@@ -581,7 +581,7 @@ instance (Serialize a) => Serialize (Located a) where
   get = uncurry Located <$> get
 
 instance Serialize Lit where
-instance Serialize EnumDef where
+instance Serialize ADTDef where
 instance Serialize Def where
 instance Serialize Arg where
 instance Serialize Type where
@@ -614,9 +614,9 @@ instance Pretty Name where
 instance Pretty NameUpper where
   ppr (MkNameUpper nm) = ppr nm
 
-instance Pretty EnumConstr where
-  ppr (EnumConstr id []) = ppr id
-  ppr (EnumConstr id namedTyParams)
+instance Pretty ADTConstr where
+  ppr (ADTConstr id []) = ppr id
+  ppr (ADTConstr id namedTyParams)
     = ppr id
       <> tupleOf (map (\(ty, nm) -> ppr ty <+> ppr nm) namedTyParams)
 
@@ -726,7 +726,7 @@ instance Pretty Type where
     TDateTime   -> token Token.datetime
     TTimeDelta  -> token Token.timedelta
     TState      -> "<workflow-state>" -- not in syntax
-    TEnum e     -> ppr e
+    TADT e     -> ppr e
     TFun as r   -> tupleOf (map ppr as) <+> "->" <+> ppr r
     TColl tcol  -> ppr tcol
     TTransition -> token Token.transition
@@ -803,8 +803,8 @@ instance Pretty Helper where
           <$$> rbrace
         other -> lbrace <$$> indent 2 (semify (ppr other)) <$$> rbrace
 
-instance Pretty EnumDef where
-  ppr (EnumDef lname lconstrsAndTypes)
+instance Pretty ADTDef where
+  ppr (ADTDef lname lconstrsAndTypes)
     = token Token.type_ <+> ppr (locVal lname) <+> token Token.assign
       <+> (hsep . punctuate " |" . map ppr $ lconstrsAndTypes)
       <> token Token.semi
@@ -817,8 +817,8 @@ instance Pretty Def where
       -> hsep [token Token.global, ppr typ, ppr precs, ppr name `assign` ppr expr]
 
 instance Pretty Script where
-  ppr (Script enums defns transitions methods functions) = vsep
-    [ vsep (map ppr enums)
+  ppr (Script adts defns transitions methods functions) = vsep
+    [ vsep (map ppr adts)
     , vsep (map ppr defns)
     , if null transitions
       then mempty

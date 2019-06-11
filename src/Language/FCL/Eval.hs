@@ -1277,8 +1277,8 @@ initStorage evalCtx world s@(Script _ defns _ _ _)
       }
 
 -- | Pretty print storage map
-dumpStorage :: EnumInfo -> Map Key Value -> Pretty.Doc
-dumpStorage enumInfo store =
+dumpStorage :: ADTInfo -> Map Key Value -> Pretty.Doc
+dumpStorage adtInfo store =
   if Map.null store
     then indent 8 "<empty>"
     else
@@ -1290,6 +1290,6 @@ dumpStorage enumInfo store =
           | (k,v) <- Map.toList store
         ]
   where
-    pprTy v = case mapType enumInfo v of
+    pprTy v = case mapType adtInfo v of
                 Nothing -> "<<unknown constructor>>"
                 Just ty -> ppr ty

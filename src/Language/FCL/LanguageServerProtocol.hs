@@ -30,7 +30,7 @@ import qualified Language.FCL.Duplicate as Dupl
 data ReqScript
   = ReqScript
   { defs :: [ReqDef]
-  , enums :: [ReqEnumDef]
+  , adts :: [ReqADTDef]
   , methods :: [ReqMethod]
   , transitions :: [ReqTransition]
   } deriving (Eq, Ord, Show, Generic, ToJSON, FromJSON)
@@ -64,10 +64,10 @@ data ReqDef
   , defValue :: Text
   } deriving (Eq, Ord, Show, Generic, ToJSON, FromJSON)
 
-data ReqEnumDef
-  = ReqEnumDef
-  { enumName :: AST.NameUpper
-  , enumConstr :: [AST.EnumConstr]
+data ReqADTDef
+  = ReqADTDef
+  { adtName :: AST.NameUpper
+  , adtConstr :: [AST.ADTConstr]
   } deriving (Eq, Ord, Show, Generic, ToJSON, FromJSON)
 
 data RespMethod
@@ -95,10 +95,10 @@ parseScript reqScript@ReqScript{..} = do
   defs <- sequence $ Parser.parseDefn . textifyReqDef <$> defs
   pure AST.Script
       { scriptDefs = defs
-      , scriptEnums = (\e -> AST.EnumDef
-                                (AST.Located AST.NoLoc (enumName e))
-                                (enumConstr e)
-                             ) <$> enums
+      , scriptADTs = (\e -> AST.ADTDef
+                                (AST.Located AST.NoLoc (adtName e))
+                                (adtConstr e)
+                             ) <$> adts
       , scriptMethods = methods
       , scriptTransitions = []
       , scriptHelpers = []
@@ -156,9 +156,9 @@ toLSP cErr = case cErr of
           -> fullErrLSP (AST.located lname) (Text.length (AST.unName (AST.locVal lname))) dupErr
         Dupl.DuplicateFunction lname
           -> fullErrLSP (AST.located lname) (Text.length (AST.unName (AST.locVal lname))) dupErr
-        Dupl.DuplicateConstructor (AST.EnumConstr (AST.Located loc (AST.MkNameUpper nm)) _)
+        Dupl.DuplicateConstructor (AST.ADTConstr (AST.Located loc (AST.MkNameUpper nm)) _)
           -> fullErrLSP loc (Text.length nm) dupErr
-        Dupl.DuplicateEnumDef (AST.Located loc (AST.MkNameUpper nm))
+        Dupl.DuplicateADTDef (AST.Located loc (AST.MkNameUpper nm))
           -> fullErrLSP loc (Text.length nm) dupErr
         Dupl.DuplicateVariable varA varB lname
           -> fullErrLSP (AST.located lname) (Text.length (AST.unName (AST.locVal lname))) dupErr
