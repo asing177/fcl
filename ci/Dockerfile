@@ -13,6 +13,8 @@ RUN \
     google-cloud-sdk  && \
   rm -rf /var/lib/apt/lists/*
 
+RUN apt install liblzma-dev
+
 ENTRYPOINT []
 
 RUN stack upgrade
