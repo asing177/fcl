@@ -804,8 +804,8 @@ instance Pretty Helper where
 instance Pretty EnumDef where
   ppr (EnumDef lname lconstrsAndTypes)
     = token Token.type_ <+> ppr (locVal lname) <+> token Token.assign
-      <$$> (hsep . punctuate "|" . map ppr $ lconstrsAndTypes)
-      <$$> token Token.semi
+      <+> (hsep . punctuate " |" . map ppr $ lconstrsAndTypes)
+      <> token Token.semi
 
 instance Pretty Def where
   ppr = \case
@@ -818,8 +818,9 @@ instance Pretty Script where
   ppr (Script enums defns transitions methods functions) = vsep
     [ vsep (map ppr enums)
     , vsep (map ppr defns)
-    , Pretty.softbreak
-    , ppr transitions
+    , if null transitions
+      then mempty
+      else vsep [Pretty.softbreak, ppr transitions]
     , Pretty.softbreak
     , vsep (spaced (map ppr methods))
     , Pretty.softbreak
