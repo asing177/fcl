@@ -1,0 +1,4 @@
+f(C(42, true))
+f(C(0, false))
+f(C(1, false))
+f(D(A))

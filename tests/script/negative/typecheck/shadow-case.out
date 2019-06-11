@@ -1,0 +1,9 @@
+Error at Line 6, Column 5:
+   The binding 'x' shadows the global variable
+      of the same name, of type 'int',
+      bound at Line 1, Column 5.
+
+Error at Line 14, Column 5:
+   The binding 'y' shadows the method argument
+      of the same name, of type 'int',
+      bound at Line 12, Column 7.
