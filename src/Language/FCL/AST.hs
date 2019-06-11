@@ -674,7 +674,7 @@ instance Pretty CaseBranch where
 instance Pretty Lit where
   ppr = \case
     LNum n         -> ppr n
-    LBool bool     -> ppr bool
+    LBool bool     -> if bool then token Token.true else token Token.false
     LText msg       -> dquotes $ ppr msg
     LAccount addr  -> "u" <> squotes (ppr addr)
     LAsset addr    -> "a" <> squotes (ppr addr)
@@ -784,9 +784,9 @@ instance Pretty Helper where
 
 instance Pretty EnumDef where
   ppr (EnumDef lname lconstrsAndTypes)
-    = token Token.type_ <+> ppr (locVal lname) <+> lbrace
-      <$$> (Pretty.commafy . map ppr $ lconstrsAndTypes)
-      <$$> rbrace <> token Token.semi
+    = token Token.type_ <+> ppr (locVal lname) <+> token Token.assign
+      <$$> (hsep . punctuate "|" . map ppr $ lconstrsAndTypes)
+      <$$> token Token.semi
 
 instance Pretty Def where
   ppr = \case

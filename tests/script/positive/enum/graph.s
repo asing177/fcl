@@ -1,11 +1,4 @@
-enum direction { Left, Right };
-
-transition initial -> a;
-transition a -> b;
-transition a -> c;
-transition b -> d;
-transition c -> d;
-transition d -> terminal;
+type Direction = Left | Right;
 
 @initial
 start() {
@@ -13,10 +6,10 @@ start() {
 }
 
 @a
-leftOrRight(enum direction dir) {
+leftOrRight(Direction dir) {
   case(dir) {
-    `Left -> transitionTo(:b);
-    `Right -> transitionTo(:c);
+    Left -> transitionTo(:b);
+    Right -> transitionTo(:c);
   };
 }
 
@@ -26,10 +19,10 @@ fromBtoD() {
 }
 
 @c
-fromCtoD(enum direction dir) {
+fromCtoD(Direction dir) {
   case (dir) {
-    `Left -> transitionTo(:d);
-    `Right -> transitionTo(:d);
+    Left -> transitionTo(:d);
+    Right -> transitionTo(:d);
   };
 }
 

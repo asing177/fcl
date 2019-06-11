@@ -1,19 +1,12 @@
-enum direction { Left, Right };
+type Direction = Left | Right;
 
 global int i;
 
-transition initial -> assigned;
-transition initial -> unassigned;
-transition assigned -> assigned;
-transition assigned -> terminal;
-transition unassigned -> assigned;
-transition unassigned -> unassigned;
-
 @initial
-start(enum direction dir) {
+start(Direction dir) {
   case(dir) {
-    `Left -> { i = 10; transitionTo(:assigned); };
-    `Right -> transitionTo(:unassigned);
+    Left -> { i = 10; transitionTo(:assigned); };
+    Right -> transitionTo(:unassigned);
   };
 }
 
@@ -29,9 +22,9 @@ assignedStop() {
 }
 
 @unassigned
-assign(enum direction dir) {
+assign(Direction dir) {
   case(dir) {
-    `Left -> { i = 10; transitionTo(:assigned); };
-    `Right -> transitionTo(:unassigned);
+    Left -> { i = 10; transitionTo(:assigned); };
+    Right -> transitionTo(:unassigned);
   };
 }

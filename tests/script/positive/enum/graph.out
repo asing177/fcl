@@ -1,7 +1,7 @@
  
 Method arguments and effects:
 start: () -> {}
-leftOrRight: (enum direction) -> {}
+leftOrRight: (Direction) -> {}
 fromBtoD: () -> {}
-fromCtoD: (enum direction) -> {}
+fromCtoD: (Direction) -> {}
 stop: () -> {write via terminate}

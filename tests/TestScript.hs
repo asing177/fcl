@@ -89,7 +89,6 @@ instance Arbitrary Lit where
     , LAccount  <$> arbitrary
     , LAsset    <$> arbitrary
     , LContract <$> arbitrary
-    , LConstr   <$> arbitrary
     ]
 
 instance Arbitrary Type where
@@ -133,6 +132,11 @@ instance Arbitrary Transition where
 
 instance Arbitrary EnumDef where
   arbitrary = EnumDef <$> arbitrary <*> listOf1 arbitrary
+
+instance Arbitrary EnumConstr where
+  arbitrary = EnumConstr <$> arbitrary <*> listOf arbitraryParam
+    where
+      arbitraryParam = (,) <$> arbitrary <*> arbitrary
 
 instance Arbitrary Script where
   arbitrary = Script <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary

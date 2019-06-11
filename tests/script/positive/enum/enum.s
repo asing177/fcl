@@ -1,19 +1,13 @@
-enum myEnum
-  { Hello
-  , There
-  };
+type T = A | B;
 
-global enum myEnum hiEnum = `Hello;
-global int foo = 10;
-
-transition initial -> terminal;
+global T t = A;
 
 @initial
-run(enum myEnum val) {
+run(T val) {
   foo = case(val) {
-            `Hello -> 1;
-	    `There -> 2;
-	    };
+    A -> 1;
+    B -> 2;
+  };
 
   terminate();
 }

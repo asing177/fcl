@@ -90,7 +90,7 @@ arbValue n
       , VSig <$> arbitrary
       , VDateTime <$> arbitrary
       , VTimeDelta <$> arbitrary
-      , VEnum <$> arbitrary
+      , VConstr <$> arbitrary <*> arbitrary
       , VState <$> arbitrary
       , pure VUndefined
       ]
@@ -108,9 +108,6 @@ instance Arbitrary DateTime where
 
 instance Arbitrary TimeDelta where
   arbitrary = TimeDelta <$> arbitrary
-
-instance Arbitrary EnumConstr where
-  arbitrary = EnumConstr <$> arbitrary
 
 instance Arbitrary Name where
   arbitrary = Name <$> arbitrary
