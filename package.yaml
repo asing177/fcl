@@ -182,6 +182,7 @@ executables:
     - servant-swagger
     - servant-swagger-ui
     - servant-server
+    - wai-cors
 tests:
   fcl-test:
     main:                Main.hs

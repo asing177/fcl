@@ -28,7 +28,7 @@ module Language.FCL.LanguageServerProtocol
 
 import Protolude
 
-import Data.Aeson (ToJSON(..), FromJSON)
+import Data.Aeson (ToJSON(..), FromJSON, object, (.=))
 import qualified Data.Text as Text
 import qualified Data.List.NonEmpty as NE
 
@@ -218,7 +218,13 @@ textifyReqDef ReqGlobalDefNull{..} = defNullType <..> defNullName <> ";"
 data LSPErr = LSPErr
   { lsp :: [LSP]
   , err :: Compile.CompilationErr
-  } deriving (Generic, ToJSON, FromJSON)
+  } deriving (Generic, FromJSON)
+
+instance ToJSON LSPErr where
+  toJSON (LSPErr{..}) = object
+    [ "lsp"      .= toJSON lsp
+    , "errorMsg" .= (Pretty.prettyPrint $ err :: Text)
+    ]
 
 toLSPErr :: Compile.CompilationErr -> LSPErr
 toLSPErr err = LSPErr (toLSP err) err

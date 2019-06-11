@@ -16,8 +16,10 @@ import Data.Swagger
 import Servant
 import Servant.Swagger
 import Servant.Swagger.UI
+import Network.Wai.Middleware.Cors
 
 import Language.FCL.Parser as Parser
+import Language.FCL.Pretty as Pretty
 import Language.FCL.Compile as Compile
 import qualified Language.FCL.LanguageServerProtocol as LSP
 import Data.Aeson as A (ToJSON(..), (.=), object)
@@ -40,23 +42,10 @@ type API = SwaggerSchemaUI "swagger-ui" "swagger.json" :<|> AppAPI
 
 data RPCResponseError
   = RPCLSPErr LSP.LSPErr
-  | RPCCompileErr Compile.CompilationErr
-  | RPCParseErr Parser.ParseErrInfo
   deriving (Generic)
 
+instance ToJSON RPCResponseError
 instance ToSchema RPCResponseError
-
-instance ToJSON RPCResponseError where
-  toJSON (RPCLSPErr msg) = toJSON msg
-  toJSON (RPCParseErr parseErr) = object
-    [ "errorType"      .= ("ContractParse" :: Text)
-    , "errorMsg"       .= Parser.errMsg parseErr
-    , "errorPosition"  .= object [
-          "line"   .= Parser.line parseErr
-        , "column" .= Parser.column parseErr
-        ]
-    ]
-  toJSON (RPCCompileErr script) = toJSON script
 
 -- | An RPC response body
 data RPCResponse a
@@ -79,8 +68,9 @@ type ScriptCompileRaw = "raw" :> ReqBody '[PlainText] Text :> Post '[JSON] (RPCR
 type ScriptParse = ReqBody '[JSON] LSP.ReqScript :> Post '[JSON] (RPCResponse LSP.RespScript)
 
 type ScriptsAPI = "scripts" :>
- ("compile" :> (ScriptCompile :<|> ScriptCompileRaw)) :<|>
- ("parse" :> ScriptParse)
+ ( ("compile" :> (ScriptCompile :<|> ScriptCompileRaw)) :<|>
+   ("parse" :> ScriptParse)
+ )
 
 scriptsCompile :: LSP.ReqScript -> App (RPCResponse LSP.RespScript)
 scriptsCompile req
@@ -108,7 +98,7 @@ type MethodsCompileRaw = "raw" :> ReqBody '[PlainText] Text :> Post '[JSON] (RPC
 type MethodsCompile = ReqBody '[JSON] LSP.ReqMethod :> Post '[JSON] (RPCResponse LSP.RespMethod)
 
 type MethodsAPI = "methods" :>
- ("parse" :> MethodsCompile :<|> MethodsCompileRaw)
+ ("compile" :> (MethodsCompile :<|> MethodsCompileRaw))
 
 methodCompileRaw :: Text -> App (RPCResponse LSP.RespMethod)
 methodCompileRaw text
@@ -126,11 +116,11 @@ methodCompile req
 -- Defs
 --------------------
 
-type DefsCompileRaw = ReqBody '[JSON] Text :> Post '[JSON] (RPCResponse LSP.RespDef)
+type DefsCompileRaw = "raw" :> ReqBody '[PlainText] Text :> Post '[JSON] (RPCResponse LSP.RespDef)
 type DefsCompile = ReqBody '[JSON] LSP.ReqDef :> Post '[JSON] (RPCResponse LSP.RespDef)
 
 type DefsAPI = "defs" :>
-  ("compile" :> DefsCompile :<|> DefsCompileRaw)
+  ("compile" :> (DefsCompile :<|> DefsCompileRaw))
 
 defsCompileRaw :: Text -> App (RPCResponse LSP.RespDef)
 defsCompileRaw text = case LSP.defCompileRaw text of
@@ -169,5 +159,6 @@ appToServer cfg =
 
 runAPI :: IO ()
 runAPI = do
-  putText "Running on port 8080"
-  run 8080 . serve api $ (appToServer Config)
+  let port = 8000
+  putText $ "Running on port " <> show port
+  run port . simpleCors . serve api $ (appToServer Config)
