@@ -168,8 +168,9 @@ type LBinOp = Located BinOp
 type LUnOp  = Located UnOp
 type LPattern = Located Pattern
 
--- | ADT constructor.
-data ADTConstr = ADTConstr { adtConstrId :: LNameUpper, adtConstrParams :: [(Type, LName)] }
+-- | ADT constructor as given in a type definition.
+data ADTConstr = ADTConstr
+  { adtConstrId :: LNameUpper, adtConstrParams :: [(Type, LName)] }
   deriving (Eq, Show, Ord, Generic, Hash.Hashable, FromJSON, ToJSON, Serialize)
 
 -- | Variable names
@@ -192,13 +193,15 @@ instance Hash.Hashable TimeDelta where
 instance Hash.Hashable DateTime where
   toHash = Hash.toHash . (toS :: [Char] -> ByteString) . show
 
+-- | FCL pattern language for @case@ matches.
 data Pattern
-  = PatConstr LNameUpper [Pattern]
-  | PatLit LLit
-  | PatVar LName
-  | PatWildCard
+  = PatConstr LNameUpper [Pattern] -- ^ Constructor pattern
+  | PatLit LLit                    -- ^ Literal pattern
+  | PatVar LName                   -- ^ Variable pattern
+  | PatWildCard                    -- ^ Wildcard ("don't care") pattern
   deriving (Eq, Ord, Show, Generic, FromJSON, ToJSON, Hash.Hashable)
 
+-- | Retrieve the location associated with a pattern ('PatWildCard' returns 'NoLoc')
 patLoc :: Pattern -> Loc
 patLoc = \case
   PatConstr nm _ -> located nm
@@ -206,10 +209,12 @@ patLoc = \case
   PatVar nm -> located nm
   PatWildCard -> NoLoc
 
+-- | A case branch, consisting of a pattern and a branch body
 data CaseBranch
   = CaseBranch{ matchPat :: LPattern, matchBody :: LExpr }
   deriving (Eq, Ord, Show, Generic, FromJSON, ToJSON, Hash.Hashable)
 
+-- | FCL expressions
 data Expr
   = ESeq     LExpr LExpr           -- ^ Sequencing
   | ELit     LLit                  -- ^ Literal
@@ -230,6 +235,7 @@ data Expr
   | EConstr NameUpper [LExpr]           -- ^ Constructor
   deriving (Eq, Ord, Show, Generic, FromJSON, ToJSON, Hash.Hashable)
 
+-- | Binary operators
 data BinOp
   = Add     -- ^ Addition
   | Sub     -- ^ Subtraction
@@ -245,6 +251,7 @@ data BinOp
   | Greater -- ^ Greater
   deriving (Eq, Ord, Show, Generic, FromJSON, ToJSON, Hash.Hashable)
 
+-- | Unary operators
 data UnOp = Not -- ^ Logical negation
   deriving (Eq, Ord, Show, Generic, FromJSON, ToJSON, Hash.Hashable)
 
@@ -291,6 +298,7 @@ data TVar
   | THV Type -- ^ Type variable used for inferring holdings type of polymorphic asset prim ops.
   deriving (Eq, Ord, Show, Generic, FromJSON, ToJSON, Hash.Hashable)
 
+-- | Collection types
 data TCollection
   = TMap Type Type  -- ^ Type of FCL Maps
   | TSet Type       -- ^ Type of FCL Sets
@@ -309,6 +317,8 @@ data NumPrecision
 nPInt :: NumPrecision
 nPInt = NPDecimalPlaces 0
 
+-- | Map 'NumPrecision' values into its base cases ('NPArbitrary' and
+-- 'NPDecimalPlaces')
 normaliseNumPrecision :: NumPrecision -> NumPrecision
 normaliseNumPrecision = go
   where
@@ -510,6 +520,7 @@ mapType einfo   (VSet vset)   =
     []        -> pure (TColl (TSet TAny))
     (v:_) -> TColl <$> (TSet <$> mapType einfo v)
 
+-- | Associations between type- and value-constructors
 data ADTInfo = ADTInfo
   { constructorToType :: Map NameUpper (LNameUpper, [(Type, LName)])
   , adtToConstrs :: Map NameUpper [ADTConstr]
