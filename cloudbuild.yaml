@@ -57,6 +57,8 @@ steps:
         --no-terminal \
         stylish-haskell hlint weeder
 
+      stack install lzma
+
       stack build \
         --no-terminal \
         --test \
