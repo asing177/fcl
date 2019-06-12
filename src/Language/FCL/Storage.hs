@@ -134,7 +134,7 @@ instance ToJSON Value where
     VDateTime n  -> object ["tag" .= ("VDateTime" :: Text), "contents" .= toJSON n]
     VTimeDelta n -> object ["tag" .= ("VTimeDelta" :: Text), "contents" .= toJSON n]
     VState n     -> object ["tag" .= ("VState" :: Text), "contents" .= toJSON (prettyPrint n)]
-    VEnum c      -> object ["tag" .= ("VEnum" :: Text), "contents" .= toJSON c]
+    VConstr c vs -> object ["tag" .= ("VConstr" :: Text), "name" .= toJSON c, "args" .= toJSON vs ]
     VMap vmap    -> object ["tag" .= ("VMap" :: Text), "contents" .= toJSON vmap]
     VSet vset    -> object ["tag" .= ("VSet" :: Text), "contents" .= toJSON vset]
     VUndefined   -> object ["tag" .= ("VUndefined" :: Text), "contents" .= A.Null]
@@ -168,7 +168,7 @@ instance FromJSON Value where
         "VTimeDelta" -> VTimeDelta  <$> o .: "contents"
         "VSig"      -> VSig      <$> o .: "contents"
         "VText"     -> VText     <$> o .: "contents"
-        "VEnum"     -> VEnum     <$> o .: "contents"
+        "VADT"     -> VConstr   <$> o .: "name" <*> o .: "args"
         "VMap"      -> VMap      <$> o .: "contents"
         "VSet"      -> VSet      <$> o .: "contents"
         "VState"    -> VState <$> (parseWorkflowStateJSON =<< o .: "contents")

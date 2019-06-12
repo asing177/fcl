@@ -68,6 +68,7 @@ import qualified Text.Parsec.Token as Tok
 import Data.Aeson (ToJSON(..), FromJSON)
 import qualified Data.ByteString.Char8 as BS8
 import Data.Char (isDigit)
+import Data.Foldable (foldr1)
 import Data.Functor.Identity (Identity)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
@@ -167,7 +168,6 @@ lit =  try timedeltaLit
    <|> stateLit
    <|> datetimeLit
    <|> textLit
-   <|> enumConstrLit
    <?> "literal"
 
 locLit :: Parser LLit
@@ -198,8 +198,8 @@ decimal = do
 -- for backwards compatibility, support capitalised version
 boolLit :: Parser Lit
 boolLit =
-     LBool False <$ try ((reserved Token.false) <|> (() <$ string "False" <* whiteSpace))
- <|> LBool True  <$ try ((reserved Token.true)  <|> (() <$ string "True"  <* whiteSpace))
+     LBool False <$ try (reserved Token.false)
+ <|> LBool True  <$ try (reserved Token.true)
  <?> "boolean literal"
 
 rawAddress :: forall (a :: AddrType). Parser (Address a)
@@ -275,9 +275,6 @@ rawTextLit = do
     ascii = alphaNum
          <|> (oneOf $ "!@#$%^&*()-=_+[]{};:',<.>/?\\| ")
 
-enumConstrLit :: Parser Lit
-enumConstrLit = LConstr <$> try (symbol "`" *> Lexer.enumConstr)
-
 -------------------------------------------------------------------------------
 -- Types
 -------------------------------------------------------------------------------
@@ -294,7 +291,7 @@ type_ =  intType
      <|> textType
      <|> dateType
      <|> timedeltaType
-     <|> enumType
+     <|> adtType
      <|> collectionType
      <?> "type"
 
@@ -341,8 +338,8 @@ dateType = TDateTime <$ try (reserved Token.datetime)
 timedeltaType :: Parser Type
 timedeltaType = TTimeDelta <$ try (reserved Token.timedelta)
 
-enumType :: Parser Type
-enumType = TEnum <$> try (reserved Token.enum *> Lexer.name)
+adtType :: Parser Type
+adtType = TADT <$> Lexer.nameUpper
 
 collectionType :: Parser Type
 collectionType =
@@ -507,6 +504,7 @@ expr = buildExpressionParser opTable locExpr
               <|> callExpr
               <|> litExpr
               <|> varExpr
+              <|> constructorExpr
               <|> try mapExpr -- backtrack on failure and try parsing as set
               <|> setExpr
               <|> holeExpr
@@ -527,6 +525,9 @@ litExpr = ELit <$> locLit
 varExpr :: Parser Expr
 varExpr = EVar <$> locName
  <?> "variable"
+
+constructorExpr :: Parser Expr
+constructorExpr = EConstr <$> nameUpper <*> (parens (commaSep expr) <|> pure [])
 
 assignExpr :: Parser Expr
 assignExpr = do
@@ -595,20 +596,26 @@ betweenExpr = do
 
 caseExpr :: Parser Expr
 caseExpr = do
-    try $ reserved Token.case_
-    scrutinee <- parensLExpr
-    symbol Token.lbrace
-    matches <- many1 (Match <$> pattern_
-                            <* reserved Token.rarrow
-                            <*> (block <|> expr)
-                            <* semi)
-    symbol Token.rbrace
-    return $ ECase scrutinee matches
+    _ <- try $ reserved Token.case_
+    scrutinee <- expr
+    _ <- symbol Token.lbrace
+    matches <- match `sepEndBy1` semi
+    _ <- symbol Token.rbrace
+    pure $ ECase scrutinee matches
   where
-    pattern_ :: Parser LPattern
-    pattern_ = do
-      loc <- location
-      Located loc . PatLit <$> try (symbol "`" *> Lexer.enumConstr)
+
+    match = CaseBranch
+      <$> mkLocated pattern
+      <*  reserved Token.rarrow
+      <*> (block <|> expr)
+
+    pattern :: Parser Pattern
+    pattern = foldr1 (<|>)
+        [ PatLit <$> try locLit
+        , PatVar <$> try Lexer.locName
+        , PatConstr <$> try Lexer.locNameUpper <*> (parens (commaSep pattern) <|> pure [])
+        , PatWildCard <$ (char '_' *> whiteSpace)
+        ]
 
 mapExpr :: Parser Expr
 mapExpr =
@@ -657,15 +664,21 @@ transition = do
   <?> "transition"
 
 -------------------------------------------------------------------------------
--- Enumeration type definition
+-- ADTeration type definition
 -------------------------------------------------------------------------------
 
-enumDef :: Parser EnumDef
-enumDef = do
-  reserved Token.enum
-  lname <- Lexer.locName
-  constrs <- braces $ commaSep1 Lexer.locEnumConstr
-  return $ EnumDef lname constrs
+adtDef :: Parser ADTDef
+adtDef = do
+    _ <- reserved Token.type_
+    ADTDef
+      <$> (Lexer.locNameUpper <* reservedOp Token.assign)
+      <*> ((constructor `sepEndBy1` (char '|' <* whiteSpace)) <* semi)
+  where
+    constructor = ADTConstr
+      <$> Lexer.locNameUpper
+      <*> (parens (commaSep namedType) <|> pure [])
+
+    namedType = (,) <$> type_ <* whiteSpace <*> locName
 
 -------------------------------------------------------------------------------
 -- Script
@@ -673,12 +686,12 @@ enumDef = do
 
 script :: Parser Script
 script = do
-  enums <- endBy enumDef semi
+  adts <- many adtDef
   defns <- endBy def semi
   graph <- endBy transition semi
   methods <- many method
   helpers <- many helper
-  return $ Script enums defns graph methods helpers
+  return $ Script adts defns graph methods helpers
  <?> "script"
 
 -------------------------------------------------------------------------------

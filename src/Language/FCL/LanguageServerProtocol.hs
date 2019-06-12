@@ -12,8 +12,7 @@ import Data.Aeson (ToJSON(..), FromJSON)
 import qualified Data.Text as Text
 import qualified Data.List.NonEmpty as NE
 
-import qualified Data.ByteString as BS
-import qualified Language.FCL.AST as Script
+import qualified Language.FCL.AST as AST
 import qualified Language.FCL.Analysis as Analysis
 import qualified Language.FCL.Compile as Compile
 import qualified Language.FCL.Graphviz as Graphviz
@@ -23,7 +22,6 @@ import qualified Language.FCL.Typecheck as Typecheck
 import Language.FCL.Warning (Warning(..))
 import qualified Language.FCL.Effect as Effect
 import qualified Language.FCL.Duplicate as Dupl
-import qualified Language.FCL.SafeString as SafeString
 
 -----------------------
 -- Request datatypes --
@@ -32,7 +30,7 @@ import qualified Language.FCL.SafeString as SafeString
 data ReqScript
   = ReqScript
   { defs :: [ReqDef]
-  , enums :: [ReqEnumDef]
+  , adts :: [ReqADTDef]
   , methods :: [ReqMethod]
   , transitions :: [ReqTransition]
   } deriving (Eq, Ord, Show, Generic, ToJSON, FromJSON)
@@ -45,16 +43,16 @@ data ReqTransition
 
 data ReqMethod
   = ReqMethod
-  { methodInputPlaces :: Script.WorkflowState
-  , methodPreconditions :: Script.Preconditions
-  , methodName :: Script.Name
+  { methodInputPlaces :: AST.WorkflowState
+  , methodPreconditions :: AST.Preconditions
+  , methodName :: AST.Name
   , methodBodyText :: Text
   , methodArgs :: [ReqMethodArg]
   } deriving (Eq, Ord, Show, Generic, ToJSON, FromJSON)
 
 data ReqMethodArg
   = ReqMethodArg
-  { argName :: Script.Name
+  { argName :: AST.Name
   , argType :: Text
   } deriving (Eq, Ord, Show, Generic, ToJSON, FromJSON)
 
@@ -66,41 +64,41 @@ data ReqDef
   , defValue :: Text
   } deriving (Eq, Ord, Show, Generic, ToJSON, FromJSON)
 
-data ReqEnumDef
-  = ReqEnumDef
-  { enumName :: Script.Name
-  , enumConstr :: [Script.EnumConstr]
+data ReqADTDef
+  = ReqADTDef
+  { adtName :: AST.NameUpper
+  , adtConstr :: [AST.ADTConstr]
   } deriving (Eq, Ord, Show, Generic, ToJSON, FromJSON)
 
 data RespMethod
   = RespMethod
-  { respMethod :: Script.Method
+  { respMethod :: AST.Method
   , respPpMethod :: Text
   } deriving (Eq, Show, Generic, ToJSON, FromJSON)
 
-parseMethod :: ReqMethod -> Either Parser.ParseErrInfo Script.Method
+parseMethod :: ReqMethod -> Either Parser.ParseErrInfo AST.Method
 parseMethod  reqMethod@ReqMethod{..} = do
   parsedMethodBody <- Parser.parseBlock methodBodyText
   argTypes <- sequence $ (\a -> Parser.parseType (argType a)) <$> methodArgs
-  let args = zipWith Script.Arg argTypes (Script.Located Script.NoLoc . argName <$> methodArgs)
-  pure Script.Method
+  let args = zipWith AST.Arg argTypes (AST.Located AST.NoLoc . argName <$> methodArgs)
+  pure AST.Method
         { methodInputPlaces = methodInputPlaces
         , methodPreconditions = methodPreconditions
-        , methodName = (Script.Located Script.NoLoc methodName)
+        , methodName = (AST.Located AST.NoLoc methodName)
         , methodBody = parsedMethodBody
         , methodArgs = args
         }
 
-parseScript :: ReqScript -> Either Parser.ParseErrInfo Script.Script
+parseScript :: ReqScript -> Either Parser.ParseErrInfo AST.Script
 parseScript reqScript@ReqScript{..} = do
   methods <- sequence $ parseMethod <$> methods
   defs <- sequence $ Parser.parseDefn . textifyReqDef <$> defs
-  pure Script.Script
+  pure AST.Script
       { scriptDefs = defs
-      , scriptEnums = (\e -> Script.EnumDef
-                                (Script.Located Script.NoLoc (enumName e))
-                                (Script.Located Script.NoLoc <$> (enumConstr e))
-                             ) <$> enums
+      , scriptADTs = (\e -> AST.ADTDef
+                                (AST.Located AST.NoLoc (adtName e))
+                                (adtConstr e)
+                             ) <$> adts
       , scriptMethods = methods
       , scriptTransitions = []
       , scriptHelpers = []
@@ -112,10 +110,10 @@ compileScript reqScript@ReqScript{..} = do
   Compile.compileScript ast
 
 data RespScript = RespScript
-  { respScript :: Script.Script -- TODO: Keep method body text as it came
+  { respScript :: AST.Script -- TODO: Keep method body text as it came
   , respPpScript :: Text
   , respScriptWarnings :: [Warning]
-  , respScriptSigs :: [(Script.Name, Typecheck.Sig, Effect.Effects)]
+  , respScriptSigs :: [(AST.Name, Typecheck.Sig, Effect.Effects)]
   , respGraphviz :: Graphviz.Graphviz
   } deriving (Show, Generic, ToJSON, FromJSON)
 
@@ -128,7 +126,7 @@ validateScript reqScript@ReqScript{..} = do
     , respPpScript = toS $ Pretty.prettyPrint script
     , respScriptWarnings = Compile.checkedScriptWarnings cs
     , respScriptSigs = Compile.checkedScriptSigs cs
-    , respGraphviz = Graphviz.methodsToGraphviz (Script.scriptMethods script)
+    , respGraphviz = Graphviz.methodsToGraphviz (AST.scriptMethods script)
     }
 
 (<..>) :: Text -> Text -> Text
@@ -155,28 +153,30 @@ toLSP cErr = case cErr of
   Compile.DuplicationErr duplErrs
     -> (\dupErr -> case dupErr of
         Dupl.DuplicateMethod lname lexpr
-          -> fullErrLSP (Script.located lname) (Text.length (Script.unName (Script.locVal lname))) dupErr
+          -> fullErrLSP (AST.located lname) (Text.length (AST.unName (AST.locVal lname))) dupErr
         Dupl.DuplicateFunction lname
-          -> fullErrLSP (Script.located lname) (Text.length (Script.unName (Script.locVal lname))) dupErr
-        Dupl.DuplicateConstructor l
-          -> fullErrLSP (Script.located l) (BS.length (SafeString.toBytes $ Script.unEnumConstr (Script.locVal l))) dupErr
-        Dupl.DuplicateEnumDef lname
-          -> fullErrLSP (Script.located lname) (Text.length (Script.unName (Script.locVal lname))) dupErr
+          -> fullErrLSP (AST.located lname) (Text.length (AST.unName (AST.locVal lname))) dupErr
+        Dupl.DuplicateConstructor (AST.ADTConstr (AST.Located loc (AST.MkNameUpper nm)) _)
+          -> fullErrLSP loc (Text.length nm) dupErr
+        Dupl.DuplicateADTDef (AST.Located loc (AST.MkNameUpper nm))
+          -> fullErrLSP loc (Text.length nm) dupErr
         Dupl.DuplicateVariable varA varB lname
-          -> fullErrLSP (Script.located lname) (Text.length (Script.unName (Script.locVal lname))) dupErr
+          -> fullErrLSP (AST.located lname) (Text.length (AST.unName (AST.locVal lname))) dupErr
         -- TODO: Get location information for Duplicate Transition
         Dupl.DuplicateTransition transition
           -> noInfoLSP dupErr
         Dupl.DuplicatePrecondition (prec, lexpr)
-          -> startErrLSP (Script.located lexpr) dupErr
+          -> startErrLSP (AST.located lexpr) dupErr
+        Dupl.DuplicateField lname
+          -> fullErrLSP (AST.located lname) (Text.length (AST.unName (AST.locVal lname))) dupErr
        ) <$> duplErrs
 
 
   Compile.TypecheckErr neTypeErr
     -> (\te@Typecheck.TypeError{..} -> LSP
-          { startLineNumber = Script.line errLoc
-          , startColumn = Script.col errLoc
-          , endLineNumber = Script.line errLoc
+          { startLineNumber = AST.line errLoc
+          , startColumn = AST.col errLoc
+          , endLineNumber = AST.line errLoc
           , endColumn = endOfLine
           , message = Pretty.prettyPrint te
           , severity = 8
@@ -211,13 +211,13 @@ toLSP cErr = case cErr of
 
   where
     -- | Provide full information about the location of error
-    fullErrLSP :: Pretty.Pretty err => Script.Loc -> Int -> err -> LSP
+    fullErrLSP :: Pretty.Pretty err => AST.Loc -> Int -> err -> LSP
     fullErrLSP located len err
       = LSP
-      { startLineNumber = Script.line located
-      , startColumn = Script.col located
-      , endLineNumber = Script.line located
-      , endColumn = Script.col located + len
+      { startLineNumber = AST.line located
+      , startColumn = AST.col located
+      , endLineNumber = AST.line located
+      , endColumn = AST.col located + len
       , message = Pretty.prettyPrint err
       , severity = 8
       }
@@ -235,12 +235,12 @@ toLSP cErr = case cErr of
       }
 
     -- | Only provide information about where the error begins
-    startErrLSP :: Pretty.Pretty err => Script.Loc -> err -> LSP
+    startErrLSP :: Pretty.Pretty err => AST.Loc -> err -> LSP
     startErrLSP loc err
       = LSP
-        { startLineNumber = Script.line loc
-        , startColumn = Script.col loc
-        , endLineNumber = Script.line loc
+        { startLineNumber = AST.line loc
+        , startColumn = AST.col loc
+        , endLineNumber = AST.line loc
         , endColumn = endOfLine
         , message = Pretty.prettyPrint err
         , severity = 8

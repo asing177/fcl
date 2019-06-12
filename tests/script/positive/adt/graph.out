@@ -1,0 +1,7 @@
+ 
+Method arguments and effects:
+start: () -> {}
+leftOrRight: (Direction) -> {}
+fromBtoD: () -> {}
+fromCtoD: (Direction) -> {}
+stop: () -> {write via terminate}

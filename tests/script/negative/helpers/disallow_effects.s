@@ -1,6 +1,6 @@
 
-global bool b = False;
-global bool f = True;
+global bool b = false;
+global bool f = true;
 
 transition initial -> terminal;
 

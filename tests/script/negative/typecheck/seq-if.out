@@ -1,0 +1,9 @@
+m() {
+  if (x = 1; true)
+-----------^
+    { x = 2 }
+}
+
+"<stdin>" (line 3, column 12):
+unexpected ";"
+expecting ".", "e", whitespace, operator or ")"

@@ -331,7 +331,7 @@ checkPreconditions (Preconditions ps) mkEnv
 
 -- | Check a statement's Undefinedness environment. Returns an error whenever
 -- you feed it a naked expression. We expect the input to be an assignment,
--- primop call of if-*statement* (and variants thereof).
+-- primop call or if-*statement* (and variants thereof).
 checkStatement
   :: LExpr -- ^ *statement* to check
   -> (UndefinednessEnv -> UndefinednessEnv)
@@ -347,6 +347,8 @@ checkStatement (Located loc actual@(EUnOp _ _)) _
 checkStatement (Located loc actual@(EMap _)) _
   = Left (showAtLoc loc $ "expected statement, got: " <> show actual)
 checkStatement (Located loc actual@(ESet _)) _
+  = Left (showAtLoc loc $ "expected statement, got: " <> show actual)
+checkStatement (Located loc actual@EConstr{}) _
   = Left (showAtLoc loc $ "expected statement, got: " <> show actual)
 
 -- This is the most involved case, as branching in the first statement makes
@@ -472,6 +474,8 @@ checkAssignment loc g var rhs = do
       = Set.unions <$> mapM expressionVars ss
     expressionVars (Located _ ENoOp)
       = pure Set.empty
+    expressionVars (Located _ (EConstr _ es))
+      = Set.unions <$> mapM expressionVars es
     expressionVars (Located loc EHole)
       = panic $ "Hole expression at " <> show loc <> " in `expressionVars`"
 
@@ -517,6 +521,8 @@ checkExpression (Located _ (EMap m)) mkEnv
   = collectCheckExprs mkEnv $ Map.keys m <> Map.elems m
 checkExpression (Located _ (ESet s)) mkEnv
   = collectCheckExprs mkEnv $ toList s
+checkExpression (Located _ (EConstr _ es)) mkEnv
+  = foldM (flip checkExpression) mkEnv es
 checkExpression (Located loc EHole) _
   = panic $ "Hole expression at " <> show loc <> " in `checkExpression`"
 

@@ -32,8 +32,9 @@ data VarSrc = Defn | MethodArg Name LExpr
 data DuplicateError
   = DuplicateMethod LName LExpr
   | DuplicateFunction LName
-  | DuplicateConstructor LEnumConstr
-  | DuplicateEnumDef LName
+  | DuplicateConstructor ADTConstr
+  | DuplicateField LName
+  | DuplicateADTDef LNameUpper
   | DuplicateVariable VarSrc VarSrc LName
   | DuplicateTransition Transition
   | DuplicatePrecondition (Precondition, LExpr)
@@ -44,10 +45,12 @@ instance Pretty DuplicateError where
     = "Duplicate method:" <+> ppr (locVal lname) <+> "at" <+> ppr (located lname)
   ppr (DuplicateFunction lname)
     = "Duplicate helper function:" <+> ppr (locVal lname) <+> "at" <+> ppr (located lname)
-  ppr (DuplicateConstructor lc)
-    = "Duplicate constructor:" <+> ppr (locVal lc) <+> "at" <+> ppr (located lc)
-  ppr (DuplicateEnumDef lname)
-    = "Duplicate enum:" <+> ppr (locVal lname) <+> "at" <+> ppr (located lname)
+  ppr (DuplicateConstructor ADTConstr{ adtConstrId })
+    = "Duplicate constructor:" <+> ppr adtConstrId <+> "at" <+> ppr (located adtConstrId)
+  ppr (DuplicateField f)
+    = "Duplicate field" <+> sqppr f <+> "at" <+> ppr (located f)
+  ppr (DuplicateADTDef lname)
+    = "Duplicate adt:" <+> ppr (locVal lname) <+> "at" <+> ppr (located lname)
   ppr (DuplicateVariable varA varB lnm)
     = case (varA, varB) of
         (_, Defn) ->
@@ -79,15 +82,16 @@ instance Pretty [DuplicateError] where
              : map (("•" <+>) . ppr) errs
 
 duplicateCheck :: Script -> Either [DuplicateError] Script
-duplicateCheck scr@(Script enums defns transitions methods helpers)
+duplicateCheck scr@(Script adts defns transitions methods helpers)
   = case allErrs of
       [] -> Right scr
       errs -> Left errs
     where
       allErrs
         = concat
-          [ enumDefErrs
-          , enumConstrErrs
+          [ adtDefErrs
+          , adtConstrErrs
+          , adtFieldErrs
           , transErrs
           , defnAndMethodArgErrs defns methods
           , methErrs
@@ -96,17 +100,25 @@ duplicateCheck scr@(Script enums defns transitions methods helpers)
           , defnPreconditionErrs
           ]
 
-      enumDefErrs
-        = map DuplicateEnumDef
+      adtDefErrs
+        = map DuplicateADTDef
           . duplicatesOn locVal
-          . map enumName
-          $ enums
+          . map adtName
+          $ adts
 
-      enumConstrErrs
+      adtConstrErrs
         = map DuplicateConstructor
-          . duplicatesOn locVal
-          . concatMap enumConstrs
-          $ enums
+          . duplicatesOn adtConstrId
+          . concatMap adtConstrs
+          $ adts
+
+      adtFieldErrs
+        = map DuplicateField
+          . concat
+          . (concatMap (map (duplicatesOn locVal)))
+          . map (map (map snd . adtConstrParams))
+          . map adtConstrs
+          $ adts
 
       transErrs
         = map DuplicateTransition

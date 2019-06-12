@@ -10,11 +10,10 @@ module Language.FCL.Lexer (
   lexeme,
 
   -- ** Lexemes
-  identifier,
   name,
-  enumConstr,
-  locEnumConstr,
+  nameUpper,
   locName,
+  locNameUpper,
   opToken,
   unOpToken,
   whiteSpace,
@@ -46,11 +45,10 @@ import qualified Text.Parsec.Language as Lang
 import Data.Functor.Identity (Identity)
 import qualified Data.Text as T
 
-import Language.FCL.AST (Name(..), Loc(..), Located(..), LName, BinOp(..), UnOp(..), EnumConstr(..), LEnumConstr)
+import Language.FCL.AST
+  (Name(..), NameUpper(..), Loc(..), Located(..), LName, LNameUpper, BinOp(..)
+  , UnOp(..))
 import qualified Language.FCL.Token as Token
-import Language.FCL.SafeString (fromBytes')
-
-import qualified Data.Text.Encoding as Text
 
 -------------------------------------------------------------------------------
 -- Lexer
@@ -65,8 +63,8 @@ style = Lang.emptyDef
   , Tok.commentEnd      = "*/"
   , Tok.commentLine     = "//"
   , Tok.nestedComments  = True
-  , Tok.identStart      = letter
-  , Tok.identLetter     = alphaNum <|> oneOf "_'"
+  , Tok.identStart      = lower
+  , Tok.identLetter     = alphaNum <|> oneOf "_"
   , Tok.opStart         = Tok.opLetter style
   , Tok.opLetter        = oneOf ":!#$%&*+./<=>?@\\^|-~"
   , Tok.reservedOpNames = fmap T.unpack Token.operators
@@ -77,23 +75,22 @@ style = Lang.emptyDef
 lexeme :: Parser a -> Parser a
 lexeme = Tok.lexeme lexer
 
-identifier :: Parser T.Text
-identifier = T.pack <$> Tok.identifier lexer
-  <?> "identifier"
-
 name :: Parser Name
-name = Name <$> identifier
+name = Name . T.pack <$> Tok.identifier lexer
   <?> "name"
 
 locName :: Parser LName
 locName = mkLocated name
 
-enumConstr :: Parser EnumConstr
-enumConstr = EnumConstr . fromBytes' . Text.encodeUtf8 <$> identifier
-  <?> "enum constructor"
+nameUpper :: Parser NameUpper
+nameUpper = do
+  hd <- upper
+  tl <- many (alphaNum <|> oneOf "_")
+  _ <- whiteSpace
+  pure . MkNameUpper . T.pack $ hd : tl
 
-locEnumConstr :: Parser LEnumConstr
-locEnumConstr = mkLocated enumConstr
+locNameUpper :: Parser LNameUpper
+locNameUpper = mkLocated nameUpper
 
 unOpToken :: UnOp -> T.Text
 unOpToken Not = Token.not

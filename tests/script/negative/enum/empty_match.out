@@ -1,9 +1,0 @@
-run(enum trivial arg) {
-  someInt = case(arg) { };
-------------------------^
-  terminate();
-}
-
-"<stdin>" (line 9, column 25):
-unexpected "}"
-expecting "`"

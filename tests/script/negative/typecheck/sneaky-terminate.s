@@ -4,7 +4,7 @@ transition initial -> terminal;
 
 @initial
 f () {
-  if (True) {
+  if (true) {
     terminate();
     a = 1;
   };

@@ -1,0 +1,4 @@
+Error at Line 7, Column 18:
+   The binding 'x' shadows the variable bound by a pattern
+      of the same name, of type 'bool',
+      bound at Line 7, Column 20.

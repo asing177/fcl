@@ -1,4 +1,4 @@
-global bool f = True;
+global bool f = true;
 
 @initial
 go() {

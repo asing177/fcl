@@ -2,8 +2,8 @@ transition initial -> terminal;
 
 @initial
 foo () {
-  if (True) {
-    tmp = True;
+  if (true) {
+    tmp = true;
     tmp = "bla" // bad
   } else {
     tmp = "bla"

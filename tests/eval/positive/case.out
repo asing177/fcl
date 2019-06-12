@@ -1,0 +1,22 @@
+*** Deltas ***
+[ ModifyGlobal Name { unName = "t" } (VConstr (MkNameUpper "B") [])
+, ModifyGlobal Name { unName = "b" } (VBool False)
+, ModifyGlobal Name { unName = "i" } (VNum (NumDecimal 1))
+, ModifyGlobal Name { unName = "t" } (VConstr (MkNameUpper "A") [])
+]
+
+*** Globals ***
+fromList
+  [ ( Key { unKey = "b" } , VBool False )
+  , ( Key { unKey = "i" } , VNum (NumDecimal 1) )
+  , ( Key { unKey = "t" } , VConstr (MkNameUpper "A") [] )
+  , ( Key { unKey = "testAddr" }
+    , VAccount (Address "fwBVDsVh8SYQy98CzYpNPcbyTRczVUZ96HszhNRB8Ve")
+    )
+  , ( Key { unKey = "testAddr2" }
+    , VAccount (Address "Fw68hsis6JPW4ed3ER1VC959TTf9DqberLxrq5uECKxh")
+    )
+  , ( Key { unKey = "testAddr3" }
+    , VAccount (Address "4Stv5gWGt78D3p919HFcKEschSmyGKGrAX2G35xJgdhw")
+    )
+  ]

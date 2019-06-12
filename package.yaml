@@ -191,7 +191,6 @@ tests:
     - Diff
     - strict
     - cryptonite
-    - file-embed
     - tasty
     - tasty-hunit
     - tasty-golden

@@ -4,8 +4,8 @@ num w = 4.5;
 int x = 5;
 int y = 2;
 int z = 3;
-bool t = True;
-bool f = True;
+bool t = true;
+bool f = true;
 
 asset<bool> a = a'H1tbrEKWGpbPjSeG856kz2DjViCwMU3qTw3i1PqCLz65';
 account b = u'H1tbrEKWGpbPjSeG856kz2DjViCwMU3qTw3i1PqCLz65';
@@ -42,9 +42,9 @@ f () {
   n = -55.00000 + n;
 
   if (t || f) {
-    t = False;
+    t = false;
   } else {
-    f = True;
+    f = true;
   };
 
   before (dt_future) {

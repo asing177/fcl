@@ -17,12 +17,13 @@ module Language.FCL.AST (
   Script(..),
   Expr(..),
   Pattern(..),
-  Match(..),
+  patLoc,
+  CaseBranch(..),
   Method(..),
   Preconditions(..),
   Precondition(..),
   Helper(..),
-  EnumDef(..),
+  ADTDef(..),
   Def(..),
   defnPreconditions,
   Arg(..),
@@ -38,22 +39,20 @@ module Language.FCL.AST (
   LUnOp,
   LLit,
   LName,
+  LNameUpper,
   LType,
-  LEnumConstr,
   LPattern,
-
   -- ** Values
   Value(..),
-  evalLit,
-  evalLLit,
 
   -- ** Name
   Name(..),
+  NameUpper(..),
   defnName,
   defnLName,
 
-  -- ** Enum constructor
-  EnumConstr(..),
+  -- ** ADT constructor
+  ADTConstr(..),
 
   -- ** State Labels
   Place(..),
@@ -85,11 +84,11 @@ module Language.FCL.AST (
   normaliseNumPrecision,
 
   -- ** Helpers
-  EnumInfo(..),
-  createEnumInfo,
+  ADTInfo(..),
+  createADTInfo,
 
   eseq,
-  unseq,
+  flattenExprs,
   argtys,
   argtys',
   argLits,
@@ -121,6 +120,7 @@ import qualified Datetime.Types as DT
 
 import Data.Aeson (ToJSON(..), FromJSON(..), FromJSONKey(..), ToJSONKey(..))
 import qualified Data.Binary as B
+import Data.Char (isUpper)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import qualified Data.List.NonEmpty as NE
@@ -142,10 +142,12 @@ data Loc
   | Loc { line :: Int, col :: Int }
   deriving (Eq, Show, Ord, Generic, Serialize, FromJSON, ToJSON, Hash.Hashable)
 
-data Located a = Located
-  { located :: Loc
-  , locVal  :: a
-  } deriving (Generic, Show, FromJSON, ToJSON, FromJSONKey, ToJSONKey, Hash.Hashable)
+data Located a = Located{ located :: Loc, locVal :: a }
+  deriving (Generic, Show, FromJSON, ToJSON, FromJSONKey, ToJSONKey, Hash.Hashable)
+
+-- -- For debugging (reduces clutter)
+-- instance Show a => Show (Located a) where
+--   show = show . locVal
 
 instance Functor Located where
   fmap f (Located l v) = Located l (f v)
@@ -161,24 +163,22 @@ type LExpr = Located Expr
 type LLit  = Located Lit
 type LType = Located Type
 type LName = Located Name
+type LNameUpper = Located NameUpper
 type LBinOp = Located BinOp
 type LUnOp  = Located UnOp
-type LEnumConstr = Located EnumConstr
 type LPattern = Located Pattern
 
--- | Enum constructor.
-newtype EnumConstr = EnumConstr { unEnumConstr :: SafeString }
-  deriving (Eq, Show, Ord, Generic, Hash.Hashable)
-
-instance ToJSON EnumConstr where
-  toJSON = toJSON . unEnumConstr
-
-instance FromJSON EnumConstr where
-  parseJSON = fmap EnumConstr . parseJSON
+-- | ADT constructor as given in a type definition.
+data ADTConstr = ADTConstr
+  { adtConstrId :: LNameUpper, adtConstrParams :: [(Type, LName)] }
+  deriving (Eq, Show, Ord, Generic, Hash.Hashable, FromJSON, ToJSON, Serialize)
 
 -- | Variable names
 newtype Name = Name { unName :: Text }
   deriving (Eq, Show, Ord, Generic, B.Binary, Serialize, FromJSONKey, ToJSONKey, Hash.Hashable)
+
+newtype NameUpper = MkNameUpper Text
+  deriving (Eq, Show, Ord, Generic, B.Binary, Serialize, FromJSON, ToJSON, Hash.Hashable)
 
 -- | Datetime literals
 newtype DateTime = DateTime { unDateTime :: DT.Datetime }
@@ -193,16 +193,28 @@ instance Hash.Hashable TimeDelta where
 instance Hash.Hashable DateTime where
   toHash = Hash.toHash . (toS :: [Char] -> ByteString) . show
 
+-- | FCL pattern language for @case@ matches.
 data Pattern
-  = PatLit EnumConstr
+  = PatConstr LNameUpper [Pattern] -- ^ Constructor pattern
+  | PatLit LLit                    -- ^ Literal pattern
+  | PatVar LName                   -- ^ Variable pattern
+  | PatWildCard                    -- ^ Wildcard ("don't care") pattern
   deriving (Eq, Ord, Show, Generic, FromJSON, ToJSON, Hash.Hashable)
 
-data Match
-  = Match { matchPat :: LPattern
-          , matchBody :: LExpr
-          }
+-- | Retrieve the location associated with a pattern ('PatWildCard' returns 'NoLoc')
+patLoc :: Pattern -> Loc
+patLoc = \case
+  PatConstr nm _ -> located nm
+  PatLit lit -> located lit
+  PatVar nm -> located nm
+  PatWildCard -> NoLoc
+
+-- | A case branch, consisting of a pattern and a branch body
+data CaseBranch
+  = CaseBranch{ matchPat :: LPattern, matchBody :: LExpr }
   deriving (Eq, Ord, Show, Generic, FromJSON, ToJSON, Hash.Hashable)
 
+-- | FCL expressions
 data Expr
   = ESeq     LExpr LExpr           -- ^ Sequencing
   | ELit     LLit                  -- ^ Literal
@@ -214,14 +226,16 @@ data Expr
   | EBefore  LExpr LExpr           -- ^ Time guard
   | EAfter   LExpr LExpr           -- ^ Time guard
   | EBetween LExpr LExpr LExpr     -- ^ Time guard
-  | ECase    LExpr [Match]         -- ^ Case statement
+  | ECase    LExpr [CaseBranch]         -- ^ Case statement
   | EAssign  Name  LExpr           -- ^ Variable update
   | ECall    (Either PrimOp LName) [LExpr] -- ^ Function call
   | ENoOp                          -- ^ Empty method body
   | EMap     (Map LExpr LExpr)     -- ^ Map k v
   | ESet     (Set LExpr)           -- ^ Set v
+  | EConstr NameUpper [LExpr]           -- ^ Constructor
   deriving (Eq, Ord, Show, Generic, FromJSON, ToJSON, Hash.Hashable)
 
+-- | Binary operators
 data BinOp
   = Add     -- ^ Addition
   | Sub     -- ^ Subtraction
@@ -237,6 +251,7 @@ data BinOp
   | Greater -- ^ Greater
   deriving (Eq, Ord, Show, Generic, FromJSON, ToJSON, Hash.Hashable)
 
+-- | Unary operators
 data UnOp = Not -- ^ Logical negation
   deriving (Eq, Ord, Show, Generic, FromJSON, ToJSON, Hash.Hashable)
 
@@ -252,7 +267,7 @@ data Lit
   | LSig       (SafeInteger, SafeInteger)
   | LDateTime  DateTime
   | LTimeDelta TimeDelta
-  | LConstr    EnumConstr
+  -- | LConstr    Name
   | LVoid
   deriving (Eq, Ord, Show, Generic, FromJSON, ToJSON, Hash.Hashable)
 
@@ -268,11 +283,11 @@ data Value
   | VVoid                          -- ^ Void
   | VDateTime DateTime             -- ^ A datetime with a timezone
   | VTimeDelta TimeDelta           -- ^ A difference in time
-  | VEnum EnumConstr               -- ^ Constructor of the given enum type
   | VState WorkflowState           -- ^ Named state label
   | VMap (Map Value Value)         -- ^ Map of values to values
   | VSet (Set Value)               -- ^ Set of values
   | VUndefined                     -- ^ Undefined
+  | VConstr NameUpper [Value]      -- ^ Constructor
   deriving (Eq, Ord, Show, Generic, Serialize, Hash.Hashable)
 
 -- | Type variables used in inference
@@ -283,6 +298,7 @@ data TVar
   | THV Type -- ^ Type variable used for inferring holdings type of polymorphic asset prim ops.
   deriving (Eq, Ord, Show, Generic, FromJSON, ToJSON, Hash.Hashable)
 
+-- | Collection types
 data TCollection
   = TMap Type Type  -- ^ Type of FCL Maps
   | TSet Type       -- ^ Type of FCL Sets
@@ -301,6 +317,8 @@ data NumPrecision
 nPInt :: NumPrecision
 nPInt = NPDecimalPlaces 0
 
+-- | Map 'NumPrecision' values into its base cases ('NPArbitrary' and
+-- 'NPDecimalPlaces')
 normaliseNumPrecision :: NumPrecision -> NumPrecision
 normaliseNumPrecision = go
   where
@@ -318,7 +336,7 @@ data Type
   = TError          -- ^ (Internal) Error branch in typechecker
   | TVar TVar       -- ^ (Internal) Type variable used in inference
   | TAny            -- ^ (Internal) Polymorphic type
-  | TNum NumPrecision           -- ^ Type of rational numbers
+  | TNum NumPrecision -- ^ Type of rational numbers
   | TBool           -- ^ Type of booleans
   | TAccount        -- ^ Type of account addresses
   | TAsset Type     -- ^ Type of asset addresses
@@ -329,7 +347,7 @@ data Type
   | TDateTime       -- ^ DateTime with Timezone
   | TTimeDelta      -- ^ Type of difference in time
   | TState          -- ^ Contract state
-  | TEnum Name      -- ^ Enumeration type
+  | TADT NameUpper -- ^ ADTeration type
   | TFun [Type] Type -- ^ Type signature of helper functions--argument types and return type
   | TColl TCollection -- ^ Type of collection values
   | TTransition     -- ^ Transition type
@@ -386,10 +404,10 @@ data Helper = Helper
   , helperBody :: LExpr
   } deriving (Eq, Ord, Show, Generic, FromJSON, ToJSON, Hash.Hashable)
 
--- | Enumeration
-data EnumDef = EnumDef
-  { enumName :: LName
-  , enumConstrs :: [LEnumConstr]
+-- | ADTeration
+data ADTDef = ADTDef
+  { adtName :: LNameUpper
+  , adtConstrs :: [ADTConstr]
   } deriving (Eq, Ord, Show, Generic, ToJSON, FromJSON, Hash.Hashable)
 
 -- | Definition
@@ -413,7 +431,7 @@ defnPreconditions = \case
 
 -- | Script
 data Script = Script
-  { scriptEnums       :: [EnumDef]
+  { scriptADTs       :: [ADTDef]
   , scriptDefs        :: [Def]
   , scriptTransitions :: [Transition]
   , scriptMethods     :: [Method]
@@ -422,7 +440,7 @@ data Script = Script
 
 emptyScript :: Script
 emptyScript = Script
-  { scriptEnums       = []
+  { scriptADTs       = []
   , scriptDefs        = []
   , scriptTransitions = []
   , scriptMethods     = []
@@ -459,14 +477,14 @@ at :: a -> Loc -> Located a
 at = flip Located
 
 -- | Unroll a sequence of statements into a list.
-unseq :: LExpr -> [LExpr]
-unseq (Located l e) = case e of
-  ESeq a b       -> unseq a ++ unseq b
-  EIf cond tr fl -> unseq tr ++ unseq fl
-  EBefore _ s    -> unseq s
-  EAfter _ s     -> unseq s
-  EBetween _ _ s -> unseq s
-  ECase _ ms     -> concatMap (unseq . matchBody) ms
+flattenExprs :: LExpr -> [LExpr]
+flattenExprs (Located l e) = case e of
+  ESeq a b       -> flattenExprs a ++ flattenExprs b
+  EIf cond tr fl -> flattenExprs tr ++ flattenExprs fl
+  EBefore _ s    -> flattenExprs s
+  EAfter _ s     -> flattenExprs s
+  EBetween _ _ s -> flattenExprs s
+  ECase _ ms     -> concatMap (flattenExprs . matchBody) ms
   _              -> [Located l e]
 
 -- | Roll a list of expressions into a sequence.
@@ -478,16 +496,16 @@ eseq loc es = case es of
     ESeq x $ eseq (located x) xs
 
 -- @Nothing@ in case of an unknown constructor.
-mapType :: EnumInfo -> Value -> Maybe Type
+mapType :: ADTInfo -> Value -> Maybe Type
 mapType _        (VNum (NumRational _)) = pure (TNum NPArbitrary)
 mapType _        (VNum (NumDecimal f))  = (pure . TNum . NPDecimalPlaces . decimalPlaces) f
-mapType enumInfo (VEnum c)    = TEnum <$> Map.lookup c (constrToEnum enumInfo)
+mapType adtInfo (VConstr c _) = TADT . locVal . fst <$> Map.lookup c (constructorToType adtInfo)
 mapType _        VBool{}      = pure TBool
 mapType _        VAccount{}   = pure TAccount
 mapType _        VAsset{}     = pure (TAsset TAny)
 mapType _        VContract{}  = pure TContract
 mapType _        VVoid        = pure TVoid
-mapType _        VText{}       = pure TText
+mapType _        VText{}      = pure TText
 mapType _        VSig{}       = pure TSig
 mapType _        VDateTime{}  = pure TDateTime
 mapType _        VTimeDelta{} = pure TTimeDelta
@@ -502,28 +520,35 @@ mapType einfo   (VSet vset)   =
     []        -> pure (TColl (TSet TAny))
     (v:_) -> TColl <$> (TSet <$> mapType einfo v)
 
-data EnumInfo = EnumInfo
-  { constrToEnum :: Map EnumConstr Name
-  , enumToConstrs :: Map Name [EnumConstr]
+-- | Associations between type- and value-constructors
+data ADTInfo = ADTInfo
+  { constructorToType :: Map NameUpper (LNameUpper, [(Type, LName)])
+  , adtToConstrs :: Map NameUpper [ADTConstr]
   }
 
--- | Create the dictionaries for the constructor/enum type membership
+-- | Create the dictionaries for the constructor/adt type membership
 -- relations from the original list of definitionSet. Assumes that there
 -- are no duplicates in the input.
-createEnumInfo :: [EnumDef] -> EnumInfo
-createEnumInfo enums = EnumInfo constrEnum enumConstrs
+createADTInfo :: [ADTDef] -> ADTInfo
+createADTInfo adts = ADTInfo m1 m2
   where
-    constrEnum
+    m1 :: Map NameUpper (LNameUpper, [(Type, LName)])
+    m1
       = Map.fromList
-      . concatMap (\(EnumDef lname constrs)
-                     -> map (\lconstr -> (locVal lconstr, locVal lname)) constrs)
-      $ enums
+      . concatMap
+        (\(ADTDef lname lconstrs) ->
+          map
+            (\(ADTConstr id types) ->
+              (locVal id, (lname, types)))
+            lconstrs)
+      $ adts
 
-    enumConstrs
+    m2 :: Map NameUpper [ADTConstr]
+    m2
       = Map.fromList
-      . map (\(EnumDef lname constrs)
-               -> (locVal lname, map locVal constrs))
-      $ enums
+      . map (\(ADTDef lname constrsAndTypes)
+               -> (locVal lname, constrsAndTypes))
+      $ adts
 
 -------------------------------------------------------------------------------
 -- Serialization
@@ -534,7 +559,16 @@ instance Serialize (NonEmpty LExpr) where
   get = NE.fromList <$> get
 
 instance IsString Name where
-  fromString = Name . toS
+  fromString "" = panic "empty name"
+  fromString s@(c:_)
+    | isUpper c = panic "expected lowercase name"
+    | otherwise = Name $ toS s
+
+instance IsString NameUpper where
+  fromString "" = panic "empty name"
+  fromString s@(c:_)
+    | isUpper c = MkNameUpper $ toS s
+    | otherwise = panic "expected uppercase name"
 
 instance IsString TVar where
   fromString = TV . toS
@@ -553,24 +587,17 @@ instance Serialize TVar where
       3 -> THV <$> get
       n -> fail "Inavlid tag deserialized for TVar"
 
-instance IsString EnumConstr where
-  fromString = EnumConstr . fromString
-
-instance Serialize EnumConstr where
-  put = put . unEnumConstr
-  get = EnumConstr <$> get
-
 instance (Serialize a) => Serialize (Located a) where
   put (Located loc x) = put (loc,x)
   get = uncurry Located <$> get
 
 instance Serialize Lit where
-instance Serialize EnumDef where
+instance Serialize ADTDef where
 instance Serialize Def where
 instance Serialize Arg where
 instance Serialize Type where
 instance Serialize Pattern where
-instance Serialize Match where
+instance Serialize CaseBranch where
 instance Serialize Expr where
 instance Serialize BinOp where
 instance Serialize UnOp where
@@ -595,8 +622,14 @@ instance (Pretty a) => Pretty (Located a) where
 instance Pretty Name where
   ppr (Name nm) = ppr nm
 
-instance Pretty EnumConstr where
-  ppr (EnumConstr ec) = ppr ec
+instance Pretty NameUpper where
+  ppr (MkNameUpper nm) = ppr nm
+
+instance Pretty ADTConstr where
+  ppr (ADTConstr id []) = ppr id
+  ppr (ADTConstr id namedTyParams)
+    = ppr id
+      <> tupleOf (map (\(ty, nm) -> ppr ty <+> ppr nm) namedTyParams)
 
 instance Pretty Expr where
   ppr = \case
@@ -649,11 +682,19 @@ instance Pretty Expr where
                         Located _ e2' = e2
     EMap m -> tupleOf $ map (\(k,v) -> ppr k <+> ":" <+> ppr v) (Map.toList m)
     ESet s -> setOf s
+    EConstr nm [] -> ppr nm
+    EConstr nm es -> ppr nm <> tupleOf es
 
+instance Pretty Pattern where
+  ppr = \case
+    PatConstr id pats -> ppr id <> tupleOf pats
+    PatLit lit -> ppr lit
+    PatVar v -> ppr v
+    PatWildCard -> "_"
 
-instance Pretty Match where
-  ppr (Match (Located _ (PatLit p)) expr)
-    = ppr (LConstr p) <+> token Token.rarrow <+> maybeBrace expr
+instance Pretty CaseBranch where
+  ppr (CaseBranch pat expr)
+    = ppr pat <+> token Token.rarrow <+> maybeBrace expr
     where
       -- Wrap braces around the expression in case it is a sequence of
       -- statements, otherwise don't.
@@ -665,17 +706,16 @@ instance Pretty Match where
 instance Pretty Lit where
   ppr = \case
     LNum n         -> ppr n
-    LBool bool     -> ppr bool
+    LBool bool     -> if bool then token Token.true else token Token.false
     LText msg       -> dquotes $ ppr msg
     LAccount addr  -> "u" <> squotes (ppr addr)
     LAsset addr    -> "a" <> squotes (ppr addr)
     LContract addr -> "c" <> squotes (ppr addr)
     LSig (r,s)     -> tupleOf [ppr r, ppr s]
     LVoid          -> token Token.void
-    LState name    -> token Token.colon <> ppr name
+    LState name    -> token Token.at <> ppr name
     LDateTime dt   -> dquotes $ ppr $ (DT.formatDatetime (unDateTime dt) :: [Char])
     LTimeDelta d   -> ppr d
-    LConstr ec     -> text "`" <> ppr ec
 
 instance Pretty Type where
   ppr = \case
@@ -685,7 +725,7 @@ instance Pretty Type where
         (NPDecimalPlaces p) -> token Token.decimal <> angles (ppr p)
         _                   -> panic $ "Expected normalised num precision"
     TBool       -> token Token.bool
-    TAny        -> token Token.any
+    TAny        -> "<any-type>" -- not in syntax
     TAsset t    -> token Token.asset <> angles (ppr t)
     TAccount    -> token Token.account
     TContract   -> token Token.contract
@@ -696,8 +736,8 @@ instance Pretty Type where
     TVar v      -> ppr v
     TDateTime   -> token Token.datetime
     TTimeDelta  -> token Token.timedelta
-    TState      -> token Token.state
-    TEnum e     -> token Token.enum <+> token (unName e)
+    TState      -> "<workflow-state>" -- not in syntax
+    TADT e     -> ppr e
     TFun as r   -> tupleOf (map ppr as) <+> "->" <+> ppr r
     TColl tcol  -> ppr tcol
     TTransition -> token Token.transition
@@ -725,10 +765,11 @@ instance Pretty Value where
     VVoid        -> token Token.void
     VDateTime dt -> ppr (DT.formatDatetime (unDateTime dt) :: [Char])
     VTimeDelta d -> ppr d
-    VEnum c      -> ppr c
     VState n     -> ppr n
     VMap vmap    -> ppr vmap
     VSet vset    -> tupleOf (Set.toList vset)
+    VConstr nm [] -> ppr nm
+    VConstr nm vs -> ppr nm <> tupleOf vs
     VUndefined   -> "undefined"
 
 instance Pretty Arg where
@@ -773,11 +814,11 @@ instance Pretty Helper where
           <$$> rbrace
         other -> lbrace <$$> indent 2 (semify (ppr other)) <$$> rbrace
 
-instance Pretty EnumDef where
-  ppr (EnumDef lname lconstrs)
-    = token Token.enum <+> ppr (locVal lname) <+> lbrace
-      <$$> (Pretty.commafy . map (ppr . locVal) $ lconstrs)
-      <$$> rbrace <> token Token.semi
+instance Pretty ADTDef where
+  ppr (ADTDef lname lconstrsAndTypes)
+    = token Token.type_ <+> ppr (locVal lname) <+> token Token.assign
+      <+> (hsep . punctuate " |" . map ppr $ lconstrsAndTypes)
+      <> token Token.semi
 
 instance Pretty Def where
   ppr = \case
@@ -787,11 +828,12 @@ instance Pretty Def where
       -> hsep [token Token.global, ppr typ, ppr precs, ppr name `assign` ppr expr]
 
 instance Pretty Script where
-  ppr (Script enums defns transitions methods functions) = vsep
-    [ vsep (map ppr enums)
+  ppr (Script adts defns transitions methods functions) = vsep
+    [ vsep (map ppr adts)
     , vsep (map ppr defns)
-    , Pretty.softbreak
-    , ppr transitions
+    , if null transitions
+      then mempty
+      else vsep [Pretty.softbreak, ppr transitions]
     , Pretty.softbreak
     , vsep (spaced (map ppr methods))
     , Pretty.softbreak
@@ -800,28 +842,6 @@ instance Pretty Script where
 
 ppScript :: Script -> LText
 ppScript = render . ppr
-
--------------------------------------------------------------------------------
--- Map Literals
--------------------------------------------------------------------------------
-
-evalLit :: Lit -> Value
-evalLit lit = case lit of
-  LNum n      -> VNum (NumDecimal n)
-  LVoid       -> VVoid
-  LBool n     -> VBool n
-  LAccount n  -> VAccount n
-  LAsset n    -> VAsset n
-  LContract n -> VContract n
-  LText n      -> VText n
-  LSig n      -> VSig n
-  LState pl   -> VState pl
-  LDateTime d -> VDateTime d
-  LTimeDelta d -> VTimeDelta d
-  LConstr c   -> VEnum c
-
-evalLLit :: LLit -> Value
-evalLLit (Located _ lit) = evalLit lit
 
 -------------------------------------------------------------------------------
 -- To/FromJSON

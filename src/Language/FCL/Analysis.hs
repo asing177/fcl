@@ -105,7 +105,7 @@ actualTransitions methods = do
             )
 
         branchesMethod :: Method -> Set WorkflowState
-        branchesMethod method = Set.unions . fmap getWFState . unseq . methodBody $ method
+        branchesMethod method = Set.unions . fmap getWFState . flattenExprs . methodBody $ method
           where
             getWFState :: LExpr -> Set WorkflowState
             getWFState (Located _ (ECall (Left Prim.TransitionTo) args))

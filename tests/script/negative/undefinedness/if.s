@@ -15,7 +15,7 @@ transition stateA -> terminal;
 
 @initial
 init() {
-  cond = False;
+  cond = false;
   transitionTo(:stateA);
 }
 
