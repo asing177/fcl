@@ -26,7 +26,7 @@ import Language.FCL.Utils (duplicates, duplicatesOn)
 -- | Duplicate variable occurrence can be in either a top level definition or
 -- an argument to a method/helper function.
 data VarSrc = Defn | MethodArg Name LExpr
-  deriving (Generic, A.ToJSON, A.FromJSON)
+  deriving (Show, Generic, A.ToJSON, A.FromJSON)
 
 -- | Ways we can have duplicate definitions of various kinds.
 data DuplicateError
@@ -37,7 +37,7 @@ data DuplicateError
   | DuplicateVariable VarSrc VarSrc LName
   | DuplicateTransition Transition
   | DuplicatePrecondition (Precondition, LExpr)
-  deriving (Generic, A.ToJSON, A.FromJSON)
+  deriving (Show, Generic, A.ToJSON, A.FromJSON)
 
 instance Pretty DuplicateError where
   ppr (DuplicateMethod lname lexpr)

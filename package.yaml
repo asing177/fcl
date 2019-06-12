@@ -185,7 +185,9 @@ executables:
 tests:
   fcl-test:
     main:                Main.hs
-    source-dirs:         tests
+    source-dirs:
+      - tests
+      - api
     ghc-options:
     - -threaded
     - -rtsopts
@@ -202,3 +204,14 @@ tests:
     - tasty-golden
     - tasty-quickcheck
     - QuickCheck
+    - hspec
+    - warp
+    - wai
+    - aeson
+    - swagger2
+    - servant
+    - servant-swagger
+    - servant-swagger-ui
+    - servant-server
+    - wai-cors
+    - quickcheck-instances

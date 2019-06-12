@@ -89,7 +89,7 @@ data CompilationErr
   | WorkflowErr [Reachability.WFError]
   | UndefinednessErr [Undef.InvalidStackTrace]
   | EffectErr [Effect.EffectError]
-  deriving (Generic, A.ToJSON, A.FromJSON)
+  deriving (Show, Generic, A.ToJSON, A.FromJSON)
 
 instance Pretty CompilationErr where
   ppr (ParseErr err) = ppr err

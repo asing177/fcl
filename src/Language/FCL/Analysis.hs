@@ -21,7 +21,7 @@ import qualified Language.FCL.Prim as Prim (PrimOp (Terminate, TransitionTo, Sta
 data TransitionError
   = UndeclaredTransition Name Transition
   | UnusedTransition Transition
-  deriving (Generic, A.ToJSON, A.FromJSON)
+  deriving (Show, Generic, A.ToJSON, A.FromJSON)
 
 instance Pretty TransitionError where
   ppr = \case
@@ -33,7 +33,7 @@ instance Pretty TransitionError where
       <> ", which is declared but not implemented by any method."
 
 data TransitionErrors = TransitionErrors [Transition] [TransitionError]
-  deriving (Generic, A.ToJSON, A.FromJSON)
+  deriving (Show, Generic, A.ToJSON, A.FromJSON)
 
 instance Pretty TransitionErrors where
   ppr = \case

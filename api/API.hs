@@ -42,7 +42,7 @@ type API = SwaggerSchemaUI "swagger-ui" "swagger.json" :<|> AppAPI
 
 data RPCResponseError
   = RPCLSPErr LSP.LSPErr
-  deriving (Generic)
+  deriving (Show, Generic)
 
 instance ToJSON RPCResponseError
 instance ToSchema RPCResponseError
@@ -52,7 +52,7 @@ data RPCResponse a
   = RPCResp { contents :: a }
   | RPCRespError RPCResponseError
   | RPCRespOK
-  deriving (Generic)
+  deriving (Show, Generic)
 
 instance ToJSON a => ToJSON (RPCResponse a)
 

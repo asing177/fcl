@@ -2,6 +2,7 @@
 {-# LANGUAGE FlexibleContexts           #-}
 {-# LANGUAGE GADTs                      #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# OPTIONS_GHC -fno-warn-orphans #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE DeriveGeneric #-}
 

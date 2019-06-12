@@ -5,13 +5,14 @@ module Main (
 import Protolude
 
 import Test.Tasty
-
+import Test.Hspec
 import qualified KeyTests
 import qualified TestScript
 import qualified TestUndefinedness
 import qualified TestNumber
 
 import qualified TestWorkflow
+import qualified TestSwagger
 
 -------------------------------------------------------------------------------
 -- test Suite
@@ -53,5 +54,6 @@ suite
 
 main :: IO ()
 main = do
-  tests <- suite
-  defaultMain tests
+  -- tests <- suite
+  -- defaultMain tests
+  hspec TestSwagger.swaggerTest

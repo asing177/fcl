@@ -218,7 +218,7 @@ textifyReqDef ReqGlobalDefNull{..} = defNullType <..> defNullName <> ";"
 data LSPErr = LSPErr
   { lsp :: [LSP]
   , err :: Compile.CompilationErr
-  } deriving (Generic, FromJSON)
+  } deriving (Show, Generic, FromJSON)
 
 instance ToJSON LSPErr where
   toJSON (LSPErr{..}) = object
