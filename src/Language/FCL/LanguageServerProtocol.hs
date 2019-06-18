@@ -28,9 +28,10 @@ module Language.FCL.LanguageServerProtocol
 
 import Protolude
 
-import Data.Aeson (ToJSON(..), FromJSON, object, (.=))
+import Data.Aeson as A
 import qualified Data.Text as Text
 import qualified Data.List.NonEmpty as NE
+import Text.PrettyPrint.Leijen.Text as PP hiding (Pretty, equals, (<$>))
 
 import qualified Data.ByteString as BS
 import qualified Language.FCL.AST as Script
@@ -38,8 +39,10 @@ import qualified Language.FCL.Analysis as Analysis
 import qualified Language.FCL.Compile as Compile
 import qualified Language.FCL.Graphviz as Graphviz
 import qualified Language.FCL.Parser as Parser
-import qualified Language.FCL.Pretty as Pretty
+import Language.FCL.Pretty as Pretty
 import qualified Language.FCL.Typecheck as Typecheck
+import qualified Language.FCL.Token as Token
+
 import Language.FCL.Warning (Warning(..))
 import qualified Language.FCL.Effect as Effect
 import qualified Language.FCL.Duplicate as Dupl
@@ -80,15 +83,22 @@ data ReqMethodArg
 
 data ReqDef
   = ReqGlobalDef
-    { defName :: Text
-    , defType :: Text
+    { defType :: Text
+    , defName :: Text
     , defValue :: Text
     }
   | ReqGlobalDefNull
-    { defNullName :: Text
-    , defNullType :: Text
-    }
-  deriving (Eq, Ord, Show, Generic, ToJSON, FromJSON)
+    { defNullType :: Text
+    , defNullName :: Text
+    } deriving (Eq, Ord, Show, Generic, ToJSON, FromJSON)
+
+instance Pretty.Pretty ReqDef where
+  ppr (ReqGlobalDef typ name val)
+    = case Parser.parseDecimal val of
+        Left _ -> hsep [token Token.global, ppr typ, ppr name `assign` ppshow val]
+        Right d -> hsep [token Token.global, ppr typ, ppr name `assign` ppr d]
+  ppr (ReqGlobalDefNull typ name)
+    = hsep [token Token.global, ppr typ, ppr name]  <> token Token.semi
 
 data ReqEnumDef
   = ReqEnumDef
@@ -114,9 +124,10 @@ data RespScript = RespScript
   , respGraphviz :: Graphviz.Graphviz
   } deriving (Show, Generic, ToJSON, FromJSON)
 
-data RespDef
-  = RespDef Script.Def
-  deriving (Show, Generic, ToJSON, FromJSON)
+data RespDef = RespDef
+  { respDef :: Script.Def
+  , respPpDef :: Text
+  } deriving (Show, Generic, ToJSON, FromJSON)
 
 -------------
 -- Scripts --
@@ -150,7 +161,7 @@ scriptCompileRaw text
 scriptParse :: ReqScript -> Either LSPErr RespScript
 scriptParse reqScript@ReqScript{..} = do
   methods <- sequence $ methodCompile <$> methods
-  defs <- first (toLSPErr . Compile.ParseErr) (sequence $ Parser.parseDefn . textifyReqDef <$> defs)
+  defs <- first (toLSPErr . Compile.ParseErr) (sequence $ Parser.parseDefn . Pretty.prettyPrint <$> defs)
   let enums' = (\e -> Script.EnumDef
                    (Script.Located Script.NoLoc (enumName e))
                    (Script.Located Script.NoLoc <$> (enumConstr e))
@@ -179,7 +190,7 @@ methodCompile  reqMethod@ReqMethod{..} = do
         , methodBody = parsedMethodBody
         , methodArgs = args
         }
-  pure $ RespMethod method (toS $ Pretty.prettyPrint method)
+  pure $ RespMethod method (Pretty.prettyPrint method)
 
 
 methodCompileRaw :: Text -> Either LSPErr RespMethod
@@ -193,9 +204,7 @@ methodCompileRaw text
 ----------
 
 defCompile :: ReqDef -> Either LSPErr RespDef
-defCompile def = first (toLSPErr . Compile.ParseErr) $ do
-  defn <- Parser.parseDefn . textifyReqDef $ def
-  pure $ RespDef defn
+defCompile def = defCompileRaw (Pretty.prettyPrint def)
 
 defCompileRaw :: Text -> Either LSPErr RespDef
 defCompileRaw text = do
@@ -205,15 +214,10 @@ defCompileRaw text = do
                 (Script.EnumInfo mempty mempty)
                 Typecheck.emptyInferState
                 (Typecheck.tcDefn defn))
-  pure $ RespDef defn
+  pure $ RespDef defn (Pretty.prettyPrint defn)
 
 (<..>) :: Text -> Text -> Text
 (<..>) t1 t2 = t1 <> " " <> t2
-
--- Change it pprint
-textifyReqDef :: ReqDef -> Text
-textifyReqDef ReqGlobalDef{..} = defType <..> defName <..> "=" <..> defValue <> ";"
-textifyReqDef ReqGlobalDefNull{..} = defNullType <..> defNullName <> ";"
 
 data LSPErr = LSPErr
   { lsp :: [LSP]

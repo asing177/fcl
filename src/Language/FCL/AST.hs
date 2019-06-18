@@ -351,7 +351,13 @@ instance Pretty Precondition where
 
 newtype Preconditions = Preconditions
   { unPreconditions :: [(Precondition, LExpr)] }
-  deriving (Eq, Ord, Show, Generic, Serialize, FromJSON, ToJSON, Hash.Hashable)
+  deriving (Eq, Ord, Show, Generic, Serialize, Hash.Hashable)
+
+instance ToJSON Preconditions where
+  toJSON (Preconditions p) = toJSON p
+
+instance FromJSON Preconditions where
+  parseJSON = fmap Preconditions . parseJSON
 
 instance Semigroup Preconditions where
   Preconditions ps1 <> Preconditions ps2 = Preconditions $ ps1 <> ps2

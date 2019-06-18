@@ -54,6 +54,6 @@ suite
 
 main :: IO ()
 main = do
+  hspec TestSwagger.swaggerTest
   tests <- suite
   defaultMain tests
-  hspec TestSwagger.swaggerTest

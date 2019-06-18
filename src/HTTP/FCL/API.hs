@@ -7,7 +7,13 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE FlexibleInstances          #-}
-module API where
+module HTTP.FCL.API
+  ( FCLAPI
+  , fclProxyAPI
+  , fclServer
+  , runHttpFclAsHandler
+  , runHttpFcl
+  ) where
 
 import Network.Wai.Handler.Warp
 import Protolude hiding (get, from, Type)
@@ -18,13 +24,10 @@ import Servant.Swagger
 import Servant.Swagger.UI
 import Network.Wai.Middleware.Cors
 
-import Language.FCL.Parser as Parser
-import Language.FCL.Pretty as Pretty
-import Language.FCL.Compile as Compile
 import qualified Language.FCL.LanguageServerProtocol as LSP
-import Data.Aeson as A (ToJSON(..), (.=), object)
+import Data.Aeson as A
 
-import SwaggerSchema()
+import HTTP.FCL.SwaggerSchema()
 
 data Config = Config
 
@@ -34,11 +37,11 @@ newtype AppT m a = AppT
 
 type App = AppT IO
 
-type AppAPI = ScriptsAPI :<|> MethodsAPI :<|> DefsAPI
+type FCLAPI = ScriptsAPI :<|> MethodsAPI :<|> DefsAPI
 
 type SwaggerAPI = "swagger.json" :> Get '[JSON] Swagger
 
-type API = SwaggerSchemaUI "swagger-ui" "swagger.json" :<|> AppAPI
+type API = SwaggerSchemaUI "swagger-ui" "swagger.json" :<|> FCLAPI
 
 data RPCResponseError
   = RPCLSPErr LSP.LSPErr
@@ -49,12 +52,14 @@ instance ToSchema RPCResponseError
 
 -- | An RPC response body
 data RPCResponse a
-  = RPCResp { contents :: a }
+  = RPCResp a
   | RPCRespError RPCResponseError
   | RPCRespOK
   deriving (Show, Generic)
 
-instance ToJSON a => ToJSON (RPCResponse a)
+instance ToJSON a => ToJSON (RPCResponse a) where
+  toJSON = genericToJSON (defaultOptions { sumEncoding = ObjectWithSingleField })
+
 
 instance (ToSchema a) => ToSchema (RPCResponse a) where
   declareNamedSchema = genericDeclareNamedSchemaUnrestricted defaultSchemaOptions
@@ -136,29 +141,31 @@ defsCompile req = case LSP.defCompile req of
 -- Server
 ----------------------
 
-appAPI :: Proxy AppAPI
-appAPI = Proxy
+fclProxyAPI :: Proxy FCLAPI
+fclProxyAPI = Proxy
 
 api :: Proxy API
 api = Proxy
 
-server :: ServerT AppAPI App
-server = scripts :<|> methods :<|> defs
+fclServer :: ServerT FCLAPI App
+fclServer = scripts :<|> methods :<|> defs
   where
     scripts = (scriptsCompile :<|> scriptsCompileRaw) :<|> scriptsParse
     methods =  methodCompile :<|> methodCompileRaw
     defs = defsCompile :<|> defsCompileRaw
 
-runAppAsHandler :: Config -> App a -> Handler a
-runAppAsHandler cfg app = Handler $ runReaderT (runApp app) cfg
+runHttpFclAsHandler :: App a -> Handler a
+runHttpFclAsHandler app = Handler $ runReaderT (runApp app) Config
 
-appToServer :: Config -> Server API
-appToServer cfg =
-  swaggerSchemaUIServer (toSwagger appAPI)
-    :<|> (hoistServer appAPI (runAppAsHandler cfg) server)
+appToServer :: Server API
+appToServer =
+  swaggerSchemaUIServer (toSwagger fclProxyAPI)
+    :<|> (hoistServer fclProxyAPI runHttpFclAsHandler fclServer)
 
-runAPI :: IO ()
-runAPI = do
+runHttpFcl :: IO ()
+runHttpFcl = do
   let port = 8080
   putText $ "Running on port " <> show port
-  run port . simpleCors . serve api $ (appToServer Config)
+  run port . customCors . serve api $ appToServer
+  where
+    customCors = cors (const $ Just (simpleCorsResourcePolicy  { corsRequestHeaders = ["Accept", "Accept-Language", "Content-Language", "Content-Type"] }))

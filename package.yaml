@@ -32,6 +32,7 @@ dependencies:
 
   # Data Structures
   - containers
+  - insert-ordered-containers
 
   # Serialization
   - binary
@@ -82,6 +83,16 @@ library:
   - asn1-types
   - asn1-encoding
 
+  # Http
+  - wai
+  - wai-cors
+  - warp
+  - servant
+  - servant-server
+  - servant-swagger
+  - servant-swagger-ui
+  - swagger2
+
   ghc-options:
     -fwarn-tabs
     -fwarn-incomplete-patterns
@@ -116,8 +127,6 @@ library:
     - Language.FCL.Contract
     - Language.FCL.AST
     - Language.FCL.Delta
-    - Numeric.Lossless.Decimal
-    - Numeric.Lossless.Number
     - Language.FCL.Init
     - Language.FCL.Storage
     - Language.FCL.Pretty
@@ -151,6 +160,12 @@ library:
     - Language.FCL.World
     - Language.FCL.Warning
 
+    - Numeric.Lossless.Decimal
+    - Numeric.Lossless.Number
+
+    - HTTP.FCL.API
+    - HTTP.FCL.SwaggerSchema
+
 executables:
   fcl:
     main:                Main.hs
@@ -164,30 +179,21 @@ executables:
     - optparse-applicative
     - aeson-pretty
 
-  fcl-api:
+  fcl-http:
     main: Main.hs
-    source-dirs: api
+    source-dirs: http
     ghc-options:
     - -threaded
     - -rtsopts
     - -with-rtsopts=-N
     dependencies:
     - fcl
-    - warp
-    - wai
-    - aeson
-    - swagger2
-    - servant
-    - servant-swagger
-    - servant-swagger-ui
-    - servant-server
-    - wai-cors
+
 tests:
   fcl-test:
     main:                Main.hs
     source-dirs:
-      - tests
-      - api
+    - tests
     ghc-options:
     - -threaded
     - -rtsopts
@@ -215,3 +221,4 @@ tests:
     - servant-server
     - wai-cors
     - quickcheck-instances
+    - lens

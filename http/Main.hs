@@ -1,7 +1,7 @@
 module Main where
 import Protolude hiding (get, from)
 
-import API
+import HTTP.FCL.API
 
 main :: IO ()
-main = runAPI
+main = runHttpFcl
