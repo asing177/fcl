@@ -85,20 +85,15 @@ data ReqDef
   = ReqGlobalDef
     { defType :: Text
     , defName :: Text
-    , defValue :: Text
-    }
-  | ReqGlobalDefNull
-    { defNullType :: Text
-    , defNullName :: Text
+    , defValue :: Maybe Text
     } deriving (Eq, Ord, Show, Generic, ToJSON, FromJSON)
 
 instance Pretty.Pretty ReqDef where
-  ppr (ReqGlobalDef typ name val)
-    = case Parser.parseDecimal val of
+  ppr (ReqGlobalDef typ name val) = case val of
+    Just v -> case Parser.parseDecimal v of
         Left _ -> hsep [token Token.global, ppr typ, ppr name `assign` ppshow val]
         Right d -> hsep [token Token.global, ppr typ, ppr name `assign` ppr d]
-  ppr (ReqGlobalDefNull typ name)
-    = hsep [token Token.global, ppr typ, ppr name]  <> token Token.semi
+    Nothing -> hsep [token Token.global, ppr typ, ppr name]  <> token Token.semi
 
 data ReqEnumDef
   = ReqEnumDef

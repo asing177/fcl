@@ -119,9 +119,10 @@ instance ToSchema (Address a) where
 instance ToSchema LSP.ReqDef  where
   declareNamedSchema _ = do
     t <- declareSchemaRef (Proxy :: Proxy Text)
+    mt <- declareSchemaRef (Proxy :: Proxy (Maybe Text))
     pure $ NamedSchema (Just "ReqDef")
       $ mempty { _schemaParamSchema = mempty { _paramSchemaType = SwaggerObject }
-               , _schemaProperties = fromList [("defType", t), ("defName", t), ("defValue", t)]
+               , _schemaProperties = fromList [("defType", t), ("defName", t), ("defValue", mt)]
                , _schemaRequired = [ "defType", "defName" ]
                }
 
