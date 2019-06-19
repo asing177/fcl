@@ -8,7 +8,7 @@
 
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE FlexibleInstances          #-}
-module HTTP.FCL.SwaggerSchema where
+module HTTP.FCL.SwaggerSchema () where
 
 import Protolude hiding (get, from, Type)
 import Data.Swagger

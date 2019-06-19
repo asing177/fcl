@@ -4,7 +4,8 @@ module Language.FCL.Analysis (
   TransitionError(..),
   TransitionErrors(..),
   checkInferTransitions,
-  actualTransitions,
+  inferMethodsTransitions,
+  inferMethodTransitions,
   inferTransitions,
 ) where
 
@@ -62,7 +63,7 @@ checkInferTransitions ast@(Script _ _ trans methods _)
   where
 
     actual :: [(Method, Transition)]
-    actual = actualTransitions methods
+    actual = inferMethodsTransitions methods
 
     errors, undeclaredErrs, unusedErrs :: [TransitionError]
     errors = mconcat [undeclaredErrs, unusedErrs]
@@ -80,46 +81,38 @@ checkInferTransitions ast@(Script _ _ trans methods _)
 
 inferTransitions :: Script -> [Transition]
 inferTransitions
-    = Set.toList
-    . Set.fromList
-    . map snd
-    . actualTransitions
+    = map snd
+    . inferMethodsTransitions
     . scriptMethods
 
-actualTransitions :: [Method] -> [(Method, Transition)]
-actualTransitions methods = do
-    (method, dsts) <- branches methods
-    dst <- Set.toList dsts
-    pure $ (method, (Arrow (methodInputPlaces method) dst))
+inferMethodsTransitions :: [Method] -> [(Method, Transition)]
+inferMethodsTransitions methods = methods >>= inferMethodTransitions
+
+inferMethodTransitions :: Method -> [(Method, Transition)]
+inferMethodTransitions method = do
+  transition <- Set.toList $ extractTransition method
+  pure $ (method, Arrow (methodInputPlaces method) transition)
+
+-- Fish out the actual transitions, as we get them from methods and
+-- their "transitionTo" statements, grouped by method name and source
+-- state.
+extractTransition :: Method -> Set WorkflowState
+extractTransition method
+  = Set.unions . fmap getWFState . unseq . methodBody $ method
   where
-    -- Fish out the actual transitions, as we get them from methods and
-    -- their "transitionTo" statements, grouped by method name and source
-    -- state.
-    branches :: [Method] -> [(Method, Set.Set WorkflowState)]
-    branches = fmap extractBranch
-      where
-        extractBranch :: Method -> (Method, Set WorkflowState)
-        extractBranch bm@Method{..}
-          = ( bm
-            , branchesMethod bm
-            )
+    getWFState :: LExpr -> Set WorkflowState
+    getWFState (Located _ (ECall (Left Prim.TransitionTo) args))
+      = Set.fromList . fmap unwrap . argLits . fmap unLoc $ args
+    getWFState (Located _ (ECall (Left Prim.Terminate) args))
+      = Set.singleton endState
+    getWFState (Located _ (ECall (Left Prim.Stay) []))
+      = Set.singleton (methodInputPlaces method)
+    getWFState _ = mempty
 
-        branchesMethod :: Method -> Set WorkflowState
-        branchesMethod method = Set.unions . fmap getWFState . unseq . methodBody $ method
-          where
-            getWFState :: LExpr -> Set WorkflowState
-            getWFState (Located _ (ECall (Left Prim.TransitionTo) args))
-              = Set.fromList . fmap unwrap . argLits . fmap unLoc $ args
-            getWFState (Located _ (ECall (Left Prim.Terminate) args))
-              = Set.singleton endState
-            getWFState (Located _ (ECall (Left Prim.Stay) []))
-              = Set.singleton (methodInputPlaces method)
-            getWFState _ = mempty
-
-            -- Safe only if run on typechecked programs.
-            unwrap :: LLit -> WorkflowState
-            unwrap (Located _ (LState st)) = st
-            unwrap _ = panic "Malformed program."
+    -- Safe only if run on typechecked programs.
+    unwrap :: LLit -> WorkflowState
+    unwrap (Located _ (LState st)) = st
+    unwrap _ = panic "Malformed program."
 
 
 
