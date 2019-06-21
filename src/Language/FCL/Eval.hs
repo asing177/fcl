@@ -21,6 +21,7 @@ module Language.FCL.Eval (
 
   -- ** Evaluation rules
   eval,
+  evalLit,
   evalLLit,
   evalLExpr,
   evalMethod,
