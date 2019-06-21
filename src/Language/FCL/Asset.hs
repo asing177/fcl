@@ -83,3 +83,8 @@ instance Arbitrary Holder where
     -- TODO: Fix it in the future and uncomment the following line
     -- , Asset.Holder <$> (arbitrary :: Gen (Address AContract))
     ]
+
+instance Arbitrary Balance where
+  arbitrary = Balance <$> arbitrary
+
+
