@@ -150,6 +150,7 @@ library:
     - Language.FCL.Time
     - Language.FCL.World
     - Language.FCL.Warning
+    - Language.FCL.Orphans
 
 executables:
   fcl:

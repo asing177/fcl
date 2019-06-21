@@ -110,6 +110,7 @@ duplicateCheck scr@(Script adts defns transitions methods helpers)
         = map DuplicateConstructor
           . duplicatesOn adtConstrId
           . concatMap adtConstrs
+          . toList
           $ adts
 
       adtFieldErrs

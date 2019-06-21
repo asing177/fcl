@@ -109,6 +109,7 @@ opToken o = case o of
   LEqual  -> Token.lequal
   Lesser  -> Token.lesser
   Greater -> Token.greater
+  RecordAccess -> Token.dot
 
 whiteSpace :: Parser ()
 whiteSpace = Tok.whiteSpace lexer

@@ -59,6 +59,7 @@ lequal   = "<="
 greater  = ">"
 lesser   = "<"
 not      = "!"
+dot      = "."
 
 semi     = ";"
 colon    = ":"
@@ -126,4 +127,5 @@ operators = [
   , greater
   , lesser
   , not
+  , dot
   ]

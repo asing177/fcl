@@ -109,6 +109,7 @@ data TypeErrInfo
   | TooManyPatterns NameUpper Pattern
   | TooManyArguments NameUpper LExpr
   | NotEnoughArguments NameUpper (Type, LName)
+  | FieldTypeMismatch LName Type Type
   deriving (Eq, Show, Generic, Serialize, A.FromJSON, A.ToJSON)
 
 -- | Type error
@@ -288,6 +289,54 @@ runInferM
 runInferM adtInfo inferState act
   = runState (runReaderT act adtInfo) inferState
 
+
+--------------------------------------------------------------------------------
+-- ADT Information
+--------------------------------------------------------------------------------
+
+-- | Create the dictionaries for the constructor/adt type membership
+-- relations from the original list of definitionSet. Assumes that there
+-- are no duplicates in the input.
+createADTInfo :: [ADTDef] -> Either TypeError ADTInfo
+createADTInfo adts = ADTInfo constructorToType <$> adtToConstrsAndFields
+  where
+    constructorToType :: Map NameUpper (LNameUpper, [(Type, LName)])
+    constructorToType = Map.fromList . concatMap go $ adts
+      where
+        go (ADTDef lname constrs) =
+          map
+            (\(ADTConstr id types) -> (locVal id, (lname, types)))
+          . toList
+          $ constrs
+
+    adtToConstrsAndFields :: Either TypeError (Map NameUpper (NonEmpty ADTConstr, [(Type, LName)]))
+    adtToConstrsAndFields = Map.fromList <$> mapM go adts
+      where
+        go :: ADTDef -> Either TypeError (NameUpper, (NonEmpty ADTConstr, [(Type, LName)]))
+        go (ADTDef (Located _ tyName) constructors) = do
+            fields <- getValidFields constructors
+            pure (tyName, (constructors, fields))
+
+-- | Get the valid field names of a data type definition. Fields are valid
+-- exactly when they appear in each constructor. The same field appearing at
+-- different types within one type constructor is an error. Example:
+-- For @type T = C1(int x, int y) | C2(int x);@ the only valid field is @int x@.
+getValidFields :: NonEmpty ADTConstr -> Either TypeError [(Type, LName)]
+getValidFields (c1:|cs) = map swap . Map.toList <$> foldM step assocInit cs
+  where
+    step :: Map LName Type -> ADTConstr -> Either TypeError (Map LName Type)
+    step assoc (ADTConstr _ params) = foldM getIntersection assoc params
+
+    assocInit :: Map LName Type
+    assocInit = Map.fromList . map swap . adtConstrParams $ c1
+
+    getIntersection :: Map LName Type -> (Type, LName) -> Either TypeError (Map LName Type)
+    getIntersection assoc (ty, fd) = case Map.lookup fd assoc of
+      Nothing -> Right (Map.delete fd assoc)
+      Just tyExp
+        | ty == tyExp -> Right assoc
+        | otherwise -> Left $ TypeError (FieldTypeMismatch fd tyExp ty) (located fd)
+
 -------------------------------------------------------------------------------
 -- Type Signatures for Methods
 -------------------------------------------------------------------------------
@@ -321,16 +370,16 @@ runInferM adtInfo inferState act
 
 signatures :: Script -> Either (NonEmpty TypeError) [(Name,Sig)]
 signatures (Script adts defns graph methods helpers) =
-    case tcErrs of
-      []   -> Right methodSigs
-      es:ess -> Left . NonEmpty.nub . sconcat $ es:|ess
-  where
-    adtInfo = createADTInfo adts
-    inferState = snd . runInferM adtInfo emptyInferState $
-        tcDefns defns >> tcHelpers helpers
-
-    (tcErrs, methodSigs) =
-      partitionEithers $ map (methodSig adtInfo inferState) methods
+    case createADTInfo adts of
+      Left err -> Left (pure err)
+      Right adtInfo -> do
+        let inferState = snd . runInferM adtInfo emptyInferState
+              $ tcDefns defns *> tcHelpers helpers
+            (tcErrs, methodSigs) = partitionEithers
+              $ map (methodSig adtInfo inferState) methods
+        case tcErrs of
+          []   -> Right methodSigs
+          es:ess -> Left . NonEmpty.nub . sconcat $ es:|ess
 
 -- | Typechecks a top-level 'Method' function body and returns a type signature
 -- This type 'Sig' differs from helper functions because there is a distinct
@@ -389,7 +438,7 @@ functionSig (fnm, args, body) = do
 -- | Given a type, if that type is an undeclared ADT type, return error 'TypeInfo'.
 adtExistsCheck :: Loc -> Type -> InferM (Maybe TypeInfo)
 adtExistsCheck loc (TADT nm) = do
-    adtDoesExist <- Map.member nm . adtToConstrs <$> ask
+    adtDoesExist <- Map.member nm . adtToConstrsAndFields <$> ask
     if adtDoesExist then pure Nothing else Just <$> throwErrInferM (UnknownADT nm) loc
 adtExistsCheck _ _ = pure Nothing
 
@@ -972,7 +1021,7 @@ tcPrim le eLoc prim argExprs = do
         TypeInfo t torig tloc -> pure ()
 
 arity :: PrimOp -> Int
-arity p = case runInferM (createADTInfo []) emptyInferState (primSig p) of
+arity p = case runInferM undefined emptyInferState (primSig p) of
   (Sig ps _, _) -> length ps
 
 -- | Type signatures of builtin primitive operations.
@@ -1112,6 +1161,7 @@ tcBinOp (Located opLoc op) e1 e2 = do
         Greater -> tcGreater
         Lesser  -> tcLesser
         NEqual  -> tcNEqual
+        RecordAccess -> tcRecordAccess
 
 -- -- | Helper for common pattern "Add constraint of two TypeInfos and return a TypeInfo"
 -- addConstrAndRetInfo :: LExpr -> TypeInfo -> (TypeInfo, TypeInfo) -> InferM TypeInfo
@@ -1270,6 +1320,11 @@ tcNotOp opLoc torig e1 = do
       return $ TypeInfo TError torig eLoc
   where
     eLoc = located e1
+
+-- tcRecordAccess :: Loc -> TypeOrigin -> LExpr -> LExpr -> InferM TypeInfo
+-- tcRecordAccess loc torig e1 e2 = tcLExpr e1 >>= \case
+--     TADT name ->
+
 
 -- | Helper for common pattern "Add constraint of two TypeInfos and return a TypeInfo"
 addConstrAndRetInfo :: LExpr -> TypeInfo -> (TypeInfo, TypeInfo) -> InferM TypeInfo
@@ -1733,6 +1788,9 @@ instance Pretty TypeErrInfo where
          <$$+> ( vcat $ map ("•" <+>)
             [ "round the higher precision expression to match the lower precision"
             , "use types with more (e.g. arbitrary) precision"])
+    FieldTypeMismatch nm tExp tAct
+      -> "Field" <+> sqppr nm <+> "with type" <+> sqppr tAct <+> "has already been declared at type"
+        <+> sqppr tExp <+> ", please choose a different name or make sure the types match."
 
 instance Pretty TypeError where
   ppr (TypeError tErrInfo tPos) = errName <+> "at" <+> ppr tPos <> ":"

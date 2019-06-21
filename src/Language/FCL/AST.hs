@@ -85,7 +85,6 @@ module Language.FCL.AST (
 
   -- ** Helpers
   ADTInfo(..),
-  createADTInfo,
 
   eseq,
   flattenExprs,
@@ -132,6 +131,7 @@ import Language.FCL.Address
 import Language.FCL.Utils (duplicates)
 import Language.FCL.SafeString
 import Language.FCL.SafeInteger
+import Language.FCL.Orphans ()
 
 -------------------------------------------------------------------------------
 -- Core Language
@@ -199,6 +199,7 @@ data Pattern
   | PatLit LLit                    -- ^ Literal pattern
   | PatVar LName                   -- ^ Variable pattern
   | PatWildCard                    -- ^ Wildcard ("don't care") pattern
+  -- TODO: PatOr Pattern Pattern
   deriving (Eq, Ord, Show, Generic, FromJSON, ToJSON, Hash.Hashable)
 
 -- | Retrieve the location associated with a pattern ('PatWildCard' returns 'NoLoc')
@@ -226,13 +227,13 @@ data Expr
   | EBefore  LExpr LExpr           -- ^ Time guard
   | EAfter   LExpr LExpr           -- ^ Time guard
   | EBetween LExpr LExpr LExpr     -- ^ Time guard
-  | ECase    LExpr [CaseBranch]         -- ^ Case statement
-  | EAssign  Name  LExpr           -- ^ Variable update
+  | ECase    LExpr [CaseBranch]    -- ^ Case statement
+  | EAssign  (NonEmpty Name)  LExpr -- ^ Variable update
   | ECall    (Either PrimOp LName) [LExpr] -- ^ Function call
   | ENoOp                          -- ^ Empty method body
   | EMap     (Map LExpr LExpr)     -- ^ Map k v
   | ESet     (Set LExpr)           -- ^ Set v
-  | EConstr NameUpper [LExpr]           -- ^ Constructor
+  | EConstr NameUpper [LExpr]      -- ^ Record constructor
   deriving (Eq, Ord, Show, Generic, FromJSON, ToJSON, Hash.Hashable)
 
 -- | Binary operators
@@ -249,6 +250,7 @@ data BinOp
   | GEqual  -- ^ Greater equal
   | Lesser  -- ^ Lesser
   | Greater -- ^ Greater
+  | RecordAccess -- ^ Record access, e.g. @expr.field@
   deriving (Eq, Ord, Show, Generic, FromJSON, ToJSON, Hash.Hashable)
 
 -- | Unary operators
@@ -267,7 +269,6 @@ data Lit
   | LSig       (SafeInteger, SafeInteger)
   | LDateTime  DateTime
   | LTimeDelta TimeDelta
-  -- | LConstr    Name
   | LVoid
   deriving (Eq, Ord, Show, Generic, FromJSON, ToJSON, Hash.Hashable)
 
@@ -407,7 +408,7 @@ data Helper = Helper
 -- | ADTeration
 data ADTDef = ADTDef
   { adtName :: LNameUpper
-  , adtConstrs :: [ADTConstr]
+  , adtConstrs :: NonEmpty ADTConstr
   } deriving (Eq, Ord, Show, Generic, ToJSON, FromJSON, Hash.Hashable)
 
 -- | Definition
@@ -523,40 +524,16 @@ mapType einfo   (VSet vset)   =
 -- | Associations between type- and value-constructors
 data ADTInfo = ADTInfo
   { constructorToType :: Map NameUpper (LNameUpper, [(Type, LName)])
-  , adtToConstrs :: Map NameUpper [ADTConstr]
+  , adtToConstrsAndFields :: Map NameUpper (NonEmpty ADTConstr, [(Type, LName)])
   }
-
--- | Create the dictionaries for the constructor/adt type membership
--- relations from the original list of definitionSet. Assumes that there
--- are no duplicates in the input.
-createADTInfo :: [ADTDef] -> ADTInfo
-createADTInfo adts = ADTInfo m1 m2
-  where
-    m1 :: Map NameUpper (LNameUpper, [(Type, LName)])
-    m1
-      = Map.fromList
-      . concatMap
-        (\(ADTDef lname lconstrs) ->
-          map
-            (\(ADTConstr id types) ->
-              (locVal id, (lname, types)))
-            lconstrs)
-      $ adts
-
-    m2 :: Map NameUpper [ADTConstr]
-    m2
-      = Map.fromList
-      . map (\(ADTDef lname constrsAndTypes)
-               -> (locVal lname, constrsAndTypes))
-      $ adts
 
 -------------------------------------------------------------------------------
 -- Serialization
 -------------------------------------------------------------------------------
 
-instance Serialize (NonEmpty LExpr) where
-  put = put . NE.toList
-  get = NE.fromList <$> get
+-- instance Serialize (NonEmpty LExpr) where
+--   put = put . NE.toList
+--   get = NE.fromList <$> get
 
 instance IsString Name where
   fromString "" = panic "empty name"
@@ -643,8 +620,10 @@ instance Pretty Expr where
     EHole            -> token Token.hole
     ELit lit         -> ppr lit
     EVar nm          -> ppr nm
-    EAssign nm e     -> ppr nm <+> token Token.assign <+> ppr e
+    EAssign nms e    -> (mconcat . intersperse "." . map ppr . NE.toList) nms <+> token Token.assign <+> ppr e
     EUnOp nm e       -> parens $ ppr nm <> ppr e
+    EBinOp (Located _ RecordAccess) e1 e2
+      -> ppr e1 <> token Token.dot <> ppr e2
     EBinOp nm e e'   -> parens $ ppr e <+> ppr nm <+> ppr e'
     ECall nm es      -> hcat [ppr nm, tupleOf (map ppr es)]
     EBefore dt e     -> token Token.before <+> parens (ppr dt) <+> lbrace
@@ -789,6 +768,7 @@ instance Pretty BinOp where
     GEqual  -> token Token.gequal
     Lesser  -> token Token.lesser
     Greater -> token Token.greater
+    RecordAccess -> token Token.dot
 
 instance Pretty UnOp where
   ppr Not = token Token.not
@@ -817,7 +797,7 @@ instance Pretty Helper where
 instance Pretty ADTDef where
   ppr (ADTDef lname lconstrsAndTypes)
     = token Token.type_ <+> ppr (locVal lname) <+> token Token.assign
-      <+> (hsep . punctuate " |" . map ppr $ lconstrsAndTypes)
+      <+> (hsep . punctuate " |" . map ppr . toList $ lconstrsAndTypes)
       <> token Token.semi
 
 instance Pretty Def where
