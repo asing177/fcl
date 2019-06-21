@@ -969,7 +969,6 @@ arbValue n
       , VSig <$> arbitrary
       , VDateTime <$> arbitrary
       , VTimeDelta <$> arbitrary
-      , VConstr <$> arbitrary <*> arbitrary
       , VState <$> arbitrary
       , pure VUndefined
       ]
@@ -977,6 +976,7 @@ arbValue n
     = oneof
       [ VMap . Map.fromList <$> Q.listOf (liftArbitrary2 (arbValue (n - 1)) (arbValue (n - 1)))
       , VSet . Set.fromList <$> Q.listOf (arbValue (n - 1))
+      , VConstr <$> arbitrary <*> (arbitrary `suchThat` (\l -> length l < 10))
       ]
 
 instance Arbitrary Value where
