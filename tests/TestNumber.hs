@@ -16,19 +16,6 @@ import Numeric.Lossless.Number
 import Language.FCL.Parser (parseDecimal)
 import Language.FCL.Pretty (prettyPrint)
 
-instance Arbitrary Number where
-  arbitrary = oneof
-      [ NumDecimal <$> arbitrary
-      , NumRational <$> arbitrary
-      ]
-
-instance Arbitrary Decimal where
-  arbitrary = Decimal
-    <$> arbitrary
-    <*> liftA2 (^) arbitrary (arbitrary :: Gen Word8)
-    -- make some big numbers
-
-
 -- Type aliases to allow running the tests on other types, e.g. Double
 type DecimalT = Decimal
 type NumberT = Number

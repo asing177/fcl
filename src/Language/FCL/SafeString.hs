@@ -31,6 +31,7 @@ module Language.FCL.SafeString (
 
 import GHC.Show (Show(..), show)
 import Protolude hiding (Show, show, put, get)
+import qualified Test.QuickCheck as Q
 
 import Control.Monad (fail)
 import Control.Exception (throw)
@@ -38,7 +39,7 @@ import Control.Exception (throw)
 import Crypto.Number.Serialize (os2ip, i2ospOf_)
 
 import Data.Serialize as S
-import Data.ByteString.Char8 as B
+import qualified Data.ByteString.Char8 as B
 import Data.Aeson hiding (encode)
 import Data.Aeson.Types (typeMismatch)
 import qualified Data.Aeson as A
@@ -151,3 +152,13 @@ decodeFixed input =
   if B.length input < maxSize
     then A.eitherDecodeStrict input
     else throw HugeString
+
+---------------
+-- Arbitrary --
+---------------
+
+instance Q.Arbitrary SafeString where
+  arbitrary = fromBytes' . toS <$> (Q.listOf alphaNum `Q.suchThat` (\s -> length s < maxSize))
+
+alphaNum :: Q.Gen Char
+alphaNum = Q.elements $ ['A'..'Z'] <> ['a'..'z'] <> ['0'..'9']

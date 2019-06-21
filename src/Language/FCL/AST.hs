@@ -106,7 +106,8 @@ module Language.FCL.AST (
 
 import Protolude hiding (put, get, (<>), show, Show, putByteString, Type)
 import Prelude (show, Show(..))
-
+import Test.QuickCheck hiding (listOf)
+import qualified Test.QuickCheck as Q
 import Control.Monad (fail)
 
 import Numeric.Lossless.Number
@@ -117,6 +118,8 @@ import qualified Language.FCL.Token as Token
 import qualified Language.FCL.Hash as Hash
 import qualified Data.Text as T
 import qualified Datetime.Types as DT
+import qualified Data.Hourglass as DH
+import qualified Data.Time.Calendar as DC
 
 import Data.Aeson (ToJSON(..), FromJSON(..), FromJSONKey(..), ToJSONKey(..))
 import qualified Data.Binary as B
@@ -928,3 +931,83 @@ makeWorkflowState names
 -- | Doesn't check if workflow state is valid
 unsafeWorkflowState :: Set Place -> WorkflowState
 unsafeWorkflowState = WorkflowState
+
+---------------
+-- Arbitrary --
+---------------
+
+instance Arbitrary DT.Datetime where
+  arbitrary = DT.posixToDatetime <$> choose (1, 32503680000) -- (01/01/1970, 01/01/3000)
+
+instance Arbitrary DT.Period where
+  arbitrary = do
+    year <- choose (0,1000)
+    month <- choose (0,12)
+    let monthNumDays = DC.gregorianMonthLength (fromIntegral year) (fromIntegral month)
+    day <- choose (0, monthNumDays)
+    pure $ DT.Period $ DH.Period year month day
+
+instance Arbitrary DT.Duration where
+  arbitrary = fmap DT.Duration $ DH.Duration
+    <$> (fmap DH.Hours $ choose (0,23))
+    <*> (fmap DH.Minutes $ choose (0,59))
+    <*> (fmap DH.Seconds $ choose (0,59))
+    <*> pure 0
+
+instance Arbitrary DT.Delta where
+  arbitrary = DT.Delta <$> arbitrary <*> arbitrary
+
+arbValue :: Int -> Gen Value
+arbValue n
+  | n <= 0
+    = oneof
+      [ VNum <$> arbitrary
+      , VBool <$> arbitrary
+      , VAccount <$> arbitrary
+      , VAsset <$> arbitrary
+      , VText <$> arbitrary
+      , VSig <$> arbitrary
+      , VDateTime <$> arbitrary
+      , VTimeDelta <$> arbitrary
+      , VConstr <$> arbitrary <*> arbitrary
+      , VState <$> arbitrary
+      , pure VUndefined
+      ]
+  | otherwise
+    = oneof
+      [ VMap . Map.fromList <$> Q.listOf (liftArbitrary2 (arbValue (n - 1)) (arbValue (n - 1)))
+      , VSet . Set.fromList <$> Q.listOf (arbValue (n - 1))
+      ]
+
+instance Arbitrary Value where
+  arbitrary = oneof [arbValue 0, arbValue 1]
+
+instance Arbitrary DateTime where
+  arbitrary = DateTime <$> arbitrary
+
+instance Arbitrary TimeDelta where
+  arbitrary = TimeDelta <$> arbitrary
+
+instance Arbitrary Name where
+  arbitrary = fromString
+    <$> ((:) <$> elements ['a'..'z'] <*> Q.listOf alphaNum)
+      `suchThat` (not . (`elem` Token.keywords) . toS)
+
+instance Arbitrary NameUpper where
+  arbitrary = fromString <$> ((:) <$> elements ['A'..'Z'] <*> Q.listOf alphaNum)
+
+alphaNum :: Gen Char
+alphaNum = elements $ ['A'..'Z'] <> ['a'..'z'] <> ['0'..'9']
+
+instance Arbitrary Place where
+  arbitrary = Place <$> arbitrary
+
+instance Arbitrary WorkflowState where
+  arbitrary = oneof
+    [ unsafeWorkflowState <$> do
+        hd <- arbitrary
+        tl <- arbitrary
+        pure $ Set.fromList (hd:tl)
+    , pure startState
+    , pure endState
+    ]

@@ -17,6 +17,7 @@ module Reference where
 
 import Protolude
 
+import Test.QuickCheck
 import Unsafe (unsafeFromJust)
 import System.IO.Unsafe (unsafePerformIO)
 
@@ -132,6 +133,9 @@ data Ref
   | Token             -- ^ Abstract token
   | Security          -- ^ Security
   deriving (Eq, Ord, Show, Read, Enum, Bounded, Generic)
+
+instance Arbitrary Reference.Ref where
+  arbitrary = elements [ minBound.. maxBound ]
 
 -------------------------------------------------------------------------------
 -- Account
@@ -485,3 +489,4 @@ testTransactionCtx = Eval.TransactionCtx
   , transactionBlockTs = testTimestamp
   , transactionBlockIdx = 7
   }
+

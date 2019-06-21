@@ -39,7 +39,6 @@ import qualified Language.FCL.Hash as Hash
 
 import qualified Reference as Ref
 
-import TestArbitrary ()
 import Golden
 
 -------------------------------------------------------------------------------

@@ -13,6 +13,7 @@ module Language.FCL.Asset (
 ) where
 
 import Protolude
+import Test.QuickCheck
 import Data.Serialize
 import qualified Data.Binary as B
 import Language.FCL.Address
@@ -62,3 +63,23 @@ data AssetType
   | Fractional Integer     -- ^ Fractional (Fixed point decimal value)
   | Binary                 -- ^ Binary (Held/Not-Held) (supply is +1 for held, 0 for not-held)
   deriving (Eq, Ord, Show, Read, Generic, Hash.Hashable)
+
+---------------
+-- Arbitrary --
+---------------
+
+instance Arbitrary AssetType where
+  arbitrary = oneof
+    [ pure Discrete
+    -- , Asset.Fractional <$> arbitrary
+    , pure Binary
+    ]
+
+instance Arbitrary Holder where
+  arbitrary = oneof
+    [ AccountHolder <$> (arbitrary :: Gen (Address AAccount))
+    -- Warning: See Serialize Holder on Asset.hs
+    -- Holder serializer defaults to Holder (Address AAccount)
+    -- TODO: Fix it in the future and uncomment the following line
+    -- , Asset.Holder <$> (arbitrary :: Gen (Address AContract))
+    ]

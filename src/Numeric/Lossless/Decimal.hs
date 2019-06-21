@@ -41,6 +41,7 @@ module Numeric.Lossless.Decimal (
 ) where
 
 import Protolude hiding (Hashable, option, show, lift)
+import Test.QuickCheck
 
 import Data.Aeson (ToJSON(..), FromJSON(..))
 import Data.Binary (Binary(..))
@@ -186,3 +187,12 @@ instance Binary Decimal where
   put = putBinaryViaSerialize
   get = getBinaryViaSerialize
 
+
+---------------
+-- Arbitrary --
+---------------
+
+instance Arbitrary Decimal where
+  arbitrary = Decimal
+    <$> arbitrary
+    <*> liftA2 (^) arbitrary (arbitrary :: Gen Word8)

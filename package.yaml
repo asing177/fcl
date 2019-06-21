@@ -82,6 +82,10 @@ library:
   - asn1-types
   - asn1-encoding
 
+  # Quickcheck
+  - QuickCheck
+  - quickcheck-instances
+
   ghc-options:
     -fwarn-tabs
     -fwarn-incomplete-patterns
@@ -116,8 +120,6 @@ library:
     - Language.FCL.Contract
     - Language.FCL.AST
     - Language.FCL.Delta
-    - Numeric.Lossless.Decimal
-    - Numeric.Lossless.Number
     - Language.FCL.Init
     - Language.FCL.Storage
     - Language.FCL.Pretty
@@ -150,6 +152,8 @@ library:
     - Language.FCL.Time
     - Language.FCL.World
     - Language.FCL.Warning
+    - Numeric.Lossless.Decimal
+    - Numeric.Lossless.Number
 
 executables:
   fcl:
