@@ -27,7 +27,7 @@ module Language.FCL.Typecheck (
   signatures,
   methodSig,
   functionSig,
-  -- tcMethodCall,
+  tcMethodCall,
   runInferM,
   tcDefns,
   tcDefn,
@@ -294,30 +294,30 @@ runInferM adtInfo inferState act
 
 -- | Typechecks whether the values supplied as arguments to the method
 -- call match the method argument types expected
--- tcMethodCall :: ADTInfo -> Method -> [Value] -> Either TypeErrInfo ()
--- tcMethodCall adtInfo method argVals
---   = do
---   actualTypes <- mapM valueType argVals
---   zipWithM_ validateTypes expectedTypes actualTypes
---   where
---     valueType :: Value -> Either TypeErrInfo Type
---     valueType val
---       = case (val, mapType adtInfo val) of
---           (_, Just ty) -> pure ty
---           (VADT c, Nothing) -> Left $ UnknownConstructor c
---           (o, Nothing) -> Left $ Impossible $ "Malformed value: " <> show o
+tcMethodCall :: ADTInfo -> Method -> [Value] -> Either TypeErrInfo ()
+tcMethodCall adtInfo method argVals
+  = do
+  actualTypes <- mapM valueType argVals
+  zipWithM_ validateTypes expectedTypes actualTypes
+  where
+    valueType :: Value -> Either TypeErrInfo Type
+    valueType val
+      = case (val, mapType adtInfo val) of
+          (_, Just ty) -> pure ty
+          (VConstr c _, Nothing) -> Left $ UnknownConstructor c
+          (o, Nothing) -> Left $ Impossible $ "Malformed value: " <> show o
 
---     expectedTypes = Language.FCL.AST.argtys' method
+    expectedTypes = Language.FCL.AST.argtys' method
 
---     validateTypes expected actual =
---       when (not $ validMethodArgType expected actual) $
---         Left $ InvalidArgType (locVal $ methodName method) expected actual
+    validateTypes expected actual =
+      when (not $ validMethodArgType expected actual) $
+        Left $ InvalidArgType (locVal $ methodName method) expected actual
 
---     validMethodArgType :: Type -> Type -> Bool
---     validMethodArgType (TAsset _) (TAsset TAny) = True
---     validMethodArgType (TAsset TAny) (TAsset _) = True
---     validMethodArgType (TNum np1) (TNum np2) = np1 <= np2
---     validMethodArgType t1 t2 = t1 == t2
+    validMethodArgType :: Type -> Type -> Bool
+    validMethodArgType (TAsset _) (TAsset TAny) = True
+    validMethodArgType (TAsset TAny) (TAsset _) = True
+    validMethodArgType (TNum np1) (TNum np2) = np1 <= np2
+    validMethodArgType t1 t2 = t1 == t2
 
 signatures :: Script -> Either (NonEmpty TypeError) [(Name,Sig)]
 signatures (Script adts defns graph methods helpers) =

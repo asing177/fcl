@@ -16,7 +16,6 @@ module Language.FCL.Metadata (
 import Protolude
 import Test.QuickCheck
 import Test.QuickCheck.Instances.Text
-import Data.String (IsString(..))
 
 import qualified Language.FCL.Utils as Utils
 import qualified Language.FCL.Hash as Hash
