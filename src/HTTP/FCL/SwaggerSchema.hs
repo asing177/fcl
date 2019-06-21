@@ -15,7 +15,7 @@ import Data.Swagger
 import Datetime.Types
 import Data.HashMap.Strict.InsOrd
 
-import Language.FCL.AST as Script hiding (at)
+import Language.FCL.AST as AST hiding (at)
 import Language.FCL.Prim
 import Language.FCL.Unsafe
 import Language.FCL.Address
@@ -60,16 +60,17 @@ instance ToSchema Expr where
   declareNamedSchema = genericDeclareNamedSchemaUnrestricted defaultSchemaOptions
 instance ToSchema BinOp
 instance ToSchema UnOp
-instance ToSchema Match
-instance ToSchema Script.Pattern
+instance ToSchema CaseBranch
+instance ToSchema AST.Pattern where
+  declareNamedSchema = genericDeclareNamedSchemaUnrestricted defaultSchemaOptions
 instance ToSchema PrimOp where
   declareNamedSchema = genericDeclareNamedSchemaUnrestricted defaultSchemaOptions
 instance ToSchema AssetPrimOp
 instance ToSchema MapPrimOp
 instance ToSchema SetPrimOp
 instance ToSchema CollPrimOp
-instance ToSchema EnumDef
-instance ToSchema EnumConstr where
+instance ToSchema ADTDef
+instance ToSchema ADTConstr where
   declareNamedSchema _ = do
     return $ NamedSchema (Just "EnumConstr")
       $ mempty { _schemaParamSchema = mempty { _paramSchemaType = SwaggerString } }
@@ -101,6 +102,7 @@ instance ToSchema Decimal
 instance ToSchema SafeInteger
 instance ToSchema DateTime
 instance ToSchema TimeDelta
+instance ToSchema NameUpper
 instance ToSchema Datetime where
   declareNamedSchema = genericDeclareNamedSchemaUnrestricted defaultSchemaOptions
 
@@ -127,7 +129,7 @@ instance ToSchema LSP.ReqDef  where
                }
 
 instance ToSchema LSP.ReqScript
-instance ToSchema LSP.ReqEnumDef
+instance ToSchema LSP.ReqADTDef
 instance ToSchema LSP.ReqTransition
 instance ToSchema LSP.ReqMethod
 instance ToSchema LSP.ReqMethodArg where

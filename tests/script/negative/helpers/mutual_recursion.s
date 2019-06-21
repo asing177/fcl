@@ -1,28 +1,23 @@
-enum flipFlop
-  { Flip
-  , Flop
-  };
+type Bit = O | I;
 
-global enum flipFlop flipper;
-
-transition initial -> terminal;
+global Bit b;
 
 @initial
-flipeeFlopee(enum flipFlop flopper) {
-  flipper = flip(flopper);
+go(Bit bit) {
+  b = flip(bit);
   terminate();
 }
 
-flip (enum flipFlop flipee) {
-  case(flipee) {
-    `Flip -> flop(`Flop);
-    `Flop -> `Flip;
+flip (Bit bit) {
+  case(bit) {
+    O -> flop(I);
+    I -> O;
   };
 }
 
-flop (enum flipFlop flopee) {
-  case(flopee) {
-    `Flip -> `Flop;
-    `Flop -> flip(`Flip);
+flop (Bit bit) {
+  case(bit) {
+    O -> I;
+    I -> flip(I);
   };
 }

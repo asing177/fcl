@@ -1,6 +1,6 @@
 
 global int total = 0;
-global decimal<2> total' = 0.00;
+global decimal<2> total2 = 0.00;
 
 global map<account, int> balances =
   ( u'H1tbrEKWGpbPjSeG856kz2DjViCwMU3qTw3i1PqCLz65' : 1
@@ -18,7 +18,7 @@ sumBalances() {
 
 // @initial
 // multBalances() {
-//   total' = aggregate(total', productPlusOne, balances);
+//   total2 = aggregate(total2, productPlusOne, balances);
 //   transitionTo(:terminal);
 // }
 

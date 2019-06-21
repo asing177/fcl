@@ -10,7 +10,7 @@ module TestScript
   ) where
 
 import Protolude hiding (Type)
-import Prelude (String)
+import Prelude (String, error)
 
 import Test.Tasty
 import Test.Tasty.QuickCheck
@@ -89,7 +89,6 @@ instance Arbitrary Lit where
     , LAccount  <$> arbitrary
     , LAsset    <$> arbitrary
     , LContract <$> arbitrary
-    , LConstr   <$> arbitrary
     ]
 
 instance Arbitrary Type where
@@ -99,7 +98,7 @@ instance Arbitrary Type where
     , pure TAccount
     , TAsset <$> arbitrary
     , pure TContract
-    , TEnum <$> arbitrary
+    , TADT <$> arbitrary
     ]
 
 instance Arbitrary NumPrecision where
@@ -131,8 +130,13 @@ instance Arbitrary Helper where
 instance Arbitrary Transition where
   arbitrary = Arrow <$> arbitrary <*> arbitrary
 
-instance Arbitrary EnumDef where
-  arbitrary = EnumDef <$> arbitrary <*> listOf1 arbitrary
+instance Arbitrary ADTDef where
+  arbitrary = ADTDef <$> arbitrary <*> listOf1 arbitrary
+
+instance Arbitrary ADTConstr where
+  arbitrary = ADTConstr <$> arbitrary <*> listOf arbitraryParam
+    where
+      arbitraryParam = (,) <$> arbitrary <*> arbitrary
 
 instance Arbitrary Script where
   arbitrary = Script <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
@@ -155,8 +159,8 @@ arbNumLogicExpr n
       , EUnOp <$> arbitrary <*> addLoc (arbNumLogicExpr n')
       ]
 
-arbMatches :: Int -> Gen [Match]
-arbMatches n = listOf1 (Match <$> arbPat <*> arbLExpr n)
+arbMatches :: Int -> Gen [CaseBranch]
+arbMatches n = listOf1 (CaseBranch <$> arbPat <*> arbLExpr n)
 
 arbPat :: Gen LPattern
 arbPat = Located <$> arbitrary <*> (PatLit <$> arbitrary)
@@ -246,23 +250,24 @@ arbLExpr n = oneof . map addLoc $
 -------------------------------------------------------------------------------
 
 parserRoundtripTest
-  :: (Arbitrary a, Show a, Show err, Pretty.Pretty a, Eq a)
+  :: (Arbitrary a, Show a, Pretty.Pretty err, Pretty.Pretty a, Eq a)
   => TestName
   -> (Text -> Either err a)
   -> TestTree
 parserRoundtripTest propName parser
   = testProperty propName $ \inp ->
     case parser (Pretty.prettyPrint inp) of
-      Left err   -> panic $ show err
+      Left err   -> error (toS . Pretty.prettyPrint $ Pretty.hsep [Pretty.ppr inp, "\n***************\n", Pretty.ppr err]) -- panic $ show err
       Right outp -> outp == inp
 
 scriptPropTests :: TestTree
 scriptPropTests
   = testGroup "Parser and Pretty Printer Tests"
-    [ parserRoundtripTest "lit == parse (ppr lit)" Parser.parseLit
-    , localOption (QuickCheckMaxSize 20) $
+    [ localOption (QuickCheckMaxSize 8) $
+      parserRoundtripTest "lit == parse (ppr lit)" Parser.parseLit
+    , localOption (QuickCheckMaxSize 8) $
       parserRoundtripTest "expr == parse (ppr expr)" Parser.parseExpr
-    , localOption (QuickCheckMaxSize 10) $
+    , localOption (QuickCheckMaxSize 4) $
       parserRoundtripTest "script == parse (ppr script)" Parser.parseScript
     , testProperty "decimal == parse (ppr decimal)" $ \lit ->
         (case lit of LNum _ -> True; _ -> False) ==>

@@ -1,21 +1,14 @@
 
-enum investor
-  { BigInvestor
-  , MedInvestor
-  , SmallInvestor
-  };
+type Investor = BigInvestor | MedInvestor | SmallInvestor;
 
-global map<enum investor,set<account>> investors =
-  ( `BigInvestor : {}
-  , `MedInvestor : {}
-  , `SmallInvestor : {}
+global map<Investor,set<account>> investors =
+  ( BigInvestor : {}
+  , MedInvestor : {}
+  , SmallInvestor : {}
   );
 
-transition initial -> initial;
-transition initial -> terminal;
-
 @initial
-insertInvestor(account a, enum investor x) {
+insertInvestor(account a, Investor x) {
   currSet = lookup(x, investors);
   newSet =
     if (!element(a, currSet)) {
@@ -28,7 +21,7 @@ insertInvestor(account a, enum investor x) {
 }
 
 @initial
-deleteInvestor(asset<decimal<2>> a, enum investor x) {
+deleteInvestor(asset<decimal<2>> a, Investor x) {
   currSet = lookup(x, investors);
   newSet =
     if (element(a, currSet)) {

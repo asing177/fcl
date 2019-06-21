@@ -1,22 +1,11 @@
 *** Deltas ***
-[ ModifyGlobal
-    Name { unName = "flipper" }
-    (VEnum EnumConstr { unEnumConstr = "Flip" })
-, ModifyState
-    WorkflowState
-      { places =
-          fromList [ Place { placeName = Name { unName = "intermediate" } } ]
-      }
-, ModifyGlobal Name { unName = "x" } (VNum (NumDecimal 43))
-, ModifyState WorkflowState { places = fromList [ PlaceEnd ] }
+[ ModifyState WorkflowState { places = fromList [ PlaceEnd ] }
+, Terminate
 ]
 
 *** Globals ***
 fromList
-  [ ( Key { unKey = "flipper" }
-    , VEnum EnumConstr { unEnumConstr = "Flip" }
-    )
-  , ( Key { unKey = "testAddr" }
+  [ ( Key { unKey = "testAddr" }
     , VAccount (Address "fwBVDsVh8SYQy98CzYpNPcbyTRczVUZ96HszhNRB8Ve")
     )
   , ( Key { unKey = "testAddr2" }
@@ -25,5 +14,4 @@ fromList
   , ( Key { unKey = "testAddr3" }
     , VAccount (Address "4Stv5gWGt78D3p919HFcKEschSmyGKGrAX2G35xJgdhw")
     )
-  , ( Key { unKey = "x" } , VNum (NumDecimal 43) )
   ]

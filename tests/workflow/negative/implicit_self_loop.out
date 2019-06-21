@@ -1,3 +1,3 @@
 Transition error at Line 6, Column 3:
-   A transition occurs when the condition 'False' of the if-statement is true,
+   A transition occurs when the condition 'false' of the if-statement is true,
       but there is no else-branch that specifies where to transition to when the condition is false.

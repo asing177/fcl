@@ -1,0 +1,6 @@
+ 
+Method arguments and effects:
+start: (Direction) -> {write i}
+increase: () -> {read i, write i}
+assignedStop: () -> {write via terminate}
+assign: (Direction) -> {write i}

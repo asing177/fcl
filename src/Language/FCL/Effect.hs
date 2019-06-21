@@ -383,6 +383,7 @@ effectCheckExpr gnms expr = case locVal expr of
     EMap m -> meetsErr . map onlyReadEffectsAllowed $ Map.keys m <> Map.elems m
     ESet s -> meetsErr . map onlyReadEffectsAllowed $ toList s
     EHole -> panic $ "Hole expression at " <> show (located expr) <> " in `effectCheckExpr`"
+    EConstr nm es -> meetsErr . map onlyReadEffectsAllowed $ es
 
   where
     onlyReadEffectsAllowed :: LExpr -> Either [EffectError] Effects

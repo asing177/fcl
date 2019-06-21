@@ -1,0 +1,7 @@
+Error at Line 6, Column 5:
+   Reference to undefined constructor:
+      A
+
+Error at Line 7, Column 5:
+   Reference to undefined constructor:
+      B

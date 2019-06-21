@@ -3,12 +3,14 @@ module TestSwagger where
 
 import Protolude
 
-import           Data.Aeson
+import Data.Aeson
 import qualified Data.ByteString.Lazy.Char8 as BL8
-import           Servant.Swagger.Test
-import           Test.Hspec
-import           Test.QuickCheck
-import API
+import Servant.Swagger.Test
+import Test.Hspec
+import Test.QuickCheck
+import Test.QuickCheck.Instances.Text
+import Data.Text
+import HTTP.FCL.API
 import Language.FCL.AST as AST
 import Language.FCL.LanguageServerProtocol as LSP
 import Language.FCL.Compile as Compile
@@ -48,7 +50,7 @@ instance Arbitrary a => Arbitrary (AST.Located a) where
 instance Arbitrary Dupl.DuplicateError where
   arbitrary = oneof
     [ DuplicateFunction <$> arbitrary
-    , DuplicateEnumDef <$> arbitrary
+    , DuplicateADTDef <$> arbitrary
     ]
 
 instance Arbitrary AST.Preconditions where
@@ -67,8 +69,8 @@ instance Arbitrary AST.Method where
 instance Arbitrary AST.Arg where
   arbitrary = AST.Arg <$> arbitrary <*> arbitrary
 
-instance Arbitrary AST.EnumDef where
-  arbitrary = AST.EnumDef <$> arbitrary <*> pure []
+instance Arbitrary AST.ADTDef where
+  arbitrary = AST.ADTDef <$> arbitrary <*> pure []
 
 instance Arbitrary AST.Script where
   arbitrary = AST.Script <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
@@ -87,6 +89,9 @@ instance Arbitrary TCollection where
     , TSet <$> arbitrary
     ]
 
+instance Arbitrary AST.ADTConstr where
+  arbitrary = AST.ADTConstr <$> arbitrary <*> arbitrary
+
 instance Arbitrary AST.Type where
   arbitrary = oneof
     [ pure TError
@@ -103,7 +108,7 @@ instance Arbitrary AST.Type where
     , pure TDateTime
     , pure TTimeDelta
     , pure TState
-    , TEnum <$> arbitrary
+    , TADT <$> arbitrary
     , TFun <$> arbitrary <*> arbitrary
     , TColl <$> arbitrary
     , pure TTransition
@@ -142,13 +147,10 @@ instance Arbitrary ReqMethodArg where
   arbitrary = ReqMethodArg <$> arbitrary <*> arbitrary
 
 instance Arbitrary ReqDef where
-  arbitrary = oneof
-    [ ReqGlobalDef <$> arbitrary <*> arbitrary <*> arbitrary
-    , ReqGlobalDefNull <$> arbitrary <*> arbitrary
-    ]
+  arbitrary = ReqDef <$> arbitrary <*> arbitrary <*> arbitrary
 
-instance Arbitrary ReqEnumDef where
-  arbitrary = ReqEnumDef <$> arbitrary <*> arbitrary
+instance Arbitrary ReqADTDef where
+  arbitrary = ReqADTDef <$> arbitrary <*> arbitrary
 
 instance Arbitrary RespMethod where
   arbitrary = RespMethod <$> arbitrary <*> arbitrary
@@ -157,7 +159,7 @@ instance Arbitrary RespScript where
   arbitrary = RespScript <$> arbitrary <*> arbitrary <*> pure [] <*> pure [] <*> arbitrary
 
 instance Arbitrary RespDef where
-  arbitrary = RespDef <$> arbitrary
+  arbitrary = RespDef <$> arbitrary <*> arbitrary
 
 instance Arbitrary a => Arbitrary (RPCResponse a) where
   arbitrary = oneof
@@ -168,4 +170,4 @@ instance Arbitrary a => Arbitrary (RPCResponse a) where
 
 swaggerTest :: Spec
 swaggerTest = describe "Swagger" $ do
-  context "ToJSON matches ToSchema" $ validateEveryToJSON appAPI
+  context "ToJSON matches ToSchema" $ validateEveryToJSON fclProxyAPI

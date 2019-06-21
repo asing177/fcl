@@ -7,4 +7,4 @@ init() {
 
 foo() { y = 1; y } // ok
 
-bar() { y = False; y } // ok
+bar() { y = false; y } // ok

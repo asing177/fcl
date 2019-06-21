@@ -9,7 +9,6 @@ Test fixtures.
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE TypeApplications #-}
-{-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE TypeFamilies #-}
@@ -30,7 +29,6 @@ import Crypto.Random.Types (MonadRandom(..))
 import qualified Data.ByteArray as B
 import qualified Data.Set as Set
 import qualified Data.Map as Map
-import Data.FileEmbed (makeRelativeToProject, embedStringFile)
 import Text.Read (read)
 
 import Language.FCL.Address as Address
@@ -45,7 +43,7 @@ import Numeric.Lossless.Number (Number(..))
 import Language.FCL.Storage as Storage
 import Language.FCL.AST
 import Language.FCL.Eval as Eval
-
+import Language.FCL.Parser (parseFile)
 import qualified Language.FCL.Key as Key
 import Language.FCL.Time as Time
 import qualified Language.FCL.Delta as Delta
@@ -201,7 +199,7 @@ testStorage = Map.fromList [
   , ("c", VBool True)
   , ("d", VAccount testAddr)
   , ("e", VVoid)
-  , ("g", VEnum (EnumConstr "Foo"))
+  , ("g", VConstr "Foo" [VNum 0, VNum 1])
   , ("h", VAsset testAddr2)
   , ("i", VContract testAddr)
   ]
@@ -344,62 +342,8 @@ genesisWorld = World mempty mempty mempty
 -- Script
 -------------------------------------------------------------------------------
 
-testLocated :: a -> Located a
-testLocated = Located NoLoc
-
-testWFState :: [Text] -> WorkflowState
-testWFState = unsafeWorkflowState . Set.fromList .  map (Place . Name)
-
-enumE :: EnumDef
-enumE = EnumDef (testLocated $ "E") [ testLocated $ EnumConstr "Foo"
-                                    , testLocated $ EnumConstr "Bar"
-                                    ]
-
-defX :: Def
-defX = GlobalDef (TNum nPInt) (mempty @Preconditions) "x" . testLocated . ELit . testLocated $ LNum 0
-
-defY :: Def
-defY = GlobalDef (TEnum "E")
-                 (mempty @Preconditions)
-                 "y"
-                 (testLocated . ELit . testLocated . LConstr . EnumConstr $ "Foo")
-
-defM :: Def
-defM = GlobalDef (TColl (TMap TAccount (TEnum "E"))) (mempty @Preconditions) "m" (testLocated $ EMap mempty)
-
-setY :: Method
-setY = Method startState (mempty @Preconditions) (testLocated "setY") [] $ eseq NoLoc $
-  [ testLocated $ EAssign "y" (testLocated $ ELit $ testLocated (LConstr . EnumConstr $ "Bar"))
-  , testLocated $ ECall (Left Prim.TransitionTo) [testLocated . ELit . testLocated . LState $ testWFState ["set"]]
-  ]
-
-setX :: Method
-setX = Method (testWFState ["set"]) (mempty @Preconditions) (testLocated "setX") [] $ eseq NoLoc $
-  [ testLocated $ EAssign "x" (testLocated $ ELit $ testLocated (LNum 42))
-  , testLocated $ ECall (Left Prim.TransitionTo) [testLocated . ELit . testLocated . LState $ testWFState ["get"]]
-  ]
-
-getX :: Method
-getX = Method (testWFState ["get"]) (mempty @Preconditions) (testLocated "getX") [] $ eseq NoLoc $
-  [ testLocated $ ECall (Left Prim.TransitionTo) [testLocated . ELit . testLocated . LState $ endState]
-  ]
-
-transX :: [Transition]
-transX =
-  [ Arrow startState            (testWFState ["set"])
-  , Arrow (testWFState ["set"]) (testWFState ["get"])
-  , Arrow (testWFState ["get"]) endState
-  ]
-
-helperInsert :: Helper
-helperInsert = Helper (testLocated "insertFoo") [Arg TAccount (testLocated "a")] $ eseq NoLoc $
-  [ testLocated $ ECall (Left (Prim.MapPrimOp Prim.MapInsert)) (map testLocated [EVar (testLocated "a"), ELit (testLocated (LConstr (EnumConstr "Foo"))), EVar (testLocated "m")]) ]
-
 testScript :: Script
-testScript = Script [enumE] [defX, defY, defM] transX [setY, getX, setX] [helperInsert]
-
-testCode :: Text
-testCode = $(makeRelativeToProject "tests/script/positive/typecheck/reference.s" >>= embedStringFile)
+testScript = unsafePerformIO (parseFile "tests/script/positive/typecheck/reference.s")
 
 -------------------------------------------------------------------------------
 -- Key

@@ -98,7 +98,7 @@ inferMethodTransitions method = do
 -- state.
 extractTransition :: Method -> Set WorkflowState
 extractTransition method
-  = Set.unions . fmap getWFState . unseq . methodBody $ method
+  = Set.unions . fmap getWFState . flattenExprs . methodBody $ method
   where
     getWFState :: LExpr -> Set WorkflowState
     getWFState (Located _ (ECall (Left Prim.TransitionTo) args))
@@ -113,6 +113,5 @@ extractTransition method
     unwrap :: LLit -> WorkflowState
     unwrap (Located _ (LState st)) = st
     unwrap _ = panic "Malformed program."
-
 
 

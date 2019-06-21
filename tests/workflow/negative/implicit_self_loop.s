@@ -3,7 +3,7 @@ transition initial -> terminal;
 
 @initial
 init() {
-  if (False) {
+  if (false) {
     terminate();
   };
 }

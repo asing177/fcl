@@ -13,6 +13,8 @@ module HTTP.FCL.API
   , fclServer
   , runHttpFclAsHandler
   , runHttpFcl
+  , RPCResponseError(..)
+  , RPCResponse(..)
   ) where
 
 import Network.Wai.Handler.Warp

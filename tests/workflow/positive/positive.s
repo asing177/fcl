@@ -38,7 +38,7 @@ toCorD() {
 
 @c
 toEorF() {
-  if (True) {
+  if (true) {
     transitionTo(:e);
   } else {
     transitionTo(:f);

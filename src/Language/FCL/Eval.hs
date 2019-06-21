@@ -300,6 +300,24 @@ handleArithError m = do
 -- Evaluation
 -------------------------------------------------------------------------------
 
+
+evalLit :: Lit -> Value
+evalLit lit = case lit of
+  LNum n      -> VNum (NumDecimal n)
+  LVoid       -> VVoid
+  LBool n     -> VBool n
+  LAccount n  -> VAccount n
+  LAsset n    -> VAsset n
+  LContract n -> VContract n
+  LText n      -> VText n
+  LSig n      -> VSig n
+  LState pl   -> VState pl
+  LDateTime d -> VDateTime d
+  LTimeDelta d -> VTimeDelta d
+
+evalLLit :: LLit -> Value
+evalLLit (Located _ lit) = evalLit lit
+
 -- | Evaluator for expressions
 evalLExpr :: (World world, Show (AccountError' world), Show (AssetError' world))
   => LExpr -> (EvalM world) Value
@@ -467,9 +485,20 @@ evalLExpr (Located loc e) = case e of
       then evalLExpr e1
       else evalLExpr e2
 
-  ECase scrut ms -> do
-    VEnum c <- evalLExpr scrut
-    evalLExpr (match ms c)
+  ECase scrutinee branches -> do
+    scrutinee <- evalLExpr scrutinee
+    let matchCaseBranch (CaseBranch (Located _ pat) body)
+          = case match scrutinee pat of
+            Nothing -> Nothing
+            Just bindings -> Just (bindings, body)
+    case mapMaybe matchCaseBranch branches of
+      (bindings, body):_ ->
+        mapM_ (uncurry insertTempVar) bindings *> evalLExpr body
+      [] -> throwError $ PatternMatchFailure scrutinee loc
+
+  EConstr nm args -> do
+    args <- mapM evalLExpr args
+    pure $ VConstr nm args
 
   ENoOp -> noop
 
@@ -482,12 +511,15 @@ evalLExpr (Located loc e) = case e of
   EHole ->
     panicImpossible $ "Evaluating hole expression at " <> show loc
 
-match :: [Match] -> EnumConstr -> LExpr
-match ps c
-  = fromMaybe (panicImpossible "Cannot match constructor")
-  $ List.lookup (PatLit c)
-  $ map (\(Match pat body) -> (locVal pat, body))
-  $ ps
+match :: Value -> Pattern -> Maybe [(Name, Value)]
+match _   PatWildCard = Just []
+match val (PatVar (Located _ var)) = Just [(var, val)]
+match val (PatLit (Located _ lit))
+  | evalLit lit == val = Just []
+  | otherwise          = Nothing
+match (VConstr nm1 vals) (PatConstr (Located _ nm2) pats)
+  | nm1 == nm2 = concat <$> zipWithM match vals pats
+match _ _ = Nothing
 
 -- | Evaluate a binop and two Fractional Num args
 evalBinOpF :: (Fractional a, Ord a) => BinOp -> (a -> Value) -> a -> a -> (EvalM world) Value
@@ -1169,7 +1201,7 @@ hashValue = \case
   VVoid          -> pure ""
   VDateTime dt   -> pure $ S.encode dt
   VTimeDelta d   -> pure $ S.encode d
-  VEnum c        -> pure (show c)
+  c@VConstr{}    -> pure (toS $ prettyPrint c)
   VMap vmap      -> pure (show vmap)
   VSet vset      -> pure (show vset)
   VSig _         -> throwError $ Impossible "Cannot hash signature"
@@ -1245,8 +1277,8 @@ initStorage evalCtx world s@(Script _ defns _ _ _)
       }
 
 -- | Pretty print storage map
-dumpStorage :: EnumInfo -> Map Key Value -> Pretty.Doc
-dumpStorage enumInfo store =
+dumpStorage :: ADTInfo -> Map Key Value -> Pretty.Doc
+dumpStorage adtInfo store =
   if Map.null store
     then indent 8 "<empty>"
     else
@@ -1258,6 +1290,6 @@ dumpStorage enumInfo store =
           | (k,v) <- Map.toList store
         ]
   where
-    pprTy v = case mapType enumInfo v of
+    pprTy v = case mapType adtInfo v of
                 Nothing -> "<<unknown constructor>>"
                 Just ty -> ppr ty

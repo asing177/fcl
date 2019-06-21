@@ -80,7 +80,7 @@ numberTests = testGroup "Arithmetic properties"
         let (decimal, remainder) = rationalToDecimalAndRemainder p r
         in toRational decimal + remainder == r
 
-  , testProperty "Roundtrip Decimal (pun intended)" $
+  , testProperty "rationalToDecimal . toRational == id" $
       \(d :: Decimal) ->
         rationalToDecimalAndRemainder (decimalPlaces d) (toRational d) == (d, 0)
 

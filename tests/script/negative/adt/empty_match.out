@@ -1,0 +1,9 @@
+run(T arg) {
+  case(arg) { }
+--------------^
+}
+
+"<stdin>" (line 5, column 15):
+unexpected "}"
+expecting literal, name, uppercase letter or "_"
+TimeDelta must not be 0

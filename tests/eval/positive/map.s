@@ -1,20 +1,13 @@
-
-enum investor
-  { BigInvestor
-  , SmallInvestor
-  };
+type Investor = BigInvestor | SmallInvestor;
 
 global map<account, int> shares = ();
 global map<account, int> runoff = ();
 
-transition initial -> terminal;
-transition initial -> initial;
-
 @initial
-insertInvestor (account a, enum investor x)  {
+insertInvestor (account a, Investor x)  {
   shares = case(x) {
-    `BigInvestor -> mapInsert(a, 100, shares);
-    `SmallInvestor -> mapInsert(a, 10, shares);
+    BigInvestor -> mapInsert(a, 100, shares);
+    SmallInvestor -> mapInsert(a, 10, shares);
   };
   stay();
 }
