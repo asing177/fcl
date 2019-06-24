@@ -1,9 +1,9 @@
 global int x = 0 ;
 
-transition initial -> set;
-transition set -> terminal;
+transition initial -> a;
+transition a -> terminal;
 
-@set
+@a
 end () {
   terminate();
 }
@@ -11,5 +11,5 @@ end () {
 @initial
 setX () {
   x = 42;
-  transitionTo(@set);
+  transitionTo(@a);
 }

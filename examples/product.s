@@ -1,42 +1,42 @@
 // This  workflow models a situation where two parties trade a SP smart contract
 // Quanto Autocall Phoenix Note on the Worst of Two Stocks with Memory Coupon
-global account P1;
-global account P2;
-global account XP;
-global assetFrac4 productCurrency;
-global assetFrac4 underlying1;
-global assetFrac4 underlying2;
+global account p1;
+global account p2;
+global account xP;
+global asset<decimal<4>> productCurrency;
+global asset<decimal<4>> underlying1;
+global asset<decimal<4>> underlying2;
 global datetime strikeDate;
-global fixed4 numberOfCoupons;
-global fixed4 daysToCoupon;
-global fixed4 daysToMaturity;
-global fixed4 notional;
+global decimal<4> numberOfCoupons;
+global decimal<4> daysToCoupon;
+global decimal<4> daysToMaturity;
+global decimal<4> notional;
 global int memoryCoupon;
-global fixed4 strikeLevel;
-global fixed4 couponBarrierLevel;
-global fixed4 autocallTriggerLevel;
-global fixed4 earlyRedemptionMultiplier;
-global fixed4 targetRate;
-global fixed4 targetRedemptionMultiplierFixing;
-global fixed4 targetRedemptionMultiplierStrike;
-global fixed4 dayCounter;
-global fixed4 couponsUnpaid;
-global fixed4 couponRate;
-global fixed4 redemptionStockPrice;
-global fixed4 fixingUnderlying1;
-global fixed4 fixingUnderlying2;
-global fixed4 whichCouponPeriod;
-global assetFrac4 assetRedeemed;
-global fixed4 couponValue;
-global fixed4 earlyRepayment;
-global fixed4 stockRepayment;
-global fixed4 repayment;
+global decimal<4> strikeLevel;
+global decimal<4> couponBarrierLevel;
+global decimal<4> autocallTriggerLevel;
+global decimal<4> earlyRedemptionMultiplier;
+global decimal<4> targetRate;
+global decimal<4> targetRedemptionMultiplierFixing;
+global decimal<4> targetRedemptionMultiplierStrike;
+global decimal<4> dayCounter;
+global decimal<4> couponsUnpaid;
+global decimal<4> couponRate;
+global decimal<4> redemptionStockPrice;
+global decimal<4> fixingUnderlying1;
+global decimal<4> fixingUnderlying2;
+global decimal<4> whichCouponPeriod;
+global asset<decimal<4>> assetRedeemed;
+global decimal<4> couponValue;
+global decimal<4> earlyRepayment;
+global decimal<4> stockRepayment;
+global decimal<4> repayment;
 
 @initial
-propose(account proposedP2, account proposedXP, assetFrac4 proposedProductCurrency, assetFrac4 proposedUnderlying1, assetFrac4 proposedUnderlying2, datetime proposedStrikeDate, fixed4 proposedStrikeLevel, fixed4 proposedNumberOfCoupons, fixed4 proposedDaysToCoupon, fixed4 proposedDaysToMaturity, fixed4 proposedNotional, int proposedMemoryCoupon, fixed4 proposedCouponBarrierLevel, fixed4 proposedAutocallTriggerLevel, fixed4 proposedCouponRate, fixed4 proposedEarlyRedemptionMultiplier, fixed4 proposedRedemptionMultiplierFixing, fixed4 proposedRedemptionMultiplierStrike) {
-    P1 = sender();
-    P2 = proposedP2;
-    XP = proposedXP;
+propose(account proposedP2, account proposedXP, asset<decimal<4>> proposedProductCurrency, asset<decimal<4>> proposedUnderlying1, asset<decimal<4>> proposedUnderlying2, datetime proposedStrikeDate, decimal<4> proposedStrikeLevel, decimal<4> proposedNumberOfCoupons, decimal<4> proposedDaysToCoupon, decimal<4> proposedDaysToMaturity, decimal<4> proposedNotional, int proposedMemoryCoupon, decimal<4> proposedCouponBarrierLevel, decimal<4> proposedAutocallTriggerLevel, decimal<4> proposedCouponRate, decimal<4> proposedEarlyRedemptionMultiplier, decimal<4> proposedRedemptionMultiplierFixing, decimal<4> proposedRedemptionMultiplierStrike) {
+    p1 = sender();
+    p2 = proposedP2;
+    xP = proposedXP;
     productCurrency = proposedProductCurrency;
     underlying1 = proposedUnderlying1;
     underlying2 = proposedUnderlying2;
@@ -58,30 +58,30 @@ propose(account proposedP2, account proposedXP, assetFrac4 proposedProductCurren
 @onOffer [roles: {P2}]
 accept() {
     if (now() < strikeDate) {
-        dayCounter = 0.0000f;
-        couponRate = 0.0000f;
-        couponsUnpaid = 0.0000f;
-        redemptionStockPrice = 0.0000f;
-        couponValue = 0.0000f;
-        earlyRepayment = 0.0000f;
-        stockRepayment = 0.0000f;
-        repayment = 0.0000f;
-        whichCouponPeriod = 1.0000f;
+        dayCounter = 0.0000;
+        couponRate = 0.0000;
+        couponsUnpaid = 0.0000;
+        redemptionStockPrice = 0.0000;
+        couponValue = 0.0000;
+        earlyRepayment = 0.0000;
+        stockRepayment = 0.0000;
+        repayment = 0.0000;
+        whichCouponPeriod = 1.0000;
         transitionTo(:fixing);
     } else {
         transitionTo(:terminal);
     }
 }
 
-@fixing [roles: {XP}]
-fix(fixed4 observedPrice1, fixed4 observedPrice2) {
+@fixing [roles: {xP}]
+fix(decimal<4> observedPrice1, decimal<4> observedPrice2) {
     fixingUnderlying1 = observedPrice1;
     fixingUnderlying2 = observedPrice2;
     transitionTo(:registered);
 }
 @registered
 lifecycle() {
-    dayCounter = (dayCounter + 1.0000f);
+    dayCounter = (dayCounter + 1.0000);
     if ((dayCounter == (whichCouponPeriod * daysToCoupon))) {
         transitionTo(:couponObservation);
     } else {
@@ -93,8 +93,8 @@ lifecycle() {
     }
 }
 
-@couponObservation [roles: {XP}]
-observeForCoupon(fixed4 observedPrice1, fixed4 observedPrice2) {
+@couponObservation [roles: {xP}]
+observeForCoupon(decimal<4> observedPrice1, decimal<4> observedPrice2) {
     if ((((observedPrice1 / fixingUnderlying1) > autocallTriggerLevel) && ((observedPrice2 / fixingUnderlying2) > autocallTriggerLevel))) {
       transitionTo(:earlyCall);
     } else {
@@ -103,34 +103,34 @@ observeForCoupon(fixed4 observedPrice1, fixed4 observedPrice2) {
             transitionTo(:couponSettlement);
         } else {
             if ((memoryCoupon == 1)) {
-                couponsUnpaid = (couponsUnpaid + 1.0000f);
+                couponsUnpaid = (couponsUnpaid + 1.0000);
             };
             if ((whichCouponPeriod < numberOfCoupons)) {
-                whichCouponPeriod = (whichCouponPeriod + 1.0000f);
+                whichCouponPeriod = (whichCouponPeriod + 1.0000);
             };
             transitionTo(:registered);
         };
     };
 }
-@earlyCall [roles: {P1,P2}]
+@earlyCall [roles: {p1,p2}]
 callSettlement() {
-    couponValue = 0.0000f;
+    couponValue = 0.0000;
     earlyRepayment = (notional * earlyRedemptionMultiplier);
     transitionTo(:terminal);
 }
-@couponSettlement [roles: {P1,P2}]
+@couponSettlement [roles: {p1,p2}]
 settleCoupon() {
-    couponValue = ((notional * (couponsUnpaid + 1.0000f)) * couponRate * (daysToCoupon/365.0000f));
-    couponRate = 0.0000f;
-    couponsUnpaid = 0.0000f;
+    couponValue = ((notional * (couponsUnpaid + 1.0000)) * couponRate * (daysToCoupon/365.0000));
+    couponRate = 0.0000;
+    couponsUnpaid = 0.0000;
     if ((whichCouponPeriod < numberOfCoupons)) {
-        whichCouponPeriod = (whichCouponPeriod + 1.0000f);
+        whichCouponPeriod = (whichCouponPeriod + 1.0000);
     };
     transitionTo(:registered);
 }
-@finalObservation [roles: {XP}]
-observeForMaturity(fixed4 observedPrice1, fixed4 observedPrice2, fixed4 observedFX) {
-    if ((((observedPrice1 / fixingUnderlying1) > 1.0000f) && ((observedPrice2 / fixingUnderlying2) > 1.0000f))) {
+@finalObservation [roles: {xP}]
+observeForMaturity(decimal<4> observedPrice1, decimal<4> observedPrice2, decimal<4> observedFX) {
+    if ((((observedPrice1 / fixingUnderlying1) > 1.0000) && ((observedPrice2 / fixingUnderlying2) > 1.0000))) {
         transitionTo(:repayCashFixing);
     } else {
         if ((((observedPrice1 / fixingUnderlying1) > strikeLevel) && ((observedPrice2 / fixingUnderlying2) > strikeLevel))) {
@@ -147,36 +147,36 @@ observeForMaturity(fixed4 observedPrice1, fixed4 observedPrice2, fixed4 observed
         };
     };
 }
-@repayCashFixing [roles: {P1, P2}]
+@repayCashFixing [roles: {p1, p2}]
 settleCashAtMaturityFixing() {
     repayment = (notional * targetRedemptionMultiplierFixing);
     transitionTo(:terminal);
 }
-@repayCashStrike [roles: {P1, P2}]
+@repayCashStrike [roles: {p1, p2}]
 settleCashAtMaturityStrike() {
     repayment = (notional * targetRedemptionMultiplierStrike);
     transitionTo(:terminal);
 }
-@repayStock [roles: {P1, P2}]
+@repayStock [roles: {p1, p2}]
 settleStockAtMaturity() {
     stockRepayment = (notional / redemptionStockPrice);
     transitionTo(:terminal);
 }
-@registered [roles: {P2}]
-investorTransfer(account proposedTransferTo, fixed4 proposedTransferAmount) {
+@registered [roles: {p2}]
+investorTransfer(account proposedTransferTo, decimal<4> proposedTransferAmount) {
     if ((notional > proposedTransferAmount)) {
         notional = (notional - proposedTransferAmount);
     } else {
-        notional = 0.0000f;
+        notional = 0.0000;
     };
     stay();
 }
-@registered [roles: {P1}]
-issuerNovation(account proposedTransferTo, fixed4 proposedTransferAmount) {
+@registered [roles: {p1}]
+issuerNovation(account proposedTransferTo, decimal<4> proposedTransferAmount) {
     if ((notional > proposedTransferAmount)) {
         notional = (notional - proposedTransferAmount);
     } else {
-        notional = 0.0000f;
+        notional = 0.0000;
     };
     stay();
 }

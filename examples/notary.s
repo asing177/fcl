@@ -1,15 +1,15 @@
 global sig signature;
 
-transition initial -> set;
-transition set -> terminal;
+transition initial -> a;
+transition a -> terminal;
 
 @initial [role: deployer()]
 put(text x) {
   signature = sign(x);
-  transitionTo(@set);
+  transitionTo(@a);
 }
 
-@set
+@a
 end() {
   terminate();
 }

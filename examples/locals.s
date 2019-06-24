@@ -1,9 +1,9 @@
 local num x = 0.1;
 
-transition initial -> set;
-transition set -> terminal;
+transition initial -> a;
+transition a -> terminal;
 
-@set
+@a
 end () {
   terminate();
 }
@@ -11,5 +11,5 @@ end () {
 @initial
 setX () {
   x = x * 3.0;
-  transitionTo(@set);
+  transitionTo(@a);
 }
