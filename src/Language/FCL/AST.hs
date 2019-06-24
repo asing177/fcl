@@ -1011,3 +1011,152 @@ instance Arbitrary WorkflowState where
     , pure startState
     , pure endState
     ]
+
+
+instance Arbitrary Loc where
+  arbitrary = Loc <$> arbitrary <*> arbitrary
+
+instance Arbitrary a => Arbitrary (Located a) where
+  arbitrary = Located <$> arbitrary <*> arbitrary
+
+-- This is basically liftArbitrary from Arbitrary1
+addLoc :: Gen a -> Gen (Located a)
+addLoc g = Located <$> arbitrary <*> g
+
+instance Arbitrary BinOp where
+  arbitrary = elements
+    [ Add
+    , Sub
+    , Mul
+    , Div
+    , And
+    , Or
+    , Equal
+    , NEqual
+    , LEqual
+    , GEqual
+    , Lesser
+    , Greater
+    ]
+
+instance Arbitrary UnOp where
+  arbitrary = pure Not
+
+instance Arbitrary Lit where
+  -- Missing literals:
+  --  + LDateTime: missing instance Arbitrary DateTime (!)
+  --  + LTimeDelta: missing instance Arbitrary TimeDelta (!)
+  --  + LSig: not part of concrete syntax
+  arbitrary = oneof
+    [ LNum <$> arbitrary `suchThat` ((>= 0) . decimalPlaces)
+      -- specifically, for 'LNum', ensure that we choose the 'NumDecimal' case
+      -- and not 'NumRational', since there are no rational literals.
+    , LBool     <$> arbitrary
+    , LState    <$> arbitrary
+    , LAccount  <$> arbitrary
+    , LAsset    <$> arbitrary
+    , LContract <$> arbitrary
+    ]
+
+instance Arbitrary Type where
+  arbitrary = oneof
+    [ TNum <$> arbitrary
+    , pure TBool
+    , pure TAccount
+    , TAsset <$> arbitrary
+    , pure TContract
+    , TADT <$> arbitrary
+    ]
+
+instance Arbitrary NumPrecision where
+  arbitrary = oneof
+    [ pure NPArbitrary
+    , NPDecimalPlaces <$> arbitrary
+    ]
+
+instance Arbitrary Def where
+  arbitrary = oneof
+    [ GlobalDef <$> arbitrary <*> arbitrary <*> arbitrary <*> addLoc (sized arbNonSeqExpr)
+    ]
+
+instance Arbitrary Arg where
+  arbitrary = Arg <$> arbitrary <*> arbitrary
+
+instance Arbitrary Preconditions where
+  arbitrary = Preconditions <$> arbitrary
+
+instance Arbitrary Precondition where
+  arbitrary = oneof [ pure PrecAfter, pure PrecBefore, pure PrecRoles ]
+
+instance Arbitrary Method where
+  arbitrary = Method <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> sized arbLExpr
+
+instance Arbitrary Helper where
+  arbitrary = Helper <$> arbitrary <*> arbitrary <*> arbitrary
+
+instance Arbitrary Transition where
+  arbitrary = Arrow <$> arbitrary <*> arbitrary
+
+instance Arbitrary ADTDef where
+  arbitrary = ADTDef <$> arbitrary <*> listOf1 arbitrary
+
+instance Arbitrary ADTConstr where
+  arbitrary = ADTConstr <$> arbitrary <*> Q.listOf arbitraryParam
+    where
+      arbitraryParam = (,) <$> arbitrary <*> arbitrary
+
+instance Arbitrary Script where
+  arbitrary = Script <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
+
+instance Arbitrary Expr where
+  arbitrary = sized arbNonSeqExpr
+
+arbNumLogicExpr :: Int -> Gen Expr
+arbNumLogicExpr n
+  | n <= 0
+    = oneof $ [EVar <$> arbitrary] ++
+      map (fmap ELit . addLoc)
+            [ LNum <$> arbitrary
+            , LBool <$> arbitrary
+            ]
+  | otherwise = let n' = n `div` 2 in oneof
+      [ EBinOp <$> arbitrary
+               <*> addLoc (arbNumLogicExpr n')
+               <*> addLoc (arbNumLogicExpr n')
+      , EUnOp <$> arbitrary <*> addLoc (arbNumLogicExpr n')
+      ]
+
+arbMatches :: Int -> Gen [CaseBranch]
+arbMatches n = listOf1 (CaseBranch <$> arbPat <*> arbLExpr n)
+
+arbPat :: Gen LPattern
+arbPat = Located <$> arbitrary <*> (PatLit <$> arbitrary)
+
+arbNonSeqExpr :: Int -> Gen Expr
+arbNonSeqExpr n
+  | n <= 0 = oneof
+             [ EVar <$> arbitrary
+             , ELit <$> arbitrary
+             ]
+  | otherwise = let n' = n `div` 2 in oneof
+      [ EAssign <$> arbitrary         <*> addLoc (arbNonSeqExpr n')
+      , ECall   <$> arbitrary         <*> Q.listOf (addLoc (arbNonSeqExpr n'))
+      , EIf     <$> addLoc (arbNonSeqExpr n') <*> arbLExpr n' <*> arbLExpr n'
+      , EBefore <$> addLoc (arbNonSeqExpr n') <*> arbLExpr n'
+      , EAfter  <$> addLoc (arbNonSeqExpr n') <*> arbLExpr n'
+      , EBetween <$> addLoc (arbNonSeqExpr n')
+                 <*> addLoc (arbNonSeqExpr n')
+                 <*> arbLExpr n'
+      , ECase <$> addLoc (arbNonSeqExpr n') <*> arbMatches n'
+      , arbNumLogicExpr n
+      ]
+
+arbSeqExpr :: Int -> Gen Expr
+arbSeqExpr n
+  | n <= 0 = arbNonSeqExpr 0
+  | otherwise = let n' = n `div` 2 in
+      ESeq <$> addLoc (arbNonSeqExpr n') <*> arbLExpr n'
+
+arbLExpr :: Int -> Gen LExpr
+arbLExpr n = oneof . map addLoc $
+  [ arbNonSeqExpr n, arbSeqExpr n ]
