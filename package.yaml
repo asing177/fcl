@@ -35,6 +35,8 @@ dependencies:
 
   # Serialization
   - binary
+  - cereal
+  - aeson
 
   # Date & Time
   - time
@@ -56,9 +58,7 @@ library:
   - process-extras
 
   # Serialization
-  - cereal
   - cereal-text
-  - aeson
   - pretty-hex
 
   # Exceptions
@@ -81,6 +81,10 @@ library:
   - x509
   - asn1-types
   - asn1-encoding
+
+  # Quickcheck
+  - QuickCheck
+  - quickcheck-instances
 
   ghc-options:
     -fwarn-tabs
@@ -116,8 +120,6 @@ library:
     - Language.FCL.Contract
     - Language.FCL.AST
     - Language.FCL.Delta
-    - Numeric.Lossless.Decimal
-    - Numeric.Lossless.Number
     - Language.FCL.Init
     - Language.FCL.Storage
     - Language.FCL.Pretty
@@ -150,6 +152,8 @@ library:
     - Language.FCL.Time
     - Language.FCL.World
     - Language.FCL.Warning
+    - Numeric.Lossless.Decimal
+    - Numeric.Lossless.Number
 
 executables:
   fcl:
@@ -175,7 +179,6 @@ executables:
     - fcl
     - wai-logger
     - scotty
-    - aeson
 
 tests:
   fcl-test:
@@ -196,3 +199,4 @@ tests:
     - tasty-golden
     - tasty-quickcheck
     - QuickCheck
+    - aeson-pretty

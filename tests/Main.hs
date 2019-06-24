@@ -10,6 +10,8 @@ import qualified KeyTests
 import qualified TestScript
 import qualified TestUndefinedness
 import qualified TestNumber
+import qualified TestJson
+import qualified TestStorage
 
 import qualified TestWorkflow
 
@@ -27,6 +29,12 @@ suite
 
     -- Evaluator tests
     evalTests
+
+    -- JSON Serialize Tests
+    , TestJson.jsonTests
+
+    -- Contract Storage Tests
+    , TestStorage.storageTests
 
     -- Cryptography Tests
     , KeyTests.keyTests
