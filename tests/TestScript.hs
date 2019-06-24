@@ -2,6 +2,7 @@
 {-# LANGUAGE NoImplicitPrelude #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ViewPatterns #-}
+{-# LANGUAGE BangPatterns #-}
 
 module TestScript
   ( evalTests
@@ -74,7 +75,7 @@ scriptPropTests
 
 compilerTests :: IO TestTree
 compilerTests = testGroup "script" <$> sequence
-  [ discoverGoldenTests [".s"] "" (pure . pure . pure ()) "examples" (Golden.expectSuccess Compile.compileFile)
+  [ discoverGoldenTests [".s"] "" (\_ !_ -> pure ()) "examples" (Golden.expectSuccess Compile.compileFile)
     -- ↑ ensure files in `examples` directory compile
   , discoverGoldenTestsFCL "tests/script/positive" (Golden.expectSuccess Compile.compileFile)
     -- ↑ ensure these scripts compile and give the expected output
