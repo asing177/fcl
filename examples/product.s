@@ -55,7 +55,7 @@ propose(account proposedP2, account proposedXP, asset<decimal<4>> proposedProduc
     targetRedemptionMultiplierStrike = proposedRedemptionMultiplierStrike;
     transitionTo(:onOffer);
 }
-@onOffer [roles: {P2}]
+@onOffer [roles: {p2}]
 accept() {
     if (now() < strikeDate) {
         dayCounter = 0.0000;
@@ -115,12 +115,12 @@ observeForCoupon(decimal<4> observedPrice1, decimal<4> observedPrice2) {
 @earlyCall [roles: {p1,p2}]
 callSettlement() {
     couponValue = 0.0000;
-    earlyRepayment = (notional * earlyRedemptionMultiplier);
+    earlyRepayment = round(4, notional * earlyRedemptionMultiplier);
     transitionTo(:terminal);
 }
 @couponSettlement [roles: {p1,p2}]
 settleCoupon() {
-    couponValue = ((notional * (couponsUnpaid + 1.0000)) * couponRate * (daysToCoupon/365.0000));
+    couponValue = round(4, ((notional * (couponsUnpaid + 1.0000)) * couponRate * (daysToCoupon/365.0000)));
     couponRate = 0.0000;
     couponsUnpaid = 0.0000;
     if ((whichCouponPeriod < numberOfCoupons)) {
@@ -138,10 +138,10 @@ observeForMaturity(decimal<4> observedPrice1, decimal<4> observedPrice2, decimal
         } else {
             assetRedeemed = underlying2;
             if (((observedPrice1 / fixingUnderlying1) > (observedPrice2 / fixingUnderlying2))) {
-                redemptionStockPrice = ((fixingUnderlying2 / observedFX));
+                redemptionStockPrice = round(4, (fixingUnderlying2 / observedFX));
             } else {
                 assetRedeemed = underlying1;
-                redemptionStockPrice = ((fixingUnderlying1 / observedFX));
+                redemptionStockPrice = round(4, (fixingUnderlying1 / observedFX));
             };
             transitionTo(:repayStock);
         };
@@ -149,17 +149,17 @@ observeForMaturity(decimal<4> observedPrice1, decimal<4> observedPrice2, decimal
 }
 @repayCashFixing [roles: {p1, p2}]
 settleCashAtMaturityFixing() {
-    repayment = (notional * targetRedemptionMultiplierFixing);
+    repayment = round(4, notional * targetRedemptionMultiplierFixing);
     transitionTo(:terminal);
 }
 @repayCashStrike [roles: {p1, p2}]
 settleCashAtMaturityStrike() {
-    repayment = (notional * targetRedemptionMultiplierStrike);
+    repayment = round(4, notional * targetRedemptionMultiplierStrike);
     transitionTo(:terminal);
 }
 @repayStock [roles: {p1, p2}]
 settleStockAtMaturity() {
-    stockRepayment = (notional / redemptionStockPrice);
+    stockRepayment = round(4, notional / redemptionStockPrice);
     transitionTo(:terminal);
 }
 @registered [roles: {p2}]
