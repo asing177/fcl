@@ -34,6 +34,7 @@ data WFError
   | TransFromEnd Transition
   | Counreachable WorkflowState
   | UnreachableTransition Transition
+  | NotFreeChoice
   deriving (Eq, Ord, Show, Generic, A.FromJSON, A.ToJSON)
 
 instance Pretty WFError where
@@ -56,6 +57,7 @@ instance Pretty WFError where
         -> "Dead-end state:" <+> qp st <> "."
       UnreachableTransition t
         -> "Unreachable:" <+> qp t <> "."
+      NotFreeChoice -> text "The workflow does not represent a free choice net"
     where
       qp :: Pretty a => a -> Doc
       qp = squotes . ppr
@@ -103,7 +105,9 @@ allPlaces = foldMap (\(Arrow (places -> src) (places -> dst)) -> src <> dst)
 -- | Build a (partial) reachability graph. When the set of errors is empty,
 -- then the graph is complete and the workflow is sound.
 reachabilityGraph :: Set Transition -> (Set WFError, ReachabilityGraph)
-reachabilityGraph declaredTransitions = (allErrs, graph)
+reachabilityGraph declaredTransitions
+  | isFreeChoiceNet declaredTransitions = (allErrs, graph)
+  | otherwise = (S.singleton NotFreeChoice, mempty)
 
   where
     graph :: ReachabilityGraph
@@ -274,3 +278,16 @@ applyTransition curr t@(Arrow src dst)
 
 isNonEmpty :: Foldable f => f a -> Bool
 isNonEmpty = not . null
+
+-- | Determines whether a set of transitions representing a workflow
+-- satisfy the free choice property.
+isFreeChoiceNet :: Set Transition -> Bool
+isFreeChoiceNet (S.toList -> trs)
+  = and [ satisfyFreeChoiceProperty lhs rhs | lhs <- trs, rhs <- trs ]
+
+-- | Determines whether a pair of transitions satisfy the free choice property.
+satisfyFreeChoiceProperty :: Transition -> Transition -> Bool
+satisfyFreeChoiceProperty (Arrow lhs _) (Arrow rhs _)
+  | lhsPreset <- places lhs
+  , rhsPreset <- places rhs
+  = S.disjoint lhsPreset rhsPreset || lhsPreset == rhsPreset
