@@ -122,7 +122,6 @@ import qualified Data.Binary as B
 import Data.Char (isUpper)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
-import qualified Data.List.NonEmpty as NE
 import Data.String (IsString(..))
 import Data.Serialize (Serialize(..), putInt8, getInt8)
 import Data.Serialize.Text()
@@ -170,7 +169,7 @@ type LPattern = Located Pattern
 
 -- | ADT constructor as given in a type definition.
 data ADTConstr = ADTConstr
-  { adtConstrId :: LNameUpper, adtConstrParams :: [(Type, LName)] }
+  { adtConstrId :: LNameUpper, adtConstrParams :: [(LName, Type)] }
   deriving (Eq, Show, Ord, Generic, Hash.Hashable, FromJSON, ToJSON, Serialize)
 
 -- | Variable names
@@ -348,7 +347,7 @@ data Type
   | TDateTime       -- ^ DateTime with Timezone
   | TTimeDelta      -- ^ Type of difference in time
   | TState          -- ^ Contract state
-  | TADT NameUpper -- ^ ADTeration type
+  | TADT NameUpper -- ^ Algebraic data type
   | TFun [Type] Type -- ^ Type signature of helper functions--argument types and return type
   | TColl TCollection -- ^ Type of collection values
   | TTransition     -- ^ Transition type
@@ -405,7 +404,7 @@ data Helper = Helper
   , helperBody :: LExpr
   } deriving (Eq, Ord, Show, Generic, FromJSON, ToJSON, Hash.Hashable)
 
--- | ADTeration
+-- | Algebraic data type
 data ADTDef = ADTDef
   { adtName :: LNameUpper
   , adtConstrs :: NonEmpty ADTConstr
@@ -523,17 +522,13 @@ mapType einfo   (VSet vset)   =
 
 -- | Associations between type- and value-constructors
 data ADTInfo = ADTInfo
-  { constructorToType :: Map NameUpper (LNameUpper, [(Type, LName)])
-  , adtToConstrsAndFields :: Map NameUpper (NonEmpty ADTConstr, [(Type, LName)])
+  { constructorToType :: Map NameUpper (LNameUpper, [(LName, Type)])
+  , adtToConstrsAndFields :: Map NameUpper (NonEmpty ADTConstr, [(Name, Type)])
   }
 
 -------------------------------------------------------------------------------
 -- Serialization
 -------------------------------------------------------------------------------
-
--- instance Serialize (NonEmpty LExpr) where
---   put = put . NE.toList
---   get = NE.fromList <$> get
 
 instance IsString Name where
   fromString "" = panic "empty name"
@@ -620,7 +615,7 @@ instance Pretty Expr where
     EHole            -> token Token.hole
     ELit lit         -> ppr lit
     EVar nm          -> ppr nm
-    EAssign nms e    -> (mconcat . intersperse "." . map ppr . NE.toList) nms <+> token Token.assign <+> ppr e
+    EAssign nms e    -> (mconcat . intersperse "." . map ppr . toList) nms <+> token Token.assign <+> ppr e
     EUnOp nm e       -> parens $ ppr nm <> ppr e
     EBinOp (Located _ RecordAccess) e1 e2
       -> ppr e1 <> token Token.dot <> ppr e2

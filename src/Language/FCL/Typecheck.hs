@@ -52,6 +52,7 @@ import Language.FCL.Utils ((?), zipWith3M_)
 import Control.Monad.State.Strict (modify')
 
 import qualified Data.Aeson as A
+import qualified Data.List as List
 import Data.List.NonEmpty (NonEmpty)
 import qualified Data.List.NonEmpty as NonEmpty
 import Data.Serialize (Serialize)
@@ -108,8 +109,10 @@ data TypeErrInfo
     }
   | TooManyPatterns NameUpper Pattern
   | TooManyArguments NameUpper LExpr
-  | NotEnoughArguments NameUpper (Type, LName)
-  | FieldTypeMismatch LName Type Type
+  | NotEnoughArguments NameUpper (LName, Type)
+  | FieldTypeMismatch Name Type Type
+  | FieldAccessOnNonADT TypeInfo Name
+  | InvalidField Name NameUpper [(Name, Type)]
   deriving (Eq, Show, Generic, Serialize, A.FromJSON, A.ToJSON)
 
 -- | Type error
@@ -139,7 +142,7 @@ data TypeOrigin
   | InferredFromAssetType Name Type -- ^ Holdings type inferred from asset type passed to primop
   | InferredFromHelperDef Name -- ^ Inferred from helper function definition
   | InferredFromCollType Name TCollection -- ^ Inferred from collection type in collection primop
-  | InferredFromAssignment Name -- ^ Inferred from assignment to existing variable
+  | InferredFromAssignment (NonEmpty Name) -- ^ Inferred from assignment to existing variable
   | InferredFromMethodBody -- ^ Inferred from method body of given method
   | UnaryOperator UnOp    -- ^ From unary operation
   | BinaryOperator BinOp  -- ^ From binary operation
@@ -161,6 +164,7 @@ data TypeOrigin
   | FromHole
   | EmptyBlock -- ^ An empty block has type @TVoid@
   | FromRoundingPrecision -- ^ The output precision of a rounding operation
+  | FromRecordAccess Name NameUpper
   deriving (Eq, Ord, Show, Generic, Serialize, A.FromJSON, A.ToJSON)
 
 -- | Type error metadata
@@ -300,7 +304,7 @@ runInferM adtInfo inferState act
 createADTInfo :: [ADTDef] -> Either TypeError ADTInfo
 createADTInfo adts = ADTInfo constructorToType <$> adtToConstrsAndFields
   where
-    constructorToType :: Map NameUpper (LNameUpper, [(Type, LName)])
+    constructorToType :: Map NameUpper (LNameUpper, [(LName, Type)])
     constructorToType = Map.fromList . concatMap go $ adts
       where
         go (ADTDef lname constrs) =
@@ -309,10 +313,10 @@ createADTInfo adts = ADTInfo constructorToType <$> adtToConstrsAndFields
           . toList
           $ constrs
 
-    adtToConstrsAndFields :: Either TypeError (Map NameUpper (NonEmpty ADTConstr, [(Type, LName)]))
+    adtToConstrsAndFields :: Either TypeError (Map NameUpper (NonEmpty ADTConstr, [(Name, Type)]))
     adtToConstrsAndFields = Map.fromList <$> mapM go adts
       where
-        go :: ADTDef -> Either TypeError (NameUpper, (NonEmpty ADTConstr, [(Type, LName)]))
+        go :: ADTDef -> Either TypeError (NameUpper, (NonEmpty ADTConstr, [(Name, Type)]))
         go (ADTDef (Located _ tyName) constructors) = do
             fields <- getValidFields constructors
             pure (tyName, (constructors, fields))
@@ -321,21 +325,21 @@ createADTInfo adts = ADTInfo constructorToType <$> adtToConstrsAndFields
 -- exactly when they appear in each constructor. The same field appearing at
 -- different types within one type constructor is an error. Example:
 -- For @type T = C1(int x, int y) | C2(int x);@ the only valid field is @int x@.
-getValidFields :: NonEmpty ADTConstr -> Either TypeError [(Type, LName)]
-getValidFields (c1:|cs) = map swap . Map.toList <$> foldM step assocInit cs
+getValidFields :: NonEmpty ADTConstr -> Either TypeError [(Name, Type)]
+getValidFields (c1:|cs) = Map.toList <$> foldM step assocInit cs
   where
-    step :: Map LName Type -> ADTConstr -> Either TypeError (Map LName Type)
+    step :: Map Name Type -> ADTConstr -> Either TypeError (Map Name Type)
     step assoc (ADTConstr _ params) = foldM getIntersection assoc params
 
-    assocInit :: Map LName Type
-    assocInit = Map.fromList . map swap . adtConstrParams $ c1
+    assocInit :: Map Name Type
+    assocInit = Map.fromList . map (first unLoc) . adtConstrParams $ c1
 
-    getIntersection :: Map LName Type -> (Type, LName) -> Either TypeError (Map LName Type)
-    getIntersection assoc (ty, fd) = case Map.lookup fd assoc of
+    getIntersection :: Map Name Type -> (LName, Type) -> Either TypeError (Map Name Type)
+    getIntersection assoc (Located loc fd, ty) = case Map.lookup fd assoc of
       Nothing -> Right (Map.delete fd assoc)
       Just tyExp
         | ty == tyExp -> Right assoc
-        | otherwise -> Left $ TypeError (FieldTypeMismatch fd tyExp ty) (located fd)
+        | otherwise -> Left $ TypeError (FieldTypeMismatch fd tyExp ty) loc
 
 -------------------------------------------------------------------------------
 -- Type Signatures for Methods
@@ -559,10 +563,10 @@ tcLExpr le@(Located loc expr) = case expr of
                 let terr = VarNotFunction (locVal helperNm) varType
                 throwErrInferM terr (located helperNm)
 
-  EAssign nm e -> do
+  EAssign nms@(nm :| fds) e -> do
     eTypeInfo@(TypeInfo eType _ eLoc) <- tcLExpr e
     when (eType == TVoid) (void $ throwErrInferM (ExpectedExpressionAssRHS e) eLoc)
-    lookupVarType (Located loc nm) >>= \case
+    lookupAssignVarType (Located loc nm) fds >>= \case
 
       Nothing -> do -- New temp variable, instantiate it
         let typeInfo = TypeInfo eType (InferredFromExpr $ locVal e) eLoc
@@ -571,7 +575,7 @@ tcLExpr le@(Located loc expr) = case expr of
       Just (meta, varTypeInfo) -> if meta == Global || meta == Temp
         then do -- can only assign to global or temp variable, so need to check this here
           tvar <- freshTVar
-          let retTypeInfo = TypeInfo tvar (InferredFromAssignment nm) (located e)
+          let retTypeInfo = TypeInfo tvar (InferredFromAssignment nms) (located e)
           addConstraint e varTypeInfo retTypeInfo
           addConstraint e retTypeInfo eTypeInfo
         else void $ throwErrInferM (Shadow nm meta varTypeInfo) loc
@@ -661,10 +665,10 @@ tcLExpr le@(Located loc expr) = case expr of
           , tloc = loc }
     where
       econstrZip
-        :: [(Type, LName)] -- ^ the types and names of the constructor fields
+        :: [(LName, Type)] -- ^ the types and names of the constructor fields
         -> [LExpr] -- ^ the constructor arguments
         -> InferM ()
-      econstrZip ((ty, field):ts) (e:es) = do
+      econstrZip ((field, ty):ts) (e:es) = do
         let tyExpected = TypeInfo ty FromConstructorField{ constructor, field } (located e)
         tyActual <- tcLExpr e
         addConstraint e tyExpected tyActual
@@ -728,11 +732,11 @@ tcPattern tyExpected (PatConstr (Located loc c) pats)
         patZip paramTys pats []
   where
     patZip
-      :: [(Type, LName)] -- ^ the types and names of the constructor fields
+      :: [(LName, Type)] -- ^ the types and names of the constructor fields
       -> [Pattern] -- ^ the constructor argument patterns to check
       -> PatContext -- ^ accumulator of the pattern context (bindings that get created through matches)
       -> InferM PatContext
-    patZip ((ty, nm):ts) (p:ps) acc = do
+    patZip ((nm, ty):ts) (p:ps) acc = do
       patCtx <- tcPattern (TypeInfo ty (FromConstructorField c nm) (patLoc p)) p
       patZip ts ps (patCtx <> acc)
     patZip [] [] acc = pure acc
@@ -1321,7 +1325,8 @@ tcNotOp opLoc torig e1 = do
   where
     eLoc = located e1
 
--- tcRecordAccess :: Loc -> TypeOrigin -> LExpr -> LExpr -> InferM TypeInfo
+tcRecordAccess :: Loc -> TypeOrigin -> LExpr -> LExpr -> InferM TypeInfo
+tcRecordAccess = undefined
 -- tcRecordAccess loc torig e1 e2 = tcLExpr e1 >>= \case
 --     TADT name ->
 
@@ -1439,6 +1444,38 @@ lookupVarType' var@(Located loc name) = do
   case mVarTypeInfo of
     Nothing -> (Temp,) <$> throwErrInferM (UnboundVariable name) loc
     Just typeInfo -> return typeInfo
+
+-- | Look up the type of the lhs of an assignment, which could be a record
+-- field.
+--
+lookupAssignVarType
+  :: LName -- ^ the variable we are assigning to
+  -> [Name] -- ^ potential fields of the variable we are assigning to
+  -> InferM (Maybe (TMeta, TypeInfo))
+
+-- If there are no fields, we just do a normal variable lookup.
+lookupAssignVarType v [] = lookupVarType v
+
+-- If there are fields, we first get the type of the variable. If the variable doesn't exist then
+-- this is an error because it can't be a new temporary variable. We then check recursively if all
+-- the field accesses are valid and welltyped.
+lookupAssignVarType v (fd : fds) = lookupVarType v >>= \case
+    Nothing -> Just . (Temp,) <$> throwErrInferM (UnboundVariable (locVal v)) loc
+    Just (meta, tyInfo@(TypeInfo (TADT tyNm) _ _)) -> checkFields tyNm fd fds
+      where
+        checkFields :: NameUpper -> Name -> [Name] -> InferM (Maybe (TMeta, TypeInfo))
+        checkFields tyNm fd fds = do
+            (_, validFields) <- (Map.! tyNm) . adtToConstrsAndFields <$> ask
+            case (List.lookup fd validFields, fds) of
+              (Nothing, _) -> Just . (meta,) <$> throwErrInferM (InvalidField fd tyNm validFields) loc
+              (Just fieldTy, []) -> pure $ Just (meta, TypeInfo fieldTy (FromRecordAccess fd tyNm) loc)
+              (Just (TADT tyNm), (fd:fds)) -> checkFields tyNm fd fds
+              (Just ty, _) -> Just . (meta,) <$> throwErrInferM (FieldAccessOnNonADT tyInfo fd) loc
+
+    Just (meta, tyInfo)
+      -> Just . (meta,) <$> throwErrInferM (FieldAccessOnNonADT tyInfo fd) loc
+  where
+    loc = located v
 
 -- | Checks if # args supplied to function match # args in Sig,
 -- returns a boolean indicating whether this is true or not.
@@ -1687,7 +1724,7 @@ instance Pretty TypeOrigin where
     InferredFromExpr e  -> "inferred from expression" <+> sqppr e
     InferredFromAssetType nm t -> "inferred from the asset type" <+> sqppr t <+> "supplied as an argument to the primop" <+> sqppr nm
     InferredFromHelperDef nm -> "inferred from the helper function definition" <+> sqppr nm
-    InferredFromAssignment nm -> "inferred from the assignment to variable" <+> sqppr nm
+    InferredFromAssignment nms -> "inferred from the assignment to variable" <+> (sqppr . mconcat . intersperse "." . map ppr . toList) nms
     InferredFromMethodBody -> "inferred from the body of method"
     BinaryOperator op   -> "inferred from use of binary operator" <+> sqppr op
     UnaryOperator op    -> "inferred from use of unary operator" <+> sqppr op
@@ -1711,6 +1748,8 @@ instance Pretty TypeOrigin where
     FromHole            -> "coming from a hole in the program"
     EmptyBlock          -> "inferred from an empty block (e.g. if-statement without else-branch)"
     FromRoundingPrecision -> "inferred from the precision of a rounding operation"
+    FromRecordAccess fd tyNm -> "inferred from accessing" <+> sqppr fd <+> ", which is a field of" <+> sqppr tyNm
+
 instance Pretty TypeInfo where
   ppr (TypeInfo t orig loc) = sqppr t <+> ppr orig <+> "on" <+> ppr loc
 
@@ -1768,7 +1807,7 @@ instance Pretty TypeErrInfo where
                                   <$$+> vsep (map ((" - Duplicate case for:" <+>) . ppr) dups)
     TooManyPatterns c p           -> "Constructor" <+> sqppr c <+> "is applied to too many patterns (" <> sqppr p <> ")"
     TooManyArguments c e          -> "Constructor" <+> sqppr c <+> "is applied to too many arguments (" <> sqppr e <> ")"
-    NotEnoughArguments c (t,n)    -> "Constructor" <+> sqppr c <+> "is not applied to enough arguments; expecting an argument of type" <+> sqppr t <+> "for field" <+> sqppr n
+    NotEnoughArguments c (n, t)   -> "Constructor" <+> sqppr c <+> "is not applied to enough arguments; expecting an argument of type" <+> sqppr t <+> "for field" <+> sqppr n
     EmptyMatches                  -> "Case expression with no matches"
     InvalidPrecision              -> "Invalid precision argument; must be an integer (whole number) literal."
     Impossible msg                -> "The impossible happened:" <+> ppr msg

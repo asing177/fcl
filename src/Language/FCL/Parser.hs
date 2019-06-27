@@ -665,7 +665,7 @@ transition = do
   <?> "transition"
 
 -------------------------------------------------------------------------------
--- ADTeration type definition
+-- Algebraic datat type definition
 -------------------------------------------------------------------------------
 
 adtDef :: Parser ADTDef
@@ -673,7 +673,7 @@ adtDef = do
     _ <- reserved Token.type_
     ADTDef
       <$> (Lexer.locNameUpper <* reservedOp Token.assign)
-      <*> ((constructor `sepEndBy1` (char '|' <* whiteSpace)) <* semi)
+      <*> nonEmptyUnsafe ((constructor `sepEndBy1` (char '|' <* whiteSpace)) <* semi)
   where
     constructor = ADTConstr
       <$> Lexer.locNameUpper
