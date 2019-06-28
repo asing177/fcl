@@ -23,7 +23,7 @@ import Data.Set (Set)
 import qualified Data.Set as S
 import qualified Data.Aeson as A
 
-import Language.FCL.AST (Place(..), Transition(..), WorkflowState, (\\), endState, isSubWorkflow, places, startState, wfIntersection, wfUnion)
+import Language.FCL.AST (unsafeWorkflowState, Place(..), Transition(..), WorkflowState, (\\), endState, isSubWorkflow, places, startState, wfIntersection, wfUnion)
 import Language.FCL.Pretty (Doc, Pretty(..), (<+>), listOf, squotes, text, vcat)
 
 -- | A reason why the workflow is unsound. (Refer to 'Pretty' instance for
@@ -34,7 +34,10 @@ data WFError
   | TransFromEnd Transition
   | Counreachable WorkflowState
   | UnreachableTransition Transition
+  -- TODO: make these more errors more informative
   | NotFreeChoice
+  | NotOneBoundedMerge
+  | ImproperCompletionMerge
   deriving (Eq, Ord, Show, Generic, A.FromJSON, A.ToJSON)
 
 instance Pretty WFError where
@@ -58,6 +61,8 @@ instance Pretty WFError where
       UnreachableTransition t
         -> "Unreachable:" <+> qp t <> "."
       NotFreeChoice -> text "The workflow does not represent a free choice net"
+      NotOneBoundedMerge -> text "The net is not one-bounded (found when merging branches)"
+      ImproperCompletionMerge -> text "The net does not terminate properly (found at merge-site)"
     where
       qp :: Pretty a => a -> Doc
       qp = squotes . ppr
@@ -139,9 +144,10 @@ reachabilityGraph declaredTransitions
                   xs
                     | isNonEmpty xs && all (`elem` allCounreachable) xs -> -- do a sanity check
                         xs
-                    | otherwise ->
-                        panic $ "The workflow is unsound, but so is the soundness check."
-                              <> show xs <> "\n" <> show allCounreachable
+                    -- TODO: revisit this
+                    | otherwise -> allCounreachable
+                        -- panic $ "The workflow is unsound, but so is the soundness check."
+                              -- <> show xs <> "\n" <> show allCounreachable
               where
                 -- Construct the breadth-first spanning tree of the reachability
                 -- graph in order to only report relevant coreachability errors,
@@ -169,7 +175,10 @@ reachabilityGraph declaredTransitions
                     unseenNeighbours
                       = filter (not . (`elem` seen))
                       . S.toList
-                      $ graph M.! curr -- safe because we only ever go to
+                      . fromMaybe mempty
+                      $ M.lookup curr graph
+                                       -- NOTE: may not be safe anymore
+                                       -- safe because we only ever go to
                                        -- successor nodes and these have to be
                                        -- in the reachability graph
 
@@ -186,47 +195,6 @@ reachabilityGraph declaredTransitions
       where
         inLHS :: Place -> Set Transition
         inLHS k = S.filter (\(Arrow src _) -> k `S.member` places src) declaredTransitions
-
-    -- Do a depth-first search of the possible states
-    buildGraph :: WorkflowState -> GraphBuilderM ()
-    buildGraph curr = do
-        graph <- get
-        unless (curr `M.member` graph) $ do
-          outgoing <- ask
-          neighbours <- catMaybes <$>
-            ( mapM (applyTransitionM curr)   -- Get the valid neighbouring states
-            . S.toList
-            . S.unions                       -- Throw out duplicate transitions
-            . mapMaybe (`M.lookup` outgoing) -- Get potentially relevant transitions
-            . S.toList
-            . places                         -- Get the places in the current state
-            ) curr
-          modify . M.insert curr . S.fromList $ neighbours -- Even if there are none
-          mapM_ buildGraph neighbours
-      where
-
-        -- Apply a transition if it is satisfied
-        applyTransitionM
-          :: WorkflowState
-          -> Transition
-          -> GraphBuilderM (Maybe WorkflowState)
-        applyTransitionM st t = case applyTransition st t of
-            Nothing -> pure Nothing
-            Just (Right st) -> do
-              tell (mempty, S.singleton t) -- add transition to used
-              pure $ Just st
-            Just (Left err) -> do
-              yell err
-              case err of
-                ImproperCompletion _ t _ -> tell (mempty, S.singleton t)
-                -- add transition to used to avoid UnreachableTransition error
-                _ -> pure ()
-              pure Nothing
-        {-# INLINE applyTransitionM #-}
-
-        yell :: WFError -> GraphBuilderM ()
-        yell err = tell (S.singleton err, mempty)
-        {-# INLINE yell #-}
 
 -- Given a reachability graph, make a coreachability graph:
 -- 1. reverse all the arrows in the reachability graph
@@ -247,34 +215,115 @@ coreachabilityGraph rGraph = go endState mempty
             , dst <- S.toList dsts
             ]
 
+--------------------------------------------------------------------------------
+-- Convenience functions, these are not exported.
+--------------------------------------------------------------------------------
+
+-- TODO: After AND split, we should only record backward transitions
+--       when they go "outside" of the branch. If they point back to the same branch,
+--       they are irrelevant for the other branches.
+--       See: gas-forward
+-- Do a depth-first search of the possible states
+buildGraph :: WorkflowState -> GraphBuilderM [WorkflowState]
+buildGraph curr = do
+  unvisited <- unvisitedM curr
+  if unvisited then do
+    outgoing <- ask
+    xorSplitStates <- catMaybes <$>
+      -- NOTE: XOR-split here
+      ( mapM (applyTransitionLclM curr)   -- Get the valid neighbouring states
+      . S.toList
+      . S.unions                       -- Throw out duplicate transitions
+      . mapMaybe (`M.lookup` outgoing) -- Get potentially relevant transitions
+      . S.toList
+      . places                         -- Get the places in the current state
+      ) curr
+
+    modify $ M.insert curr (S.fromList xorSplitStates) -- direct connections
+    -- modify . M.insert curr . S.fromList $ neighbours -- Even if there are none
+    -- mapM_ buildGraph neighbours
+    xorSplitResult <- forM xorSplitStates $ \lclSt -> do
+      let andSplitLocalStates = splitState lclSt
+      individualResults <- mapM buildGraph andSplitLocalStates
+      mergedResult      <- foldlM (cartesianWithM checkedWfUnionM) [mempty] individualResults
+      unvisited <- unvisitedM lclSt
+      when unvisited $
+        modify $ M.insert lclSt (S.fromList mergedResult)
+      pure mergedResult
+    concatMapM buildGraph $ concat xorSplitResult
+  else
+    pure [curr]
+
+unvisitedM :: WorkflowState -> GraphBuilderM Bool
+unvisitedM s = do
+  graph <- get
+  pure $ s `M.notMember` graph
+
+-- Apply a transition if it is satisfied, but if the transition couldn't fire, return the original state
+applyTransitionLclM :: WorkflowState ->
+                       Transition ->
+                       GraphBuilderM (Maybe WorkflowState)
+applyTransitionLclM st t = case applyTransition st t of
+  Nothing -> pure (Just st)
+  Just (Right st) -> do
+    tell (mempty, S.singleton t) -- add transition to used
+    pure $ Just st
+  Just (Left err) -> do
+    yell err
+    case err of
+      ImproperCompletion _ t _ -> tell (mempty, S.singleton t)
+      -- add transition to used to avoid UnreachableTransition error
+      _ -> pure ()
+    pure Nothing
+{-# INLINE applyTransitionLclM #-}
+
+yell :: WFError -> GraphBuilderM ()
+yell err = tell (S.singleton err, mempty)
+{-# INLINE yell #-}
+
+-- TODO: gather all errors
+checkedWfUnion :: WorkflowState -> WorkflowState -> Either WFError WorkflowState
+checkedWfUnion lhs rhs
+  | not $ null sharedPlaces = Left NotOneBoundedMerge
+  | PlaceEnd `S.member` lhsPlaces || PlaceEnd `S.member` rhsPlaces
+  , S.size (lhsPlaces `S.union` rhsPlaces) > 1
+  = Left NotOneBoundedMerge
+  | otherwise = Right (lhs <> rhs)
+  where sharedPlaces = lhsPlaces `S.intersection` rhsPlaces
+        lhsPlaces = places lhs
+        rhsPlaces = places rhs
+
+-- QUESTION: what state should it return?
+checkedWfUnionM :: WorkflowState -> WorkflowState -> GraphBuilderM WorkflowState
+checkedWfUnionM lhs rhs = case checkedWfUnion lhs rhs of
+  Right wfs -> pure wfs
+  Left  err -> yell err >> pure (lhs <> rhs)
+
+-- TODO: Update docs
+-- NOTE: AND-split handled here
 -- | Given a current global workflow state, apply a (local) transition.
 -- Returns:
 --   - @Nothing@ if the transition is not satisfied.
 --   - @Left err@ if the transition is satisfied but would lead to an invalid state.
 --   - @Right newWorklowState@ otherwise.
-applyTransition
-  :: WorkflowState
-  -> Transition
-  -> Maybe (Either WFError WorkflowState)
+applyTransition :: WorkflowState ->
+                    Transition ->
+                    Maybe (Either WFError WorkflowState)  -- global, local state
 applyTransition curr t@(Arrow src dst)
-    | not (src `isSubWorkflow` curr) = Nothing -- can't fire transition
-    | src == endState = Just . Left $ TransFromEnd t
-    | isNonEmpty badGuys = Just . Left $ NotOneBounded curr t badGuys
-    | PlaceEnd `elem` places newState && newState /= endState
-      = Just . Left $ ImproperCompletion curr t newState
-    | otherwise = Just $ Right newState
+  | not (src `isSubWorkflow` curr) = Nothing -- can't fire transition
+  | src == endState                = Just . Left $ TransFromEnd t
+  | isNonEmpty sharedPlaces        = Just . Left $ NotOneBounded curr t sharedPlaces
+  | PlaceEnd `elem` places newState && newState /= endState
+    = Just . Left $ ImproperCompletion curr t newState
+  | otherwise = Just $ Right newState
   where
-    badGuys :: Set Place
-    badGuys = places $ (curr \\ src) `wfIntersection` dst
+    sharedPlaces :: Set Place
+    sharedPlaces = places $ (curr \\ src) `wfIntersection` dst
 
     newState :: WorkflowState
     newState = (curr \\ src) `wfUnion` dst
+
 {-# INLINE applyTransition #-} -- very important for performance!!
-
-
---------------------------------------------------------------------------------
--- Convenience functions, these are not exported.
---------------------------------------------------------------------------------
 
 isNonEmpty :: Foldable f => f a -> Bool
 isNonEmpty = not . null
@@ -291,3 +340,23 @@ satisfyFreeChoiceProperty (Arrow lhs _) (Arrow rhs _)
   | lhsPreset <- places lhs
   , rhsPreset <- places rhs
   = S.disjoint lhsPreset rhsPreset || lhsPreset == rhsPreset
+
+cartesianWith :: (a -> b -> c) -> [a] -> [b] -> [c]
+cartesianWith f xs ys = [f x y | x <- xs, y <- ys]
+
+cartesianWithM :: Monad m => (a -> b -> m c) -> [a] -> [b] -> m [c]
+cartesianWithM f xs = sequence . cartesianWith f xs
+
+setCartesianWith :: Ord c => (a -> b -> c) -> Set a -> Set b -> Set c
+setCartesianWith f xs ys = S.fromList $ cartesianWith f lxs lys
+  where lxs = S.toList xs
+        lys = S.toList ys
+
+-- | Splits a workflow state into several workflow states
+--  based n the contained places. It cretaes a new state
+-- for each individual place.
+splitState :: WorkflowState -> [WorkflowState]
+splitState = map unsafeWorkflowState
+           . map S.singleton
+           . S.toList
+           . places
