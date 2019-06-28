@@ -8,6 +8,7 @@ Compute what effects an FCL expression has
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE ViewPatterns #-}
 {-# OPTIONS_GHC -fwarn-unused-binds #-}
 
 module Language.FCL.Effect
@@ -24,6 +25,7 @@ import Protolude
 import qualified Data.Aeson as A
 import qualified Data.Either as Either
 import qualified Data.List as List
+import qualified Data.List.NonEmpty as NonEmpty
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 
@@ -376,7 +378,7 @@ effectCheckExpr gnms expr = case locVal expr of
     EBefore g e -> meetsErr [onlyReadEffectsAllowed g, effectCheckExpr gnms e]
     EAfter g e -> meetsErr [onlyReadEffectsAllowed g, effectCheckExpr gnms e]
     EBetween g1 g2 e -> meetsErr [onlyReadEffectsAllowed g1, onlyReadEffectsAllowed g2, effectCheckExpr gnms e]
-    EAssign v e -> meetsErr ([onlyReadEffectsAllowed e] <> if v `elem` gnms then [Right $ writeVar v] else [])
+    EAssign (NonEmpty.head -> v) e -> meetsErr ([onlyReadEffectsAllowed e] <> if v `elem` gnms then [Right $ writeVar v] else [])
     ECall f args -> meetsErr (Right (callEffect f) : map onlyReadEffectsAllowed args)
     ENoOp -> Right noEffect
     EMap m -> meetsErr . map onlyReadEffectsAllowed $ Map.keys m <> Map.elems m

@@ -601,7 +601,7 @@ instance Pretty ADTConstr where
   ppr (ADTConstr id []) = ppr id
   ppr (ADTConstr id namedTyParams)
     = ppr id
-      <> tupleOf (map (\(ty, nm) -> ppr ty <+> ppr nm) namedTyParams)
+      <> tupleOf (map (\(nm, ty) -> ppr ty <+> ppr nm) namedTyParams)
 
 instance Pretty Expr where
   ppr = \case

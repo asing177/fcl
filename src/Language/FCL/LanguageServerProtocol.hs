@@ -67,7 +67,7 @@ data ReqDef
 data ReqADTDef
   = ReqADTDef
   { adtName :: AST.NameUpper
-  , adtConstr :: [AST.ADTConstr]
+  , adtConstr :: NonEmpty AST.ADTConstr
   } deriving (Eq, Ord, Show, Generic, ToJSON, FromJSON)
 
 data RespMethod

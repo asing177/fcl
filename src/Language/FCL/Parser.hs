@@ -532,7 +532,7 @@ constructorExpr = EConstr <$> nameUpper <*> (parens (commaSep expr) <|> pure [])
 
 assignExpr :: Parser Expr
 assignExpr = do
-  var <- try $ name <* reservedOp Token.assign
+  var <- try (nonEmptyUnsafe (name `sepEndBy1` char '.') <* reservedOp Token.assign)
   lexpr <- expr
   return $ EAssign var lexpr
  <?> "assign statement"
@@ -679,7 +679,11 @@ adtDef = do
       <$> Lexer.locNameUpper
       <*> (parens (commaSep namedType) <|> pure [])
 
-    namedType = (,) <$> type_ <* whiteSpace <*> locName
+    namedType = do
+      ty <- type_
+      _ <- whiteSpace
+      nm <- locName
+      pure (nm, ty)
 
 -------------------------------------------------------------------------------
 -- Script

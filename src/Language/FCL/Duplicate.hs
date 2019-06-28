@@ -116,8 +116,8 @@ duplicateCheck scr@(Script adts defns transitions methods helpers)
       adtFieldErrs
         = map DuplicateField
           . concat
-          . (concatMap (map (duplicatesOn locVal)))
-          . map (map (map snd . adtConstrParams))
+          . (concatMap (toList . map (duplicatesOn locVal)))
+          . map (map (map fst . adtConstrParams))
           . map adtConstrs
           $ adts
 

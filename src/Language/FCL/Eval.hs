@@ -189,8 +189,10 @@ lookupHelper lhnm = do
 
 -- | Emit a delta updating  the state of a global reference.
 updateGlobalVar :: Name -> Value -> (EvalM world) ()
-updateGlobalVar (Name var) val = modify' $ \evalState ->
-    evalState { globalStorage = updateVar (globalStorage evalState) }
+updateGlobalVar v@(Name var) val = do
+    modify' $ \evalState ->
+      evalState { globalStorage = updateVar (globalStorage evalState) }
+    emitDelta $ Delta.ModifyGlobal v val
   where
     updateVar = Map.update (\_ -> Just val) (Key var)
 
@@ -327,17 +329,15 @@ evalLExpr (Located loc e) = case e of
 
   ELit llit       -> pure $ evalLLit llit
 
-  EAssign lhs rhs -> do
-    gVal <- lookupGlobalVar lhs
-    case gVal of
-      Nothing -> do
-        v <- evalLExpr rhs
-        insertTempVar lhs v
-      Just initVal -> do
-        resVal <- evalLExpr rhs
-        when (initVal /= resVal) $ do
-          updateGlobalVar lhs resVal
-          emitDelta $ Delta.ModifyGlobal lhs resVal
+  EAssign (v:|fds) rhs -> do
+    val <- evalLExpr rhs
+    mbCurrVal <- lookupGlobalVar v
+    case (mbCurrVal, fds) of
+      (Nothing, []) -> insertTempVar v val
+      (Nothing, (_:_)) -> panicImpossible "EAssign"
+      (Just currVal, []) -> when (initVal /= val) (updateGlobalVar v val)
+      -- (Just currVal, (_:_)) -> do
+
     pure VVoid
 
   EUnOp (Located _ op) a -> do

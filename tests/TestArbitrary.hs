@@ -29,6 +29,12 @@ import TestNumber()
 
 -- TODO: Should we avoid orphan instances?
 
+nonEmptyOf :: Gen a -> Gen (NonEmpty a)
+nonEmptyOf gen = (:|) <$> gen <*> listOf gen
+
+instance Arbitrary a => Arbitrary (NonEmpty a) where
+  arbitrary = nonEmptyOf arbitrary
+
 instance Arbitrary SI.SafeInteger where
   arbitrary =
     let minBound' = SI.fromSafeInteger minBound

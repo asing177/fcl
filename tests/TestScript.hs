@@ -17,6 +17,7 @@ import Test.Tasty.QuickCheck
 
 import Control.Arrow ((&&&))
 import Control.Monad (fail)
+import qualified Data.List.NonEmpty as NonEmpty
 
 import qualified Data.Text as T
 import Numeric.Lossless.Number (Decimal (..))
@@ -131,7 +132,7 @@ instance Arbitrary Transition where
   arbitrary = Arrow <$> arbitrary <*> arbitrary
 
 instance Arbitrary ADTDef where
-  arbitrary = ADTDef <$> arbitrary <*> listOf1 arbitrary
+  arbitrary = ADTDef <$> arbitrary <*> arbitrary
 
 instance Arbitrary ADTConstr where
   arbitrary = ADTConstr <$> arbitrary <*> listOf arbitraryParam
