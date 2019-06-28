@@ -1,5 +1,5 @@
 type T = A | B;
-type S = C(int f1, bool f2) | D(T f1);
+type S = C(int f1, bool f2) | D(T f3);
 
 int i;
 bool b;
