@@ -24,6 +24,7 @@ module Language.FCL.Prim (
 ) where
 
 import Protolude hiding (Hashable)
+import Test.QuickCheck
 import Language.FCL.Hash (Hashable)
 import Control.Arrow ((&&&))
 
@@ -245,3 +246,58 @@ lookupPrim p = Data.List.lookup p prims
 
 instance Pretty PrimOp where
   ppr = ppr . (primName :: PrimOp -> Text)
+
+---------------
+-- Arbitrary --
+---------------
+
+instance Arbitrary PrimOp where
+  arbitrary = oneof
+    [ pure Verify
+    , pure Sign
+    , pure Block
+    , pure Deployer
+    , pure Sender
+    , pure Created
+    , pure Address
+    , pure Validator
+    , pure Sha256
+    , pure AccountExists
+    , pure AssetExists
+    , pure ContractExists
+    , pure Terminate
+    , pure Now
+    , pure TransitionTo
+    , pure CurrentState
+    , pure TxHash
+    , pure ContractValueExists
+    , pure ContractState
+    , pure IsBusinessDayUK
+    , pure NextBusinessDayUK
+    , pure IsBusinessDayNYSE
+    , pure NextBusinessDayNYSE
+    , pure Between
+    , pure ContractValue
+    , pure Round
+    , pure RoundUp
+    , pure RoundDown
+    , pure RoundRem
+    , pure RoundUpRem
+    , pure RoundDownRem
+    , AssetPrimOp <$> arbAssetPrim
+    , MapPrimOp <$> arbMapPrim
+    ]
+    where
+      arbAssetPrim = elements
+        [ HolderBalance
+        , TransferTo
+        , TransferFrom
+        , CirculateSupply
+        , TransferHoldings
+        ]
+
+      arbMapPrim = elements
+        [ MapInsert
+        , MapDelete
+        , MapLookup
+        ]

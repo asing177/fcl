@@ -1,5 +1,5 @@
-transition initial -> set;
-transition set -> terminal;
+transition initial -> a;
+transition a -> terminal;
 
 @initial
 manyTypes (
@@ -13,12 +13,11 @@ manyTypes (
   , contract f
   , sig g
   , datetime h
-  , void i
 ) {
-  transitionTo(@set);
+  transitionTo(@a);
 }
 
-@set
+@a
 nothing () {
   terminate();
 }

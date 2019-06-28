@@ -160,19 +160,19 @@ instance FromJSON Value where
         "VAccount"  -> VAccount  <$> o .: "contents"
         "VAsset"    -> VAsset    <$> o .: "contents"
         "VContract" -> VContract <$> o .: "contents"
-        "VDateTime"-> do
+        "VDateTime" -> do
             c <- parseDatetime <$> (o .: "contents")
             case c of
               (Just dt) -> pure $ VDateTime $ DateTime dt
               Nothing -> typeMismatch "Invalid date format, expecting ISO8601, given:" v
         "VTimeDelta" -> VTimeDelta  <$> o .: "contents"
-        "VSig"      -> VSig      <$> o .: "contents"
-        "VText"     -> VText     <$> o .: "contents"
-        "VADT"     -> VConstr   <$> o .: "name" <*> o .: "args"
-        "VMap"      -> VMap      <$> o .: "contents"
-        "VSet"      -> VSet      <$> o .: "contents"
-        "VState"    -> VState <$> (parseWorkflowStateJSON =<< o .: "contents")
-        "VVoid"     -> pure VVoid
+        "VSig"       -> VSig      <$> o .: "contents"
+        "VText"      -> VText     <$> o .: "contents"
+        "VConstr"    -> VConstr   <$> o .: "name" <*> o .: "args"
+        "VMap"       -> VMap      <$> o .: "contents"
+        "VSet"       -> VSet      <$> o .: "contents"
+        "VState"     -> VState <$> (parseWorkflowStateJSON =<< o .: "contents")
+        "VVoid"      -> pure VVoid
         "VUndefined" -> pure VUndefined
         tag -> typeMismatch "Value tag as a string" v
     where

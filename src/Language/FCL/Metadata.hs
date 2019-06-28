@@ -14,6 +14,9 @@ module Language.FCL.Metadata (
 ) where
 
 import Protolude
+import Test.QuickCheck
+import Test.QuickCheck.Instances.Text
+
 import qualified Language.FCL.Utils as Utils
 import qualified Language.FCL.Hash as Hash
 
@@ -86,3 +89,12 @@ instance S.Serialize Metadata where
 instance B.Binary Metadata where
   put = Utils.putBinaryViaSerialize
   get = Utils.getBinaryViaSerialize
+
+---------------
+-- Arbitrary --
+---------------
+
+instance Arbitrary Metadata where
+  arbitrary = Metadata . Map.fromList <$> listOf arbitraryPairs
+    where
+      arbitraryPairs = (,) <$> arbitrary <*> arbitrary

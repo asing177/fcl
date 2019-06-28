@@ -10,7 +10,10 @@ module Language.FCL.Address (
 ) where
 
 import Protolude
-import Language.FCL.Hash as Hash (Hashable(..))
+import qualified Data.ByteString as BS
+import Test.QuickCheck
+import Language.FCL.Hash as Hash (Hashable(..), Hash(..), getRawHash)
+import Language.FCL.Encoding as Encoding
 import Language.FCL.Pretty
 import Data.Aeson (ToJSON(..), FromJSON(..))
 import Data.Serialize as S (Serialize(..))
@@ -45,3 +48,10 @@ instance Pretty (Address 'AAsset) where
 
 instance Pretty (Address 'AContract) where
   ppr (Address bs) = ppr bs
+
+----------------
+-- Arbitrary --
+---------------
+
+instance Arbitrary (Address a) where
+  arbitrary = Address . Hash.getRawHash <$> (arbitrary ::  Gen (Hash.Hash Encoding.Base58ByteString))

@@ -43,6 +43,8 @@ module Language.FCL.Hash (
 
 import Protolude hiding (show, Hashable, hash)
 import Prelude (Show(..), Read(..))
+import Test.QuickCheck
+import Test.QuickCheck.Instances.ByteString
 import Unsafe (unsafeFromJust)
 
 import GHC.Generics ((:+:)(..), (:*:)(..))
@@ -60,7 +62,7 @@ import qualified Data.Serialize as S
 import qualified Data.ByteString as BS
 import qualified Data.ByteArray.Encoding as B
 
-import qualified Language.FCL.Encoding as Encoding
+import Language.FCL.Encoding as Encoding
 
 -------------------------------------------------------------------------------
 -- Types
@@ -340,3 +342,11 @@ ripemd160 x = B.convertToBase B.Base16 (hash x :: Digest RIPEMD160)
 
 ripemd160Raw :: ByteString -> ByteString
 ripemd160Raw x = B.convert (hash x :: Digest RIPEMD160)
+
+
+---------------
+-- Arbitrary --
+---------------
+
+instance (Encoding.ByteStringEncoding a) => Arbitrary (Hash a) where
+  arbitrary = toHash <$> (arbitrary :: Gen ByteString)
