@@ -23,7 +23,7 @@ import Data.Set (Set)
 import qualified Data.Set as S
 import qualified Data.Aeson as A
 
-import Language.FCL.AST (unsafeWorkflowState, Place(..), Transition(..), WorkflowState, (\\), endState, isSubWorkflow, places, startState, wfIntersection, wfUnion)
+import Language.FCL.AST (Name(..), unsafeWorkflowState, Place(..), Transition(..), WorkflowState, (\\), endState, isSubWorkflow, places, startState, wfIntersection, wfUnion)
 import Language.FCL.Pretty (Doc, Pretty(..), (<+>), listOf, squotes, text, vcat)
 
 -- | A reason why the workflow is unsound. (Refer to 'Pretty' instance for
@@ -95,7 +95,7 @@ type OutgoingTransitions = Map Place (Set Transition)
 type GraphBuilderM = RWS
   OutgoingTransitions -- R: outgoing transitions for each place in the workflow
   (Set WFError, Set Transition) -- W: errors and used transitions
-  ReachabilityGraph -- S: the graph we are currently building
+  BuilderState -- S: the graph we are currently building
 
 -- | Given a set of transitions, check whether they describe a sound workflow.
 checkTransitions :: Set Transition -> Either [WFError] ReachabilityGraph
@@ -118,11 +118,11 @@ reachabilityGraph declaredTransitions
     graph :: ReachabilityGraph
     stateErrs :: Set WFError
     usedTransitions :: Set Transition
-    (_, graph, (stateErrs, usedTransitions))
+    (_, BuilderState graph _, (stateErrs, usedTransitions))
       = runRWS
-          (buildGraph startState) -- Function to run in RWS monad
-          outgoing                -- The static context
-          mempty                  -- The dynamic context
+          (buildGraph startState)      -- Function to run in RWS monad
+          outgoing                     -- The static context
+          (BuilderState mempty mempty) -- The dynamic context
 
     allErrs :: Set WFError
     allErrs = mconcat [stateErrs, coreachabilityErrs, unreachableTransitionErrs]
@@ -227,6 +227,12 @@ coreachabilityGraph rGraph = go endState mempty
 buildGraph :: WorkflowState -> GraphBuilderM [WorkflowState]
 buildGraph curr = do
   unvisited <- unvisitedM curr
+
+  locals <- gets bsLocallyVisted
+  let isLocal = curr `S.member` locals
+  let g = map ppr . toList . places
+  trace (show ((g curr, not unvisited, isLocal, concatMap g $ toList locals) ) :: [Char]) $ pure ()
+
   if unvisited then do
     outgoing <- ask
     xorSplitStates <- catMaybes <$>
@@ -239,24 +245,51 @@ buildGraph curr = do
       . places                         -- Get the places in the current state
       ) curr
 
-    modify $ M.insert curr (S.fromList xorSplitStates) -- direct connections
+    addLocalWfState curr
+    modifyGraph $ M.insert curr (S.fromList xorSplitStates) -- direct connections
     -- modify . M.insert curr . S.fromList $ neighbours -- Even if there are none
     -- mapM_ buildGraph neighbours
     xorSplitResult <- forM xorSplitStates $ \lclSt -> do
       let andSplitLocalStates = splitState lclSt
-      individualResults <- mapM buildGraph andSplitLocalStates
+      -- NOTE: clear before a branch
+      -- when (not $ isSingleton andSplitLocalStates) $
+      --   clearLocalWfStates
+      let f = if isSingleton andSplitLocalStates then
+                buildGraph
+              else
+                buildLocally
+      individualResults <- mapM f andSplitLocalStates
       mergedResult      <- foldlM (cartesianWithM checkedWfUnionM) [mempty] individualResults
       unvisited <- unvisitedM lclSt
       when unvisited $
-        modify $ M.insert lclSt (S.fromList mergedResult)
-      pure mergedResult
-    concatMapM buildGraph $ concat xorSplitResult
-  else
-    pure [curr]
+        modifyGraph $ M.insert lclSt (S.fromList mergedResult)
+
+      let isNewMergedState = concat individualResults /= mergedResult -- any (not . isSingleton) individualResults && (not $ isSingleton individualResults)
+      pure (mergedResult, isNewMergedState)
+
+
+    let noApplicableTranstions = null xorSplitStates
+
+    if null xorSplitStates then
+    -- NOTE: the current branch got stuck
+      pure [curr]
+    else do
+      let h (rs,True)  = buildGraph (mconcat rs)
+          -- NOTE: The current branch didnt get stuck,
+          -- but we didnt get a new by merging the branch results.
+          h (rs,False) = pure rs
+      concatMapM h xorSplitResult
+
+  else do
+    locals <- gets bsLocallyVisted
+    if curr `S.member` locals then
+      pure []
+    else
+      pure [curr]
 
 unvisitedM :: WorkflowState -> GraphBuilderM Bool
 unvisitedM s = do
-  graph <- get
+  graph <- gets bsReachabilityGraph
   pure $ s `M.notMember` graph
 
 -- Apply a transition if it is satisfied, but if the transition couldn't fire, return the original state
@@ -264,7 +297,7 @@ applyTransitionLclM :: WorkflowState ->
                        Transition ->
                        GraphBuilderM (Maybe WorkflowState)
 applyTransitionLclM st t = case applyTransition st t of
-  Nothing -> pure (Just st)
+  Nothing -> pure Nothing -- (Just st)
   Just (Right st) -> do
     tell (mempty, S.singleton t) -- add transition to used
     pure $ Just st
@@ -328,6 +361,10 @@ applyTransition curr t@(Arrow src dst)
 isNonEmpty :: Foldable f => f a -> Bool
 isNonEmpty = not . null
 
+isSingleton :: [a] -> Bool
+isSingleton [x] = True
+isSingleton _   = False
+
 -- | Determines whether a set of transitions representing a workflow
 -- satisfy the free choice property.
 isFreeChoiceNet :: Set Transition -> Bool
@@ -360,3 +397,44 @@ splitState = map unsafeWorkflowState
            . map S.singleton
            . S.toList
            . places
+
+type LocallyVisited = Set WorkflowState
+
+data BuilderState
+  = BuilderState
+  { bsReachabilityGraph :: ReachabilityGraph
+  , bsLocallyVisted    :: LocallyVisited
+  } deriving (Eq, Ord, Show)
+
+modifyGraph :: (ReachabilityGraph -> ReachabilityGraph) -> GraphBuilderM ()
+modifyGraph f = do
+  BuilderState rg lv <- get
+  put $ BuilderState (f rg) lv
+
+modifyLocallyVisited :: (LocallyVisited -> LocallyVisited) -> GraphBuilderM ()
+modifyLocallyVisited f = do
+  BuilderState rg lv <- get
+  put $ BuilderState rg (f lv)
+
+addLocalWfState :: WorkflowState -> GraphBuilderM ()
+addLocalWfState s = modifyLocallyVisited (S.insert s)
+
+clearLocalWfStates :: GraphBuilderM ()
+clearLocalWfStates = modifyLocallyVisited (const mempty)
+
+locally :: MonadState s m => s -> m a -> m (a,s)
+locally s m = do
+  origState <- get
+  put s
+  res <- m
+  newState <- get
+  put origState
+  pure (res, newState)
+
+buildLocally :: WorkflowState -> GraphBuilderM [WorkflowState]
+buildLocally wfs = do
+  BuilderState rg lv <- get
+  (r,s) <- locally (BuilderState rg mempty) (buildGraph wfs)
+  modifyGraph (<> bsReachabilityGraph s)
+  pure r
+
