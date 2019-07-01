@@ -43,9 +43,7 @@ instance ToSchema Preconditions where
     p <- declareSchemaRef (Proxy :: Proxy Precondition)
     pure $ NamedSchema (Just "Preconditions")
       $ mempty { _schemaParamSchema =
-                   mempty { _paramSchemaType = SwaggerString
-                          , _paramSchemaItems = Just $ SwaggerItemsArray [p, p]
-                          }
+                   mempty { _paramSchemaType = SwaggerArray }
                }
 
 instance ToSchema Precondition where
@@ -137,11 +135,7 @@ instance ToSchema MapPrimOp
 instance ToSchema SetPrimOp
 instance ToSchema CollPrimOp
 instance ToSchema ADTDef
-instance ToSchema ADTConstr where
-  declareNamedSchema _ = do
-    return $ NamedSchema (Just "EnumConstr")
-      $ mempty { _schemaParamSchema = mempty { _paramSchemaType = SwaggerString } }
-
+instance ToSchema ADTConstr
 instance ToSchema Name where
   declareNamedSchema _ = do
     pure $ NamedSchema (Just "Name")

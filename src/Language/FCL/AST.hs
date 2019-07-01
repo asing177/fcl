@@ -319,10 +319,10 @@ data UnOp = Not -- ^ Logical negation
   deriving (Eq, Ord, Show, Generic, Hash.Hashable)
 
 instance ToJSON UnOp where
-  toJSON = genericToJSON (defaultOptions { sumEncoding = ObjectWithSingleField })
+  toJSON _ = "Not"
 
 instance FromJSON UnOp where
-  parseJSON = genericParseJSON (defaultOptions { sumEncoding = ObjectWithSingleField })
+  parseJSON _ = pure Not
 
 -- | Literal representing Value
 data Lit
