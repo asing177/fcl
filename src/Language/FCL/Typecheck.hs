@@ -48,10 +48,9 @@ import Language.FCL.Prim
 import Language.FCL.Pretty hiding ((<>))
 import qualified Language.FCL.Token as Token (case_)
 import Language.FCL.Utils ((?), zipWith3M_)
--- import Control.Exception (assert)
 import Control.Monad.State.Strict (modify')
 
-import qualified Data.Aeson as A
+import Data.Aeson as A hiding (Value)
 import Data.List.NonEmpty (NonEmpty)
 import qualified Data.List.NonEmpty as NonEmpty
 import Data.Serialize (Serialize)
@@ -64,7 +63,14 @@ import qualified Data.Map as Map
 
 -- | Type signature
 data Sig = Sig [Type] Type
-  deriving (Eq, Show, Generic, Serialize, A.FromJSON, A.ToJSON)
+  deriving (Eq, Show, Generic, Serialize)
+
+instance ToJSON Sig where
+  toJSON = genericToJSON (defaultOptions { sumEncoding = ObjectWithSingleField })
+
+instance FromJSON Sig where
+  parseJSON = genericParseJSON (defaultOptions { sumEncoding = ObjectWithSingleField })
+
 
 -- | Type error metadata
 -- This type uses ByteString for ad-hoc error messages so that we can get a

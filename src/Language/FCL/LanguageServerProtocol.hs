@@ -56,13 +56,25 @@ data ReqScript
   , adts :: [ReqADTDef]
   , methods :: [ReqMethod]
   , transitions :: [ReqTransition]
-  } deriving (Eq, Ord, Show, Generic, ToJSON, FromJSON)
+  } deriving (Eq, Ord, Show, Generic)
+
+instance ToJSON ReqScript where
+  toJSON = genericToJSON (defaultOptions { sumEncoding = ObjectWithSingleField })
+
+instance FromJSON ReqScript where
+  parseJSON = genericParseJSON (defaultOptions { sumEncoding = ObjectWithSingleField })
 
 data ReqTransition
   = ReqTransition
   { fromState :: Text
   , toState :: Text
-  } deriving (Eq, Ord, Show, Generic, ToJSON, FromJSON)
+  } deriving (Eq, Ord, Show, Generic)
+
+instance ToJSON ReqTransition where
+  toJSON = genericToJSON (defaultOptions { sumEncoding = ObjectWithSingleField })
+
+instance FromJSON ReqTransition where
+  parseJSON = genericParseJSON (defaultOptions { sumEncoding = ObjectWithSingleField })
 
 data ReqMethod
   = ReqMethod
@@ -71,20 +83,38 @@ data ReqMethod
   , methodName :: AST.Name
   , methodBodyText :: Text
   , methodArgs :: [ReqMethodArg]
-  } deriving (Eq, Ord, Show, Generic, ToJSON, FromJSON)
+  } deriving (Eq, Ord, Show, Generic)
+
+instance ToJSON ReqMethod where
+  toJSON = genericToJSON (defaultOptions { sumEncoding = ObjectWithSingleField })
+
+instance FromJSON ReqMethod where
+  parseJSON = genericParseJSON (defaultOptions { sumEncoding = ObjectWithSingleField })
 
 data ReqMethodArg
   = ReqMethodArg
   { argName :: AST.Name
   , argType :: Text
-  } deriving (Eq, Ord, Show, Generic, ToJSON, FromJSON)
+  } deriving (Eq, Ord, Show, Generic)
+
+instance ToJSON ReqMethodArg where
+  toJSON = genericToJSON (defaultOptions { sumEncoding = ObjectWithSingleField })
+
+instance FromJSON ReqMethodArg where
+  parseJSON = genericParseJSON (defaultOptions { sumEncoding = ObjectWithSingleField })
 
 data ReqDef
   = ReqDef
     { defType :: Text
     , defName :: Text
     , defValue :: Text
-    } deriving (Eq, Ord, Show, Generic, ToJSON, FromJSON)
+    } deriving (Eq, Ord, Show, Generic)
+
+instance ToJSON ReqDef where
+  toJSON = genericToJSON (defaultOptions { sumEncoding = ObjectWithSingleField })
+
+instance FromJSON ReqDef where
+  parseJSON = genericParseJSON (defaultOptions { sumEncoding = ObjectWithSingleField })
 
 instance Pretty.Pretty ReqDef where
   ppr (ReqDef typ name val) = case Parser.parseDecimal val of
@@ -95,7 +125,13 @@ data ReqADTDef
   = ReqADTDef
   { adtName :: AST.NameUpper
   , adtConstr :: [AST.ADTConstr]
-  } deriving (Eq, Ord, Show, Generic, ToJSON, FromJSON)
+  } deriving (Eq, Ord, Show, Generic)
+
+instance ToJSON ReqADTDef where
+  toJSON = genericToJSON (defaultOptions { sumEncoding = ObjectWithSingleField })
+
+instance FromJSON ReqADTDef where
+  parseJSON = genericParseJSON (defaultOptions { sumEncoding = ObjectWithSingleField })
 
 ------------------------
 -- Response datatypes --
@@ -105,7 +141,13 @@ data RespMethod
   = RespMethod
   { respMethod :: AST.Method
   , respPpMethod :: Text
-  } deriving (Eq, Show, Generic, ToJSON, FromJSON)
+  } deriving (Eq, Show, Generic)
+
+instance ToJSON RespMethod where
+  toJSON = genericToJSON (defaultOptions { sumEncoding = ObjectWithSingleField })
+
+instance FromJSON RespMethod where
+  parseJSON = genericParseJSON (defaultOptions { sumEncoding = ObjectWithSingleField })
 
 data RespScript = RespScript
   { respScript :: AST.Script -- TODO: Keep method body text as it came
@@ -113,12 +155,24 @@ data RespScript = RespScript
   , respScriptWarnings :: [Warning]
   , respScriptSigs :: [(AST.Name, Typecheck.Sig, Effect.Effects)]
   , respGraphviz :: Graphviz.Graphviz
-  } deriving (Show, Generic, ToJSON, FromJSON)
+  } deriving (Show, Generic)
+
+instance ToJSON RespScript where
+  toJSON = genericToJSON (defaultOptions { sumEncoding = ObjectWithSingleField })
+
+instance FromJSON RespScript where
+  parseJSON = genericParseJSON (defaultOptions { sumEncoding = ObjectWithSingleField })
 
 data RespDef = RespDef
   { respDef :: AST.Def
   , respPpDef :: Text
-  } deriving (Show, Generic, ToJSON, FromJSON)
+  } deriving (Show, Generic)
+
+instance ToJSON RespDef where
+  toJSON = genericToJSON (defaultOptions { sumEncoding = ObjectWithSingleField })
+
+instance FromJSON RespDef where
+  parseJSON = genericParseJSON (defaultOptions { sumEncoding = ObjectWithSingleField })
 
 -------------
 -- Scripts --
@@ -232,7 +286,13 @@ data LSP = LSP
   , endColumn :: Int
   , message :: Text
   , severity :: Int
-  } deriving (Show, Generic, ToJSON, FromJSON)
+  } deriving (Show, Generic)
+
+instance ToJSON LSP where
+  toJSON = genericToJSON (defaultOptions { sumEncoding = ObjectWithSingleField })
+
+instance FromJSON LSP where
+  parseJSON = genericParseJSON (defaultOptions { sumEncoding = ObjectWithSingleField })
 
 toLSP :: Compile.CompilationErr -> [LSP]
 toLSP cErr = case cErr of

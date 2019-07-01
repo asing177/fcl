@@ -12,7 +12,7 @@ module Language.FCL.Analysis (
 import Protolude hiding ((<>))
 
 import Data.Set (Set)
-import qualified Data.Aeson as A
+import Data.Aeson as A
 import qualified Data.Set as Set
 
 import Language.FCL.AST
@@ -22,7 +22,13 @@ import qualified Language.FCL.Prim as Prim (PrimOp (Terminate, TransitionTo, Sta
 data TransitionError
   = UndeclaredTransition Name Transition
   | UnusedTransition Transition
-  deriving (Show, Generic, A.ToJSON, A.FromJSON)
+  deriving (Show, Generic)
+
+instance ToJSON TransitionError where
+  toJSON = genericToJSON (defaultOptions { sumEncoding = ObjectWithSingleField })
+
+instance FromJSON TransitionError where
+  parseJSON = genericParseJSON (defaultOptions { sumEncoding = ObjectWithSingleField })
 
 instance Pretty TransitionError where
   ppr = \case
@@ -34,7 +40,13 @@ instance Pretty TransitionError where
       <> ", which is declared but not implemented by any method."
 
 data TransitionErrors = TransitionErrors [Transition] [TransitionError]
-  deriving (Show, Generic, A.ToJSON, A.FromJSON)
+  deriving (Show, Generic)
+
+instance ToJSON TransitionErrors where
+  toJSON = genericToJSON (defaultOptions { sumEncoding = ObjectWithSingleField })
+
+instance FromJSON TransitionErrors where
+  parseJSON = genericParseJSON (defaultOptions { sumEncoding = ObjectWithSingleField })
 
 instance Pretty TransitionErrors where
   ppr = \case

@@ -58,7 +58,7 @@ import Data.Serialize as S
 import Data.List.NonEmpty (NonEmpty)
 import qualified Data.ByteString as BS
 import qualified Hexdump
-import qualified Data.Aeson as A
+import Data.Aeson as A hiding (encode, decode)
 import qualified Data.Map as Map
 import qualified Data.Set as Set (fromList, toList)
 import Control.Monad (fail)
@@ -89,7 +89,13 @@ data CompilationErr
   | WorkflowErr [Reachability.WFError]
   | UndefinednessErr [Undef.InvalidStackTrace]
   | EffectErr [Effect.EffectError]
-  deriving (Show, Generic, A.ToJSON, A.FromJSON)
+  deriving (Show, Generic)
+
+instance ToJSON CompilationErr where
+  toJSON = genericToJSON (defaultOptions { sumEncoding = ObjectWithSingleField })
+
+instance FromJSON CompilationErr where
+  parseJSON = genericParseJSON (defaultOptions { sumEncoding = ObjectWithSingleField })
 
 instance Pretty CompilationErr where
   ppr (ParseErr err) = ppr err
@@ -124,7 +130,13 @@ data CheckedScript = CheckedScript
   { checkedScript         :: Script
   , checkedScriptWarnings :: [Warning]
   , checkedScriptSigs     :: [(Name,Sig,Effect.Effects)]
-  } deriving (Generic, A.ToJSON, A.FromJSON)
+  } deriving (Generic)
+
+instance ToJSON CheckedScript where
+  toJSON = genericToJSON (defaultOptions { sumEncoding = ObjectWithSingleField })
+
+instance FromJSON CheckedScript where
+  parseJSON = genericParseJSON (defaultOptions { sumEncoding = ObjectWithSingleField })
 
 instance Pretty CheckedScript where
   ppr (CheckedScript _ warns sigs) = (vsep . intersperse " ")

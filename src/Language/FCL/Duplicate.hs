@@ -16,7 +16,7 @@ module Language.FCL.Duplicate
 
 import Protolude hiding ((<>))
 
-import qualified Data.Aeson as A
+import Data.Aeson as A
 import qualified Data.Map as Map
 
 import Language.FCL.AST
@@ -26,7 +26,13 @@ import Language.FCL.Utils (duplicates, duplicatesOn)
 -- | Duplicate variable occurrence can be in either a top level definition or
 -- an argument to a method/helper function.
 data VarSrc = Defn | MethodArg Name LExpr
-  deriving (Show, Generic, A.ToJSON, A.FromJSON)
+  deriving (Show, Generic)
+
+instance ToJSON VarSrc where
+  toJSON = genericToJSON (defaultOptions { sumEncoding = ObjectWithSingleField })
+
+instance FromJSON VarSrc where
+  parseJSON = genericParseJSON (defaultOptions { sumEncoding = ObjectWithSingleField })
 
 -- | Ways we can have duplicate definitions of various kinds.
 data DuplicateError
@@ -38,7 +44,13 @@ data DuplicateError
   | DuplicateVariable VarSrc VarSrc LName
   | DuplicateTransition Transition
   | DuplicatePrecondition (Precondition, LExpr)
-  deriving (Show, Generic, A.ToJSON, A.FromJSON)
+  deriving (Show, Generic)
+
+instance ToJSON DuplicateError where
+  toJSON = genericToJSON (defaultOptions { sumEncoding = ObjectWithSingleField })
+
+instance FromJSON DuplicateError where
+  parseJSON = genericParseJSON (defaultOptions { sumEncoding = ObjectWithSingleField })
 
 instance Pretty DuplicateError where
   ppr (DuplicateMethod lname lexpr)
