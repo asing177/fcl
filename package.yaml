@@ -163,8 +163,6 @@ library:
     - Language.FCL.Time
     - Language.FCL.World
     - Language.FCL.Warning
-    - Numeric.Lossless.Decimal
-    - Numeric.Lossless.Number
 
     - Numeric.Lossless.Decimal
     - Numeric.Lossless.Number
