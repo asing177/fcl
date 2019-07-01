@@ -219,16 +219,18 @@ coreachabilityGraph rGraph = go endState mempty
 -- Convenience functions, these are not exported.
 --------------------------------------------------------------------------------
 
--- TODO: After AND split, we should only record backward transitions
---       when they go "outside" of the branch. If they point back to the same branch,
---       they are irrelevant for the other branches.
---       See: gas-forward
--- Do a depth-first search of the possible states
+-- | Build the reachability graph of a given workflow net starting
+-- from a given workflow state `s`. The return value of the function is
+-- the set of possible states reachable directly from `s`
+-- (XOR splits can introduce non-determinism). In order to reduce the
+-- the number of possible states, AND-splits are treated as a "direct" transition
+-- from the input state to the merged result of the individual branch states.
 buildGraph :: WorkflowState -> GraphBuilderM [WorkflowState]
 buildGraph curr = do
   unvisited <- unvisitedM curr
 
   locals <- gets bsLocallyVisted
+  -- TODO: remove these loggings
   let isLocal = curr `S.member` locals
   let g = map ppr . toList . places
   trace (show ((g curr, not unvisited, isLocal, concatMap g $ toList locals) ) :: [Char]) $ pure ()
@@ -245,47 +247,60 @@ buildGraph curr = do
       . places                         -- Get the places in the current state
       ) curr
 
-    addLocalWfState curr
     modifyGraph $ M.insert curr (S.fromList xorSplitStates) -- direct connections
-    -- modify . M.insert curr . S.fromList $ neighbours -- Even if there are none
-    -- mapM_ buildGraph neighbours
     xorSplitResult <- forM xorSplitStates $ \lclSt -> do
       let andSplitLocalStates = splitState lclSt
       -- NOTE: clear before a branch
       -- when (not $ isSingleton andSplitLocalStates) $
       --   clearLocalWfStates
-      let f = if isSingleton andSplitLocalStates then
-                buildGraph
-              else
-                buildLocally
-      individualResults <- mapM f andSplitLocalStates
-      mergedResult      <- foldlM (cartesianWithM checkedWfUnionM) [mempty] individualResults
+      let buildBranch = if isSingleton andSplitLocalStates then
+                        -- non-branching path
+                          continueBuildingLocally curr
+                        else
+                        -- path with a new branch
+                          startBuildingLocally curr
+      -- Results of each AND branch.
+      -- Each element is a seperate AND branch result.
+      -- Inner lists represent possible XOR splits inside a branch.
+      -- Here, the results are stored as DIFFERENT workflow states.
+      (individualResults :: [[WorkflowState]]) <- mapM buildBranch andSplitLocalStates
+      -- Here the different wf states of the AND branches get merged.
+      -- Even if there were no XOR branches inside the AND branches,
+      -- the different wf states get merged into a single one.
+      (mergedResult :: [WorkflowState]) <- foldlM (cartesianWithM checkedWfUnionM) [mempty] individualResults
+
       unvisited <- unvisitedM lclSt
       when unvisited $
         modifyGraph $ M.insert lclSt (S.fromList mergedResult)
 
-      let isNewMergedState = concat individualResults /= mergedResult -- any (not . isSingleton) individualResults && (not $ isSingleton individualResults)
+      -- they are equal iff there is a single AND branch
+      let isNewMergedState = not $ isSingleton andSplitLocalStates --concat individualResults /= mergedResult
+      -- TODO: remove logging
+      trace ("asd " ++ show (g lclSt, map (map g) ( individualResults), map g mergedResult, isNewMergedState) :: [Char]) $ pure ()
       pure (mergedResult, isNewMergedState)
 
 
     let noApplicableTranstions = null xorSplitStates
-
-    if null xorSplitStates then
+    if noApplicableTranstions then
     -- NOTE: the current branch got stuck
       pure [curr]
     else do
-      let h (rs,True)  = buildGraph (mconcat rs)
-          -- NOTE: The current branch didnt get stuck,
-          -- but we didnt get a new by merging the branch results.
-          h (rs,False) = pure rs
-      concatMapM h xorSplitResult
+      -- NOTE: Only continue those XOR branches where the AND branches yielded a new merged state
+      let continueIfNew (rs,True)  = concatMapM buildGraph rs
+          continueIfNew (rs,False) = pure rs
+      concatMapM continueIfNew xorSplitResult
 
   else do
     locals <- gets bsLocallyVisted
     if curr `S.member` locals then
+      -- NOTE: Locally visited nodes add no new information to the context.
+      -- This is when a node inside a branch refers back to another node inside the same branch.
       pure []
     else
+      -- NOTE: Globally visited nodes can have impact on other exectuion paths.
+      -- This is when a node inside a branch refers to another node outside of the current branch.
       pure [curr]
+
 
 unvisitedM :: WorkflowState -> GraphBuilderM Bool
 unvisitedM s = do
@@ -329,7 +344,7 @@ checkedWfUnion lhs rhs
 -- QUESTION: what state should it return?
 checkedWfUnionM :: WorkflowState -> WorkflowState -> GraphBuilderM WorkflowState
 checkedWfUnionM lhs rhs = case checkedWfUnion lhs rhs of
-  Right wfs -> pure wfs
+  Right wfSt -> pure wfSt
   Left  err -> yell err >> pure (lhs <> rhs)
 
 -- TODO: Update docs
@@ -431,10 +446,18 @@ locally s m = do
   put origState
   pure (res, newState)
 
-buildLocally :: WorkflowState -> GraphBuilderM [WorkflowState]
-buildLocally wfs = do
+-- Forget locally visited places, and start new local context.
+startBuildingLocally :: WorkflowState -> WorkflowState -> GraphBuilderM [WorkflowState]
+startBuildingLocally prev wfSt = do
   BuilderState rg lv <- get
-  (r,s) <- locally (BuilderState rg mempty) (buildGraph wfs)
+  (r,s) <- locally (BuilderState rg mempty) $ do
+    addLocalWfState prev
+    buildGraph wfSt
   modifyGraph (<> bsReachabilityGraph s)
   pure r
 
+-- Continue with the current local context.
+continueBuildingLocally :: WorkflowState -> WorkflowState -> GraphBuilderM [WorkflowState]
+continueBuildingLocally prev wfSt = do
+  addLocalWfState prev
+  buildGraph wfSt
