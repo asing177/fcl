@@ -21,7 +21,7 @@ module Numeric.Lossless.Number
   where
 
 import Protolude hiding (Hashable, option, show, lift)
-
+import Test.QuickCheck
 import Data.Aeson (ToJSON(..), FromJSON(..))
 import Data.Serialize (Serialize(..))
 
@@ -76,3 +76,12 @@ instance Pretty Number where
   ppr (NumRational n) = ppr n
 
 
+---------------
+-- Arbitrary --
+---------------
+
+instance Arbitrary Number where
+  arbitrary = oneof
+      [ NumDecimal <$> arbitrary
+      , NumRational <$> arbitrary
+      ]

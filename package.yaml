@@ -36,6 +36,8 @@ dependencies:
 
   # Serialization
   - binary
+  - cereal
+  - aeson
 
   # Date & Time
   - time
@@ -57,9 +59,7 @@ library:
   - process-extras
 
   # Serialization
-  - cereal
   - cereal-text
-  - aeson
   - pretty-hex
 
   # Exceptions
@@ -92,6 +92,10 @@ library:
   - servant-swagger
   - servant-swagger-ui
   - swagger2
+
+  # Quickcheck
+  - QuickCheck
+  - quickcheck-instances
 
   ghc-options:
     -fwarn-tabs
@@ -159,6 +163,8 @@ library:
     - Language.FCL.Time
     - Language.FCL.World
     - Language.FCL.Warning
+    - Numeric.Lossless.Decimal
+    - Numeric.Lossless.Number
 
     - Numeric.Lossless.Decimal
     - Numeric.Lossless.Number
@@ -171,6 +177,7 @@ executables:
     main:                Main.hs
     source-dirs:         exe
     ghc-options:
+    - -O2
     - -threaded
     - -rtsopts
     - -with-rtsopts=-N
@@ -188,6 +195,8 @@ executables:
     - -with-rtsopts=-N
     dependencies:
     - fcl
+    - wai-logger
+    - scotty
 
 tests:
   fcl-test:
@@ -220,3 +229,4 @@ tests:
     - servant-server
     - wai-cors
     - quickcheck-instances
+    - aeson-pretty

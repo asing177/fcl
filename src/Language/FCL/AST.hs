@@ -106,7 +106,8 @@ module Language.FCL.AST (
 
 import Protolude hiding (put, get, (<>), show, Show, putByteString, Type)
 import Prelude (show, Show(..))
-
+import Test.QuickCheck hiding (listOf)
+import qualified Test.QuickCheck as Q
 import Control.Monad (fail)
 
 import Numeric.Lossless.Number
@@ -117,6 +118,8 @@ import qualified Language.FCL.Token as Token
 import qualified Language.FCL.Hash as Hash
 import qualified Data.Text as T
 import qualified Datetime.Types as DT
+import qualified Data.Hourglass as DH
+import qualified Data.Time.Calendar as DC
 
 import Data.Aeson (ToJSON(..), FromJSON(..), FromJSONKey(..), ToJSONKey(..))
 import qualified Data.Binary as B
@@ -934,3 +937,232 @@ makeWorkflowState names
 -- | Doesn't check if workflow state is valid
 unsafeWorkflowState :: Set Place -> WorkflowState
 unsafeWorkflowState = WorkflowState
+
+---------------
+-- Arbitrary --
+---------------
+
+instance Arbitrary DT.Datetime where
+  arbitrary = DT.posixToDatetime <$> choose (1, 32503680000) -- (01/01/1970, 01/01/3000)
+
+instance Arbitrary DT.Period where
+  arbitrary = do
+    year <- choose (0,1000)
+    month <- choose (0,12)
+    let monthNumDays = DC.gregorianMonthLength (fromIntegral year) (fromIntegral month)
+    day <- choose (0, monthNumDays)
+    pure $ DT.Period $ DH.Period year month day
+
+instance Arbitrary DT.Duration where
+  arbitrary = fmap DT.Duration $ DH.Duration
+    <$> (fmap DH.Hours $ choose (0,23))
+    <*> (fmap DH.Minutes $ choose (0,59))
+    <*> (fmap DH.Seconds $ choose (0,59))
+    <*> pure 0
+
+instance Arbitrary DT.Delta where
+  arbitrary = DT.Delta <$> arbitrary <*> arbitrary
+
+arbValue :: Int -> Gen Value
+arbValue n
+  | n <= 0
+    = oneof
+      [ VNum <$> arbitrary
+      , VBool <$> arbitrary
+      , VAccount <$> arbitrary
+      , VAsset <$> arbitrary
+      , VText <$> arbitrary
+      , VSig <$> arbitrary
+      , VDateTime <$> arbitrary
+      , VTimeDelta <$> arbitrary
+      , VState <$> arbitrary
+      , pure VUndefined
+      ]
+  | otherwise
+    = oneof
+      [ VMap . Map.fromList <$> Q.listOf (liftArbitrary2 (arbValue (n - 1)) (arbValue (n - 1)))
+      , VSet . Set.fromList <$> Q.listOf (arbValue (n - 1))
+      , VConstr <$> arbitrary <*> (arbitrary `suchThat` (\l -> length l < 10))
+      ]
+
+instance Arbitrary Value where
+  arbitrary = oneof [arbValue 0, arbValue 1]
+
+instance Arbitrary DateTime where
+  arbitrary = DateTime <$> arbitrary
+
+instance Arbitrary TimeDelta where
+  arbitrary = TimeDelta <$> arbitrary
+
+instance Arbitrary Name where
+  arbitrary = fromString
+    <$> ((:) <$> elements ['a'..'z'] <*> Q.listOf alphaNum)
+      `suchThat` (not . (`elem` Token.keywords) . toS)
+
+instance Arbitrary NameUpper where
+  arbitrary = fromString <$> ((:) <$> elements ['A'..'Z'] <*> Q.listOf alphaNum)
+
+alphaNum :: Gen Char
+alphaNum = elements $ ['A'..'Z'] <> ['a'..'z'] <> ['0'..'9']
+
+instance Arbitrary Place where
+  arbitrary = Place <$> arbitrary
+
+instance Arbitrary WorkflowState where
+  arbitrary = oneof
+    [ unsafeWorkflowState <$> do
+        hd <- arbitrary
+        tl <- arbitrary
+        pure $ Set.fromList (hd:tl)
+    , pure startState
+    , pure endState
+    ]
+
+
+instance Arbitrary Loc where
+  arbitrary = Loc <$> arbitrary <*> arbitrary
+
+instance Arbitrary a => Arbitrary (Located a) where
+  arbitrary = Located <$> arbitrary <*> arbitrary
+
+-- This is basically liftArbitrary from Arbitrary1
+addLoc :: Gen a -> Gen (Located a)
+addLoc g = Located <$> arbitrary <*> g
+
+instance Arbitrary BinOp where
+  arbitrary = elements
+    [ Add
+    , Sub
+    , Mul
+    , Div
+    , And
+    , Or
+    , Equal
+    , NEqual
+    , LEqual
+    , GEqual
+    , Lesser
+    , Greater
+    ]
+
+instance Arbitrary UnOp where
+  arbitrary = pure Not
+
+instance Arbitrary Lit where
+  -- Missing literals:
+  --  + LDateTime: missing instance Arbitrary DateTime (!)
+  --  + LTimeDelta: missing instance Arbitrary TimeDelta (!)
+  --  + LSig: not part of concrete syntax
+  arbitrary = oneof
+    [ LNum <$> arbitrary `suchThat` ((>= 0) . decimalPlaces)
+      -- specifically, for 'LNum', ensure that we choose the 'NumDecimal' case
+      -- and not 'NumRational', since there are no rational literals.
+    , LBool     <$> arbitrary
+    , LState    <$> arbitrary
+    , LAccount  <$> arbitrary
+    , LAsset    <$> arbitrary
+    , LContract <$> arbitrary
+    ]
+
+instance Arbitrary Type where
+  arbitrary = oneof
+    [ TNum <$> arbitrary
+    , pure TBool
+    , pure TAccount
+    , TAsset <$> arbitrary
+    , pure TContract
+    , TADT <$> arbitrary
+    ]
+
+instance Arbitrary NumPrecision where
+  arbitrary = oneof
+    [ pure NPArbitrary
+    , NPDecimalPlaces <$> arbitrary
+    ]
+
+instance Arbitrary Def where
+  arbitrary = oneof
+    [ GlobalDef <$> arbitrary <*> arbitrary <*> arbitrary <*> addLoc (sized arbNonSeqExpr)
+    ]
+
+instance Arbitrary Arg where
+  arbitrary = Arg <$> arbitrary <*> arbitrary
+
+instance Arbitrary Preconditions where
+  arbitrary = Preconditions <$> arbitrary
+
+instance Arbitrary Precondition where
+  arbitrary = oneof [ pure PrecAfter, pure PrecBefore, pure PrecRoles ]
+
+instance Arbitrary Method where
+  arbitrary = Method <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> sized arbLExpr
+
+instance Arbitrary Helper where
+  arbitrary = Helper <$> arbitrary <*> arbitrary <*> arbitrary
+
+instance Arbitrary Transition where
+  arbitrary = Arrow <$> arbitrary <*> arbitrary
+
+instance Arbitrary ADTDef where
+  arbitrary = ADTDef <$> arbitrary <*> listOf1 arbitrary
+
+instance Arbitrary ADTConstr where
+  arbitrary = ADTConstr <$> arbitrary <*> Q.listOf arbitraryParam
+    where
+      arbitraryParam = (,) <$> arbitrary <*> arbitrary
+
+instance Arbitrary Script where
+  arbitrary = Script <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
+
+instance Arbitrary Expr where
+  arbitrary = sized arbNonSeqExpr
+
+arbNumLogicExpr :: Int -> Gen Expr
+arbNumLogicExpr n
+  | n <= 0
+    = oneof $ [EVar <$> arbitrary] ++
+      map (fmap ELit . addLoc)
+            [ LNum <$> arbitrary
+            , LBool <$> arbitrary
+            ]
+  | otherwise = let n' = n `div` 2 in oneof
+      [ EBinOp <$> arbitrary
+               <*> addLoc (arbNumLogicExpr n')
+               <*> addLoc (arbNumLogicExpr n')
+      , EUnOp <$> arbitrary <*> addLoc (arbNumLogicExpr n')
+      ]
+
+arbMatches :: Int -> Gen [CaseBranch]
+arbMatches n = listOf1 (CaseBranch <$> arbPat <*> arbLExpr n)
+
+arbPat :: Gen LPattern
+arbPat = Located <$> arbitrary <*> (PatLit <$> arbitrary)
+
+arbNonSeqExpr :: Int -> Gen Expr
+arbNonSeqExpr n
+  | n <= 0 = oneof
+             [ EVar <$> arbitrary
+             , ELit <$> arbitrary
+             ]
+  | otherwise = let n' = n `div` 2 in oneof
+      [ EAssign <$> arbitrary         <*> addLoc (arbNonSeqExpr n')
+      , ECall   <$> arbitrary         <*> Q.listOf (addLoc (arbNonSeqExpr n'))
+      , EIf     <$> addLoc (arbNonSeqExpr n') <*> arbLExpr n' <*> arbLExpr n'
+      , EBefore <$> addLoc (arbNonSeqExpr n') <*> arbLExpr n'
+      , EAfter  <$> addLoc (arbNonSeqExpr n') <*> arbLExpr n'
+      , EBetween <$> addLoc (arbNonSeqExpr n')
+                 <*> addLoc (arbNonSeqExpr n')
+                 <*> arbLExpr n'
+      , ECase <$> addLoc (arbNonSeqExpr n') <*> arbMatches n'
+      , arbNumLogicExpr n
+      ]
+
+arbSeqExpr :: Int -> Gen Expr
+arbSeqExpr n
+  | n <= 0 = arbNonSeqExpr 0
+  | otherwise = let n' = n `div` 2 in
+      ESeq <$> addLoc (arbNonSeqExpr n') <*> arbLExpr n'
+
+arbLExpr :: Int -> Gen LExpr
+arbLExpr n = oneof . map addLoc $
+  [ arbNonSeqExpr n, arbSeqExpr n ]

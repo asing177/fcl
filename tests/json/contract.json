@@ -1,0 +1,90 @@
+{
+    "script": "global num x = 0.0;\nglobal decimal<3> f3 = 1.234;\nglobal decimal<2> q;\nglobal int y = 7;\nglobal num v;\nglobal asset<decimal<5>> z = a'H1tbrEKWGpbPjSeG856kz2DjViCwMU3qTw3i1PqCLz65';\nglobal contract c = c'H1tbrEKWGpbPjSeG856kz2DjViCwMU3qTw3i1PqCLz65';\nglobal account a = u'H1tbrEKWGpbPjSeG856kz2DjViCwMU3qTw3i1PqCLz65';\nglobal datetime dt;\n\n@initial\nsetDate() {\n  dt = \"2020-10-20T15:50:12Z\";\n  terminate();\n}\n\n@initial\ninitialize() {\n  transitionTo(@setX);\n}\n\n@setup\nconfirm() {\n  transitionTo(@confirmation);\n}\n\n@confirmation\nsettle() {\n  transitionTo(@settlement);\n}\n\n@settlement\nfinalize() {\n  transitionTo(@terminal);\n}\n\n@setX\nsetX(int j, num k) {\n  x = k;\n  y = (y * j);\n  f3 = (2.516 + f3);\n  x = (k + x);\n  transitionTo(@update);\n}\n\n@setX\nfixX() {\n  transitionTo(@setup);\n}\n\n@update\nfixY() {\n  transitionTo(@setup);\n}\n\n@update\nupdate() {\n  j = (10 + (7 * 10));\n  k = j;\n  l = k;\n  m = (((1.23 + 4.56) - (7.89 * 9.87)) / 65.43);\n  q = (1 + round(2, (x + m)));\n  transitionTo(@setX);\n}\n\n@initial\nf(int j, bool k) {\n  if (k) {\n    terminate();\n  } else {\n    terminate();\n  };\n}\n\n@initial\ng(asset<int> f, account t) {\n  if ((assetExists(f) && accountExists(t))) {\n    transferTo(f, 20);\n    transferFrom(f, 20, t);\n  };\n  terminate();\n}\n\n@initial\ncirculate(asset<decimal<2>> af2, decimal<2> amount) {\n  circulate(af2, amount);\n  transitionTo(@circulated);\n}\n\n@circulated\ntransfer(asset<bool> ab, account from, account to, bool amount) {\n  transferHoldings(from, ab, amount, to);\n  terminate();\n}\n",
+    "state": "initial",
+    "address": "fwBVDsVh8SYQy98CzYpNPcbyTRczVUZ96HszhNRB8Ve",
+    "owner": "fwBVDsVh8SYQy98CzYpNPcbyTRczVUZ96HszhNRB8Ve",
+    "storage": {
+        "g": {
+            "args": [
+                {
+                    "tag": "VNum",
+                    "contents": {
+                        "tag": "NumDecimal",
+                        "contents": {
+                            "decimalPlaces": 0,
+                            "decimalIntegerValue": 0
+                        }
+                    }
+                },
+                {
+                    "tag": "VNum",
+                    "contents": {
+                        "tag": "NumDecimal",
+                        "contents": {
+                            "decimalPlaces": 0,
+                            "decimalIntegerValue": 1
+                        }
+                    }
+                }
+            ],
+            "tag": "VConstr",
+            "name": "Foo"
+        },
+        "a": {
+            "tag": "VNum",
+            "contents": {
+                "tag": "NumDecimal",
+                "contents": {
+                    "decimalPlaces": 0,
+                    "decimalIntegerValue": 3
+                }
+            }
+        },
+        "d": {
+            "tag": "VAccount",
+            "contents": "fwBVDsVh8SYQy98CzYpNPcbyTRczVUZ96HszhNRB8Ve"
+        },
+        "b": {
+            "tag": "VNum",
+            "contents": {
+                "tag": "NumRational",
+                "contents": {
+                    "denominator": 7,
+                    "numerator": 22
+                }
+            }
+        },
+        "e": {
+            "tag": "VVoid",
+            "contents": null
+        },
+        "h": {
+            "tag": "VAsset",
+            "contents": "Fw68hsis6JPW4ed3ER1VC959TTf9DqberLxrq5uECKxh"
+        },
+        "c": {
+            "tag": "VBool",
+            "contents": true
+        },
+        "i": {
+            "tag": "VContract",
+            "contents": "fwBVDsVh8SYQy98CzYpNPcbyTRczVUZ96HszhNRB8Ve"
+        }
+    },
+    "methods": [
+        "setDate",
+        "initialize",
+        "confirm",
+        "settle",
+        "finalize",
+        "setX",
+        "fixX",
+        "fixY",
+        "update",
+        "f",
+        "g",
+        "circulate",
+        "transfer"
+    ],
+    "timestamp": 1231006505
+}
