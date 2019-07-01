@@ -289,10 +289,10 @@ data LSP = LSP
   } deriving (Show, Generic)
 
 instance ToJSON LSP where
-  toJSON = genericToJSON (defaultOptions { sumEncoding = ObjectWithSingleField })
+  toJSON = genericToJSON defaultOptions
 
 instance FromJSON LSP where
-  parseJSON = genericParseJSON (defaultOptions { sumEncoding = ObjectWithSingleField })
+  parseJSON = genericParseJSON defaultOptions
 
 toLSP :: Compile.CompilationErr -> [LSP]
 toLSP cErr = case cErr of

@@ -81,6 +81,9 @@ instance ToSchema Name where
       $ mempty { _schemaParamSchema = mempty { _paramSchemaType = SwaggerString } }
 
 instance ToSchema TVar
+
+-- TODO: property "LNum" is found in JSON value, but it is not mentioned in Swagger schema
+
 instance ToSchema Lit where
   declareNamedSchema = genericDeclareNamedSchemaUnrestricted defaultSchemaOptions
 instance ToSchema Script
@@ -121,10 +124,9 @@ instance ToSchema (Address a) where
 instance ToSchema LSP.ReqDef  where
   declareNamedSchema _ = do
     t <- declareSchemaRef (Proxy :: Proxy Text)
-    mt <- declareSchemaRef (Proxy :: Proxy (Maybe Text))
     pure $ NamedSchema (Just "ReqDef")
       $ mempty { _schemaParamSchema = mempty { _paramSchemaType = SwaggerObject }
-               , _schemaProperties = fromList [("defType", t), ("defName", t), ("defValue", mt)]
+               , _schemaProperties = fromList [("defType", t), ("defName", t), ("defValue", t)]
                , _schemaRequired = [ "defType", "defName" ]
                }
 
@@ -161,7 +163,14 @@ instance ToSchema Undefinedness.InvalidStackTrace where
 instance ToSchema Effect.EffectError
 instance ToSchema Compile.CompilationErr
 instance ToSchema LSP.LSPErr
-instance ToSchema LSP.LSP
+instance ToSchema LSP.LSP where
+  declareNamedSchema _ = do
+    t <- declareSchemaRef (Proxy :: Proxy Text)
+    pure $ NamedSchema (Just "LSP")
+      $ mempty { _schemaParamSchema = mempty { _paramSchemaType = SwaggerObject }
+               , _schemaProperties = fromList [("argType", t), ("argName", t)]
+               , _schemaRequired = [ "argType", "argName" ]
+               }
 instance ToSchema Sig
 instance ToSchema Effects
 instance ToSchema Effect

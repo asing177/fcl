@@ -19,6 +19,8 @@ module HTTP.FCL.API
 
 import Network.Wai.Handler.Warp
 import Protolude hiding (get, from, Type)
+import Data.HashMap.Strict.InsOrd
+
 import Servant.Server
 import Data.Swagger
 import Servant
@@ -50,7 +52,15 @@ data RPCResponseError
   deriving (Show, Generic)
 
 instance ToJSON RPCResponseError
-instance ToSchema RPCResponseError
+instance ToSchema RPCResponseError where
+  declareNamedSchema _ = do
+    t <- declareSchemaRef (Proxy :: Proxy Text)
+    l <- declareSchemaRef (Proxy :: Proxy [LSP.LSPErr])
+    pure $ NamedSchema (Just "RPCResponseError")
+      $ mempty { _schemaParamSchema = mempty { _paramSchemaType = SwaggerObject }
+               , _schemaProperties = fromList [("lsp", l), ("errorMsg", t)]
+               , _schemaRequired = [ "lsp", "errorMsg" ]
+               }
 
 -- | An RPC response body
 data RPCResponse a
