@@ -53,7 +53,74 @@ instance ToSchema Precondition where
     return $ NamedSchema (Just "Precondition")
       $ mempty { _schemaParamSchema = mempty { _paramSchemaType = SwaggerString } }
 
-instance ToSchema a => ToSchema (Located a)
+instance ToSchema (Located Expr) where
+  declareNamedSchema _ = do
+    l <- declareSchemaRef (Proxy :: Proxy Loc)
+    t <- declareSchemaRef (Proxy :: Proxy Expr)
+    pure $ NamedSchema (Just "Located Expr")
+      $ mempty { _schemaParamSchema = mempty { _paramSchemaType = SwaggerObject }
+               , _schemaProperties = fromList [("located", l), ("locVal", t)]
+               , _schemaRequired = [ "located", "locVal"  ]
+               }
+instance ToSchema (Located Lit) where
+  declareNamedSchema _ = do
+    l <- declareSchemaRef (Proxy :: Proxy Loc)
+    t <- declareSchemaRef (Proxy :: Proxy Lit)
+    pure $ NamedSchema (Just "Located Lit")
+      $ mempty { _schemaParamSchema = mempty { _paramSchemaType = SwaggerObject }
+               , _schemaProperties = fromList [("located", l), ("locVal", t)]
+               , _schemaRequired = [ "located", "locVal"  ]
+               }
+
+instance ToSchema (Located Name) where
+  declareNamedSchema _ = do
+    l <- declareSchemaRef (Proxy :: Proxy Loc)
+    t <- declareSchemaRef (Proxy :: Proxy Name)
+    pure $ NamedSchema (Just "Located Name")
+      $ mempty { _schemaParamSchema = mempty { _paramSchemaType = SwaggerObject }
+               , _schemaProperties = fromList [("located", l), ("locVal", t)]
+               , _schemaRequired = [ "located", "locVal" ]
+               }
+
+
+instance ToSchema (Located AST.Pattern) where
+  declareNamedSchema _ = do
+    l <- declareSchemaRef (Proxy :: Proxy Loc)
+    t <- declareSchemaRef (Proxy :: Proxy AST.Pattern)
+    pure $ NamedSchema (Just "Located")
+      $ mempty { _schemaParamSchema = mempty { _paramSchemaType = SwaggerObject }
+               , _schemaProperties = fromList [("located", l), ("locVal", t)]
+               , _schemaRequired = [ "located", "locVal"  ]
+               }
+instance ToSchema (Located NameUpper) where
+  declareNamedSchema _ = do
+    l <- declareSchemaRef (Proxy :: Proxy Loc)
+    t <- declareSchemaRef (Proxy :: Proxy NameUpper)
+    pure $ NamedSchema (Just "Located NameUpper")
+      $ mempty { _schemaParamSchema = mempty { _paramSchemaType = SwaggerObject }
+               , _schemaProperties = fromList [("located", l), ("locVal", t)]
+               , _schemaRequired = [ "located", "locVal"  ]
+               }
+instance ToSchema (Located BinOp) where
+  declareNamedSchema _ = do
+    l <- declareSchemaRef (Proxy :: Proxy Loc)
+    t <- declareSchemaRef (Proxy :: Proxy BinOp)
+    pure $ NamedSchema (Just "Located BinOp")
+      $ mempty { _schemaParamSchema = mempty { _paramSchemaType = SwaggerObject }
+               , _schemaProperties = fromList [("located", l), ("locVal", t)]
+               , _schemaRequired = [ "located", "locVal"  ]
+               }
+
+instance ToSchema (Located UnOp) where
+  declareNamedSchema _ = do
+    l <- declareSchemaRef (Proxy :: Proxy Loc)
+    t <- declareSchemaRef (Proxy :: Proxy UnOp)
+    pure $ NamedSchema (Just "Located UnOp")
+      $ mempty { _schemaParamSchema = mempty { _paramSchemaType = SwaggerObject }
+               , _schemaProperties = fromList [("located", l), ("locVal", t)]
+               , _schemaRequired = [ "located", "locVal"  ]
+               }
+
 instance ToSchema Loc where
   declareNamedSchema = genericDeclareNamedSchemaUnrestricted defaultSchemaOptions
 instance ToSchema Expr where
@@ -84,8 +151,7 @@ instance ToSchema TVar
 
 -- TODO: property "LNum" is found in JSON value, but it is not mentioned in Swagger schema
 
-instance ToSchema Lit where
-  declareNamedSchema = genericDeclareNamedSchemaUnrestricted defaultSchemaOptions
+instance ToSchema Lit
 instance ToSchema Script
 instance ToSchema Helper
 instance ToSchema Transition
@@ -163,14 +229,7 @@ instance ToSchema Undefinedness.InvalidStackTrace where
 instance ToSchema Effect.EffectError
 instance ToSchema Compile.CompilationErr
 instance ToSchema LSP.LSPErr
-instance ToSchema LSP.LSP where
-  declareNamedSchema _ = do
-    t <- declareSchemaRef (Proxy :: Proxy Text)
-    pure $ NamedSchema (Just "LSP")
-      $ mempty { _schemaParamSchema = mempty { _paramSchemaType = SwaggerObject }
-               , _schemaProperties = fromList [("argType", t), ("argName", t)]
-               , _schemaRequired = [ "argType", "argName" ]
-               }
+instance ToSchema LSP.LSP
 instance ToSchema Sig
 instance ToSchema Effects
 instance ToSchema Effect

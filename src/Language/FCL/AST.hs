@@ -337,7 +337,6 @@ data Lit
   | LDateTime  DateTime
   | LTimeDelta TimeDelta
   -- | LConstr    Name
-  | LVoid
   deriving (Eq, Ord, Show, Generic, Hash.Hashable)
 
 instance ToJSON Lit where
@@ -853,7 +852,6 @@ instance Pretty Lit where
     LAsset addr    -> "a" <> squotes (ppr addr)
     LContract addr -> "c" <> squotes (ppr addr)
     LSig (r,s)     -> tupleOf [ppr r, ppr s]
-    LVoid          -> token Token.void
     LState name    -> token Token.at <> ppr name
     LDateTime dt   -> dquotes $ ppr $ (DT.formatDatetime (unDateTime dt) :: [Char])
     LTimeDelta d   -> ppr d

@@ -708,7 +708,6 @@ tcLit lit =
   case lit of
     LNum (Decimal p v)        -> Right (TNum $ NPDecimalPlaces p)
     LBool _                   -> Right TBool
-    LVoid                     -> Right TVoid
     LText _                   -> Right TText
     LSig _                    -> Right TSig
     LAccount addr             -> Right TAccount

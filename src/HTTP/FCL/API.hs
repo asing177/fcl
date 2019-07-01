@@ -55,7 +55,7 @@ instance ToJSON RPCResponseError
 instance ToSchema RPCResponseError where
   declareNamedSchema _ = do
     t <- declareSchemaRef (Proxy :: Proxy Text)
-    l <- declareSchemaRef (Proxy :: Proxy [LSP.LSPErr])
+    l <- declareSchemaRef (Proxy :: Proxy [LSP.LSP])
     pure $ NamedSchema (Just "RPCResponseError")
       $ mempty { _schemaParamSchema = mempty { _paramSchemaType = SwaggerObject }
                , _schemaProperties = fromList [("lsp", l), ("errorMsg", t)]
