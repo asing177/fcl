@@ -51,7 +51,7 @@ steps:
       set -euxo pipefail
 
       apt update
-      apt install install -y liblzma-dev
+      apt install -y liblzma-dev
 
       stack config set system-ghc --global true
       stack config set install-ghc --global false
