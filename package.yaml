@@ -47,6 +47,19 @@ dependencies:
   # Text
   - bytestring
 
+  # Quickcheck
+  - QuickCheck
+  - quickcheck-instances
+
+  # Http
+  - wai
+  - wai-cors
+  - warp
+  - servant
+  - servant-server
+  - servant-swagger
+  - servant-swagger-ui
+  - swagger2
 library:
   source-dirs: src
   dependencies:
@@ -82,20 +95,6 @@ library:
   - x509
   - asn1-types
   - asn1-encoding
-
-  # Http
-  - wai
-  - wai-cors
-  - warp
-  - servant
-  - servant-server
-  - servant-swagger
-  - servant-swagger-ui
-  - swagger2
-
-  # Quickcheck
-  - QuickCheck
-  - quickcheck-instances
 
   ghc-options:
     -fwarn-tabs
@@ -215,16 +214,8 @@ tests:
     - tasty-hunit
     - tasty-golden
     - tasty-quickcheck
-    - QuickCheck
+    - tasty-hspec
     - hspec
     - warp
-    - wai
-    - aeson
-    - swagger2
-    - servant
-    - servant-swagger
-    - servant-swagger-ui
-    - servant-server
-    - wai-cors
     - quickcheck-instances
     - aeson-pretty
