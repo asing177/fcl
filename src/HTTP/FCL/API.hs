@@ -62,7 +62,6 @@ data RPCResponse a
 instance ToJSON a => ToJSON (RPCResponse a) where
   toJSON = genericToJSON (defaultOptions { sumEncoding = ObjectWithSingleField })
 
-
 instance (ToSchema a) => ToSchema (RPCResponse a) where
   declareNamedSchema = genericDeclareNamedSchemaUnrestricted defaultSchemaOptions
 
