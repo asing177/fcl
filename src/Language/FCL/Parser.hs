@@ -59,6 +59,8 @@ module Language.FCL.Parser (
 import Protolude hiding
   ((<|>), (<>), bool, many, try, option, optional, sourceLine, sourceColumn, Type)
 import Prelude (read)
+import Test.QuickCheck
+import Test.QuickCheck.Instances.Text ()
 
 import Text.Parsec
 import Text.Parsec.Text
@@ -736,3 +738,10 @@ instance Pretty ParseErrInfo where
     <> text (toS $ T.replicate (column - 1) "-") <> "^"
     <$$> text (toS lineAfterContents)
     <$$> (text $ toS errMsg )
+
+-------------------------
+-- Arbitrary
+-------------------------
+
+instance Arbitrary ParseErrInfo where
+  arbitrary = ParseErrInfo <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary

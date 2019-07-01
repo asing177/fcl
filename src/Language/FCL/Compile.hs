@@ -47,7 +47,7 @@ module Language.FCL.Compile (
 ) where
 
 import Protolude hiding (Type, TypeError)
-
+import Test.QuickCheck
 import qualified Language.FCL.Utils as Utils
 import qualified Language.FCL.Storage as Storage
 import Language.FCL.Address
@@ -319,3 +319,14 @@ scriptBytes s = Utils.toByteList (magicNumber <> encode s)
 
 scriptHex :: Script -> [Char]
 scriptHex s = Hexdump.prettyHex (magicNumber <> encode s)
+
+---------------
+-- Arbitrary
+---------------
+
+instance Arbitrary CompilationErr where
+  arbitrary = oneof
+    [ ParseErr <$> arbitrary
+    , DuplicationErr <$> arbitrary
+    ]
+

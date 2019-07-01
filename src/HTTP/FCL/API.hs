@@ -1,12 +1,12 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE DeriveFunctor #-}
-{-# LANGUAGE EmptyDataDecls             #-}
-{-# LANGUAGE FlexibleContexts           #-}
-{-# LANGUAGE GADTs                      #-}
+{-# LANGUAGE EmptyDataDecls #-}
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE GADTs #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE TypeOperators #-}
-{-# LANGUAGE FlexibleInstances          #-}
+{-# LANGUAGE FlexibleInstances #-}
 module HTTP.FCL.API
   ( FCLAPI
   , fclProxyAPI
@@ -17,8 +17,9 @@ module HTTP.FCL.API
   , RPCResponse(..)
   ) where
 
-import Network.Wai.Handler.Warp
 import Protolude hiding (get, from, Type)
+import Test.QuickCheck
+import Network.Wai.Handler.Warp
 import Data.HashMap.Strict.InsOrd
 
 import Servant.Server
@@ -180,3 +181,17 @@ runHttpFcl = do
   run port . customCors . serve api $ appToServer
   where
     customCors = cors (const $ Just (simpleCorsResourcePolicy  { corsRequestHeaders = ["Accept", "Accept-Language", "Content-Language", "Content-Type"] }))
+
+---------------------
+-- Arbitrary
+---------------------
+
+instance Arbitrary a => Arbitrary (RPCResponse a) where
+  arbitrary = oneof
+    [ RPCResp <$> arbitrary
+    , RPCRespError <$> arbitrary
+    , pure RPCRespOK
+    ]
+
+instance Arbitrary RPCResponseError where
+  arbitrary = RPCLSPErr <$> arbitrary

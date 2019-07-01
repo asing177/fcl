@@ -28,6 +28,7 @@ module Language.FCL.LanguageServerProtocol
 
 import Protolude
 
+import Test.QuickCheck
 import Data.Aeson as A
 import qualified Data.Text as Text
 import qualified Data.List.NonEmpty as NE
@@ -396,3 +397,41 @@ toLSP cErr = case cErr of
 
     endOfLine :: Int
     endOfLine = 1000
+
+-------------------
+-- Arbitrary
+-------------------
+
+instance Arbitrary LSPErr where
+  arbitrary = LSPErr <$> arbitrary <*> arbitrary
+
+instance Arbitrary LSP where
+  arbitrary
+    = LSP <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
+
+instance Arbitrary ReqScript where
+  arbitrary = ReqScript <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
+
+instance Arbitrary ReqTransition where
+  arbitrary = ReqTransition <$> arbitrary <*> arbitrary
+
+instance Arbitrary ReqMethod where
+  arbitrary = ReqMethod <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
+
+instance Arbitrary ReqMethodArg where
+  arbitrary = ReqMethodArg <$> arbitrary <*> arbitrary
+
+instance Arbitrary ReqDef where
+  arbitrary = ReqDef <$> arbitrary <*> arbitrary <*> arbitrary
+
+instance Arbitrary ReqADTDef where
+  arbitrary = ReqADTDef <$> arbitrary <*> arbitrary
+
+instance Arbitrary RespMethod where
+  arbitrary = RespMethod <$> arbitrary <*> arbitrary
+
+instance Arbitrary RespScript where
+  arbitrary = RespScript <$> arbitrary <*> arbitrary <*> pure [] <*> pure [] <*> arbitrary
+
+instance Arbitrary RespDef where
+  arbitrary = RespDef <$> arbitrary <*> arbitrary

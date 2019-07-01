@@ -16,6 +16,7 @@ module Language.FCL.Duplicate
 
 import Protolude hiding ((<>))
 
+import Test.QuickCheck
 import Data.Aeson as A
 import qualified Data.Map as Map
 
@@ -177,3 +178,13 @@ defnAndMethodArgErrs defns methods = concatMap defnAndArgErrs methods
         Nothing     -> (Map.insert (locVal lnm) src varMap, dupErrs)
         Just dupSrc -> let dupErr = DuplicateVariable dupSrc src lnm
                         in (varMap, dupErrs ++ [dupErr])
+
+---------------------
+-- Arbitrary
+---------------------
+
+instance Arbitrary DuplicateError where
+  arbitrary = oneof
+    [ DuplicateFunction <$> arbitrary
+    , DuplicateADTDef <$> arbitrary
+    ]
