@@ -99,6 +99,8 @@ steps:
     - |
       set -euxo pipefail
       mkdir ./bin
+      apt update
+      apt install -y liblzma-dev
       stack install \
         --no-terminal \
         --fast \
