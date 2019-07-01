@@ -185,7 +185,7 @@ reachabilityGraph declaredTransitions
                 allCounreachable, coreachable, reachable :: Set WorkflowState
                 allCounreachable = reachable S.\\ coreachable
                 coreachable = M.keysSet (coreachabilityGraph graph)
-                reachable = M.keysSet graph
+                reachable = gatherReachableStates graph
 
 
     -- Map nodes to all the outgoing transitions that mention that node in their
@@ -461,3 +461,18 @@ continueBuildingLocally :: WorkflowState -> WorkflowState -> GraphBuilderM [Work
 continueBuildingLocally prev wfSt = do
   addLocalWfState prev
   buildGraph wfSt
+
+gatherReachableStates :: ReachabilityGraph -> Set WorkflowState
+gatherReachableStates graph =
+  execState (gatherReachableStatesFrom startState graph) mempty
+
+gatherReachableStatesFrom :: WorkflowState -> ReachabilityGraph -> State (Set WorkflowState) ()
+gatherReachableStatesFrom wfSt graph
+  | wfSt `M.notMember` graph
+  , mNexts <- M.lookup wfSt graph = do
+    modify $ S.insert wfSt
+    case mNexts of
+      Nothing    -> pure ()
+      Just nexts ->
+        mapM_ (flip gatherReachableStatesFrom graph) nexts
+gatherReachableStatesFrom _ _ = pure ()
