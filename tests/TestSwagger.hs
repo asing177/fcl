@@ -16,8 +16,6 @@ import Language.FCL.LanguageServerProtocol as LSP
 import Language.FCL.Compile as Compile
 import Language.FCL.Parser as Parser
 import Language.FCL.Duplicate as Dupl
-import TestArbitrary ()
-import TestNumber ()
 
 instance Arbitrary LSPErr where
   arbitrary = LSPErr <$> arbitrary <*> arbitrary
@@ -38,101 +36,11 @@ instance Arbitrary Compile.CompilationErr where
     , DuplicationErr <$> arbitrary
     ]
 
-instance Arbitrary Loc where
-  arbitrary = oneof
-    [ pure NoLoc
-    , Loc <$> arbitrary <*> arbitrary
-    ]
-
-instance Arbitrary a => Arbitrary (AST.Located a) where
-  arbitrary = Located <$> arbitrary <*> arbitrary
-
 instance Arbitrary Dupl.DuplicateError where
   arbitrary = oneof
     [ DuplicateFunction <$> arbitrary
     , DuplicateADTDef <$> arbitrary
     ]
-
-instance Arbitrary AST.Preconditions where
-  arbitrary = AST.Preconditions <$> arbitrary
-
-instance Arbitrary AST.Precondition where
-  arbitrary = oneof [ pure PrecAfter, pure PrecBefore, pure PrecRoles ]
-
-instance Arbitrary AST.Expr where
-  -- This will suffice for our purposes
-  arbitrary = pure AST.ENoOp
-
-instance Arbitrary AST.Method where
-  arbitrary = AST.Method <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-
-instance Arbitrary AST.Arg where
-  arbitrary = AST.Arg <$> arbitrary <*> arbitrary
-
-instance Arbitrary AST.ADTDef where
-  arbitrary = AST.ADTDef <$> arbitrary <*> pure []
-
-instance Arbitrary AST.Script where
-  arbitrary = AST.Script <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-
-instance Arbitrary NumPrecision where
-  arbitrary = oneof
-    [ pure NPArbitrary
-    , NPDecimalPlaces <$> arbitrary
-    , NPAdd <$> arbitrary <*> arbitrary
-    , NPMax <$> arbitrary <*> arbitrary
-    ]
-
-instance Arbitrary TCollection where
-  arbitrary = oneof
-    [ TMap <$> arbitrary <*> arbitrary
-    , TSet <$> arbitrary
-    ]
-
-instance Arbitrary AST.ADTConstr where
-  arbitrary = AST.ADTConstr <$> arbitrary <*> arbitrary
-
-instance Arbitrary AST.Type where
-  arbitrary = oneof
-    [ pure TError
-    , TVar <$> arbitrary
-    , pure TAny
-    , TNum <$> arbitrary
-    , pure TBool
-    , pure TAccount
-    , TAsset <$> arbitrary
-    , pure TContract
-    , pure TText
-    , pure TSig
-    , pure TVoid
-    , pure TDateTime
-    , pure TTimeDelta
-    , pure TState
-    , TADT <$> arbitrary
-    , TFun <$> arbitrary <*> arbitrary
-    , TColl <$> arbitrary
-    , pure TTransition
-    ]
-
-instance Arbitrary Def where
-  arbitrary = oneof
-    [ GlobalDef <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
-    , GlobalDefNull <$> arbitrary <*> arbitrary <*> arbitrary
-    ]
-
-instance Arbitrary TVar where
-  arbitrary = oneof
-    [ TV <$> arbitrary
-    , TAV <$> arbitrary
-    , TCV <$> arbitrary
-    , THV <$> arbitrary
-    ]
-
-instance Arbitrary Helper where
-  arbitrary = Helper <$> arbitrary <*> arbitrary <*> arbitrary
-
-instance Arbitrary Transition where
-  arbitrary = Arrow <$> arbitrary <*> arbitrary
 
 instance Arbitrary ReqScript where
   arbitrary = ReqScript <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
