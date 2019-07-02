@@ -70,7 +70,7 @@ import Datetime.Types (within, Interval(..), add, sub, subDeltas, scaleDelta)
 import qualified Datetime.Types as DT
 
 import qualified Data.List as List
-import Data.List.Index (setAt)
+import Data.List.Index (modifyAt, setAt)
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 import qualified Data.Serialize as S
@@ -347,8 +347,8 @@ evalLExpr (Located loc e) = case e of
       (Nothing, []) -> insertTempVar var val
       (Nothing, (_:_)) -> panicImpossible "EAssign"
       (Just currVal, []) -> when (currVal /= val) (updateGlobalVar var val)
-      (Just currVal@(VConstr c vs), (_:_)) -> do
-        newVal <- VConstr c . replaceRecordField c fds vs val <$> asks currentConstructorFields
+      (Just currVal, (fd:fds)) -> do
+        newVal <- replaceRecordField currVal (fd:|fds) val <$> asks currentConstructorFields
         when (currVal /= newVal) (updateGlobalVar var newVal)
 
     pure VVoid
@@ -535,19 +535,21 @@ match (VConstr nm1 vals) (PatConstr (Located _ nm2) pats)
   | nm1 == nm2 = concat <$> zipWithM match vals pats
 match _ _ = Nothing
 
--- | Replace the value of a field in a record
+-- | Replace the value of a field in a record. Assumes the values and dictionary
+-- come from a type checked AST. This is used for assigning to a specific field
+-- in a record.
 replaceRecordField
-  :: NameUpper -- ^ the constructor
-  -> [Name]
-  -> [Value]
+  :: Value -- ^ The constructor.
+  -> NonEmpty Name -- ^ The sequence of record field accessors.
+  -> Value -- ^ The new value.
+  -> Map NameUpper [Name] -- ^ Dictionary mapping constructors to field names (must be in the order they were declared in).
   -> Value
-  -> Map NameUpper [Name]
-  -> [Value]
-replaceRecordField c [fd] vs v_new dict
+replaceRecordField (VConstr c vs) (fd :| fds) v_new dict
   = case List.elemIndex fd =<< Map.lookup c dict of
-    Nothing -> panic "foo"
-    Just n -> setAt n v_new vs
--- replaceRecordField c (fd:fds) vs v_new dict
+    Just n -> VConstr c $ case fds of
+      [] -> setAt n v_new vs
+      (fd : fds) -> modifyAt n (\val -> replaceRecordField val (fd :| fds) v_new dict) vs
+    Nothing -> panic "`replaceRecordField` was given invalid data"
 
 -- | Evaluate a binop and two Fractional Num args
 evalBinOpF :: (Fractional a, Ord a) => BinOp -> (a -> Value) -> a -> a -> (EvalM world) Value
