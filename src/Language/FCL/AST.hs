@@ -1034,18 +1034,20 @@ startState = WorkflowState $ Set.singleton PlaceStart
 endState = WorkflowState $ Set.singleton PlaceEnd
 
 newtype WorkflowState = WorkflowState { places :: Set Place }
-  deriving (Eq, Ord, Show, Generic, Serialize, Hash.Hashable, ToJSON, FromJSON)
+  deriving (Eq, Ord, Show, Generic, Serialize, Hash.Hashable)
 
 instance Pretty WorkflowState where
   ppr (Set.toList . places -> [p]) = ppr p
   ppr (Set.toList . places -> ps) = listOf ps
 
--- TODO: Fix SDK
--- instance ToJSON WorkflowState where
---   toJSON = toJSON . prettyPrint
+instance ToJSON WorkflowState where
+  toJSON = toJSON . prettyPrint
 
--- instance FromJSON WorkflowState where
---   parseJSON = fmap (WorkflowState . Set.fromList . fmap (makePlace . Name) . T.splitOn (T.pack ",")) . parseJSON
+instance FromJSON WorkflowState where
+  parseJSON wf = parseJSON wf >>= \t
+    -> pure $ case (T.take 1 t, T.takeEnd 1 t) of
+         ("{", "}") -> WorkflowState . Set.fromList . fmap (makePlace . Name . T.strip) . T.splitOn (T.pack ",") . T.dropEnd 1 . T.drop 1 $ t
+         _ -> WorkflowState . Set.fromList . fmap (makePlace . Name . T.strip) . T.splitOn (T.pack ",") $ t
 
 data Transition
   = Arrow WorkflowState WorkflowState
