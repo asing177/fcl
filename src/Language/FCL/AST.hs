@@ -57,7 +57,7 @@ module Language.FCL.AST (
   -- ** State Labels
   Place(..),
   Transition(..),
-  WorkflowState,
+  WorkflowState(..),
   places,
   unsafeWorkflowState,
   makePlace,
@@ -1034,17 +1034,18 @@ startState = WorkflowState $ Set.singleton PlaceStart
 endState = WorkflowState $ Set.singleton PlaceEnd
 
 newtype WorkflowState = WorkflowState { places :: Set Place }
-  deriving (Eq, Ord, Show, Generic, Serialize, Hash.Hashable)
+  deriving (Eq, Ord, Show, Generic, Serialize, Hash.Hashable, ToJSON, FromJSON)
 
 instance Pretty WorkflowState where
   ppr (Set.toList . places -> [p]) = ppr p
   ppr (Set.toList . places -> ps) = listOf ps
 
-instance ToJSON WorkflowState where
-  toJSON = toJSON . prettyPrint
+-- TODO: Fix SDK
+-- instance ToJSON WorkflowState where
+--   toJSON = toJSON . prettyPrint
 
-instance FromJSON WorkflowState where
-  parseJSON = fmap (WorkflowState . Set.fromList . fmap (makePlace . Name) . T.splitOn (T.pack ",")) . parseJSON
+-- instance FromJSON WorkflowState where
+--   parseJSON = fmap (WorkflowState . Set.fromList . fmap (makePlace . Name) . T.splitOn (T.pack ",")) . parseJSON
 
 data Transition
   = Arrow WorkflowState WorkflowState
