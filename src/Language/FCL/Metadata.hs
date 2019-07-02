@@ -15,7 +15,7 @@ module Language.FCL.Metadata (
 
 import Protolude
 import Test.QuickCheck
-import Test.QuickCheck.Instances.Text
+import Test.QuickCheck.Instances.Text ()
 
 import qualified Language.FCL.Utils as Utils
 import qualified Language.FCL.Hash as Hash
@@ -25,7 +25,6 @@ import qualified Data.Aeson as A
 import qualified Data.Aeson.Types as A
 import qualified Data.Binary as B
 import qualified Data.Serialize as S
-import qualified Data.Serialize.Text()
 import qualified Data.ByteString as BS
 
 -------------------------------------------------------------------------------

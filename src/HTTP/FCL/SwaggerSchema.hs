@@ -40,10 +40,12 @@ instance ToSchema TCollection where
   declareNamedSchema = genericDeclareNamedSchemaUnrestricted defaultSchemaOptions
 instance ToSchema Preconditions where
   declareNamedSchema _ = do
-    p <- declareSchemaRef (Proxy :: Proxy Precondition)
+    x <- declareSchemaRef (Proxy :: Proxy (Precondition, LExpr))
     pure $ NamedSchema (Just "Preconditions")
       $ mempty { _schemaParamSchema =
-                   mempty { _paramSchemaType = SwaggerArray }
+                   mempty { _paramSchemaType = SwaggerArray
+                          -- , _paramSchemaItems = Just $ SwaggerItemsArray [x]
+                          }
                }
 
 instance ToSchema Precondition where
@@ -60,6 +62,7 @@ instance ToSchema (Located Expr) where
                , _schemaProperties = fromList [("located", l), ("locVal", t)]
                , _schemaRequired = [ "located", "locVal"  ]
                }
+
 instance ToSchema (Located Lit) where
   declareNamedSchema _ = do
     l <- declareSchemaRef (Proxy :: Proxy Loc)

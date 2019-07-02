@@ -46,7 +46,7 @@ import qualified Language.FCL.Hash as Hash
 import Datetime.Types
 
 import Data.Serialize as S (Serialize, encode, decode, put, get)
-import Data.Aeson (FromJSONKey(..), ToJSONKey(..), ToJSON(..), FromJSON(..), object, (.=), (.:))
+import Data.Aeson as A hiding (Value(..), encode, decode)
 import Data.Aeson.Types (typeMismatch, toJSONKeyText)
 import qualified Data.Aeson as A
 import qualified Data.Map as Map
@@ -121,23 +121,24 @@ instance ToJSON LocalStorage where
 
 instance ToJSONKey Value where
 
-instance ToJSON Value where
-  toJSON = \case
-    VNum n       -> object ["tag" .= ("VNum" :: Text), "contents" .= toJSON n]
-    VBool n      -> object ["tag" .= ("VBool" :: Text), "contents" .= toJSON n]
-    VVoid        -> object ["tag" .= ("VVoid" :: Text), "contents" .= A.Null]
-    VSig sig     -> object ["tag" .= ("VSig" :: Text), "contents" .= A.toJSON sig]
-    VText n      -> object ["tag" .= ("VText" :: Text), "contents" .= A.toJSON n]
-    VAccount n   -> object ["tag" .= ("VAccount" :: Text), "contents" .= toJSON n]
-    VAsset n     -> object ["tag" .= ("VAsset" :: Text), "contents" .= toJSON n]
-    VContract n  -> object ["tag" .= ("VContract" :: Text), "contents" .= toJSON n]
-    VDateTime n  -> object ["tag" .= ("VDateTime" :: Text), "contents" .= toJSON n]
-    VTimeDelta n -> object ["tag" .= ("VTimeDelta" :: Text), "contents" .= toJSON n]
-    VState n     -> object ["tag" .= ("VState" :: Text), "contents" .= toJSON (prettyPrint n)]
-    VConstr c vs -> object ["tag" .= ("VConstr" :: Text), "name" .= toJSON c, "args" .= toJSON vs ]
-    VMap vmap    -> object ["tag" .= ("VMap" :: Text), "contents" .= toJSON vmap]
-    VSet vset    -> object ["tag" .= ("VSet" :: Text), "contents" .= toJSON vset]
-    VUndefined   -> object ["tag" .= ("VUndefined" :: Text), "contents" .= A.Null]
+-- TODO: Maybe specialize
+-- instance ToJSON Value where
+--   toJSON = \case
+--     VNum n       -> object ["VNum" .=  toJSON n]
+--     VBool n      -> object ["VBool" .= toJSON n]
+--     VVoid        -> object ["VVoid" .= A.Null]
+--     VSig sig     -> object ["VSig" .= A.toJSON sig]
+--     VText n      -> object ["VText" .=  A.toJSON n]
+--     VAccount n   -> object ["VAccount" .= toJSON n]
+--     VAsset n     -> object ["VAsset" .= toJSON n]
+--     VContract n  -> object ["VContract" .= toJSON n]
+--     VDateTime n  -> object ["VDateTime" .= toJSON n]
+--     VTimeDelta n -> object ["VTimeDelta" .= toJSON n]
+--     VState n     -> object ["VState" .= toJSON (prettyPrint n)]
+--     VConstr c vs -> object ["VConstr" .= object [ "name" .= toJSON c, "args" .= toJSON vs ]]
+--     VMap vmap    -> object ["VMap" .= toJSON vmap]
+--     VSet vset    -> object ["VSet" .= toJSON vset]
+--     VUndefined   -> object ["VUndefined" .= A.Null]
 
 instance FromJSON GlobalStorage where
   parseJSON = fmap GlobalStorage . parseJSON
@@ -145,41 +146,48 @@ instance FromJSON GlobalStorage where
 instance FromJSON LocalStorage where
   parseJSON = fmap LocalStorage . parseJSON
 
+instance ToJSON Value where
+  toJSON = genericToJSON (defaultOptions { sumEncoding = ObjectWithSingleField })
+
 instance FromJSON Value where
-  parseJSON v = case v of
-    A.Array _  -> typeMismatch "Cannot parse array." v
-    A.String _ -> typeMismatch "Please pass tagged objects, not json values" v
-    A.Null     -> typeMismatch "Please pass tagged objects, not json values" v
-    A.Bool _   -> typeMismatch "Please pass tagged objects, not json values" v
-    A.Number _ -> typeMismatch "Please pass tagged objects, not json values" v
-    A.Object o -> do
-      constr :: Text <- o .: "tag"
-      case constr of
-        "VNum"      -> VNum <$> (o .: "contents")
-        "VBool"     -> VBool     <$> o .: "contents"
-        "VAccount"  -> VAccount  <$> o .: "contents"
-        "VAsset"    -> VAsset    <$> o .: "contents"
-        "VContract" -> VContract <$> o .: "contents"
-        "VDateTime" -> do
-            c <- parseDatetime <$> (o .: "contents")
-            case c of
-              (Just dt) -> pure $ VDateTime $ DateTime dt
-              Nothing -> typeMismatch "Invalid date format, expecting ISO8601, given:" v
-        "VTimeDelta" -> VTimeDelta  <$> o .: "contents"
-        "VSig"       -> VSig      <$> o .: "contents"
-        "VText"      -> VText     <$> o .: "contents"
-        "VConstr"    -> VConstr   <$> o .: "name" <*> o .: "args"
-        "VMap"       -> VMap      <$> o .: "contents"
-        "VSet"       -> VSet      <$> o .: "contents"
-        "VState"     -> VState <$> (parseWorkflowStateJSON =<< o .: "contents")
-        "VVoid"      -> pure VVoid
-        "VUndefined" -> pure VUndefined
-        tag -> typeMismatch "Value tag as a string" v
-    where
-      parseWorkflowStateJSON inp =
-        case Parser.parseWorkflowState inp of
-          Left err -> fail $ show err
-          Right wfs -> pure wfs
+  parseJSON = genericParseJSON (defaultOptions { sumEncoding = ObjectWithSingleField })
+
+-- TODO: Maybe specialize
+-- instance FromJSON Value where
+--   parseJSON v = case v of
+--     A.Array _  -> typeMismatch "Cannot parse array." v
+--     A.String _ -> typeMismatch "Please pass tagged objects, not json values" v
+--     A.Null     -> typeMismatch "Please pass tagged objects, not json values" v
+--     A.Bool _   -> typeMismatch "Please pass tagged objects, not json values" v
+--     A.Number _ -> typeMismatch "Please pass tagged objects, not json values" v
+--     A.Object o -> do
+--       constr :: Text <- o .: "tag"
+--       case constr of
+--         "VNum"      -> VNum <$> (o .: "contents")
+--         "VBool"     -> VBool     <$> o .: "contents"
+--         "VAccount"  -> VAccount  <$> o .: "contents"
+--         "VAsset"    -> VAsset    <$> o .: "contents"
+--         "VContract" -> VContract <$> o .: "contents"
+--         "VDateTime" -> do
+--             c <- parseDatetime <$> (o .: "contents")
+--             case c of
+--               (Just dt) -> pure $ VDateTime $ DateTime dt
+--               Nothing -> typeMismatch "Invalid date format, expecting ISO8601, given:" v
+--         "VTimeDelta" -> VTimeDelta  <$> o .: "contents"
+--         "VSig"       -> VSig      <$> o .: "contents"
+--         "VText"      -> VText     <$> o .: "contents"
+--         "VConstr"    -> VConstr   <$> o .: "name" <*> o .: "args"
+--         "VMap"       -> VMap      <$> o .: "contents"
+--         "VSet"       -> VSet      <$> o .: "contents"
+--         "VState"     -> VState <$> (parseWorkflowStateJSON =<< o .: "contents")
+--         "VVoid"      -> pure VVoid
+--         "VUndefined" -> pure VUndefined
+--         tag -> typeMismatch "Value tag as a string" v
+--     where
+--       parseWorkflowStateJSON inp =
+--         case Parser.parseWorkflowState inp of
+--           Left err -> fail $ show err
+--           Right wfs -> pure wfs
 
 instance ToJSONKey Key where
   toJSONKey = toJSONKeyText unKey

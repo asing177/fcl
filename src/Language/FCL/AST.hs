@@ -526,7 +526,7 @@ instance ToJSON Helper where
 instance FromJSON Helper where
   parseJSON = genericParseJSON (defaultOptions { sumEncoding = ObjectWithSingleField })
 
--- | ADTeration
+-- | ADT
 data ADTDef = ADTDef
   { adtName :: LNameUpper
   , adtConstrs :: [ADTConstr]
@@ -540,8 +540,17 @@ instance FromJSON ADTDef where
 
 -- | Definition
 data Def
-  = GlobalDef Type Preconditions Name LExpr
-  | GlobalDefNull Type Preconditions LName
+  = GlobalDef
+    { gDefType :: Type
+    , gDefPrec :: Preconditions
+    , gDefName :: Name
+    , gDefExpr :: LExpr
+    }
+  | GlobalDefNull
+    { gDefNullType :: Type
+    , gDefNullPrec :: Preconditions
+    , gDefNullName :: LName
+    }
   deriving (Eq, Ord, Show, Generic, Hash.Hashable)
 
 instance ToJSON Def where
@@ -1086,7 +1095,7 @@ instance Arbitrary DT.Period where
   arbitrary = do
     year <- choose (0,1000)
     month <- choose (0,12)
-    let monthNumDays = DC.gregorianMonthLength (fromIntegral year) (fromIntegral month)
+    let monthNumDays = DC.gregorianMonthLength (fromIntegral year) month
     day <- choose (0, monthNumDays)
     pure $ DT.Period $ DH.Period year month day
 

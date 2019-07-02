@@ -73,8 +73,35 @@ data RPCResponse a
 instance ToJSON a => ToJSON (RPCResponse a) where
   toJSON = genericToJSON (defaultOptions { sumEncoding = ObjectWithSingleField })
 
-instance (ToSchema a) => ToSchema (RPCResponse a) where
-  declareNamedSchema = genericDeclareNamedSchemaUnrestricted defaultSchemaOptions
+instance ToSchema (RPCResponse LSP.RespScript) where
+  declareNamedSchema _ = do
+    rsp <- declareSchemaRef (Proxy :: Proxy LSP.RespScript)
+    rspOK <- declareSchemaRef (Proxy :: Proxy ())
+    rspErr <- declareSchemaRef (Proxy :: Proxy RPCResponseError)
+    pure $ NamedSchema (Just "RPCResponse RespScript")
+      $ mempty { _schemaParamSchema = mempty { _paramSchemaType = SwaggerObject }
+               , _schemaProperties = fromList [("RPCResp", rsp), ("RPCRespError", rspErr), ("RPCRespOK", rspOK)]
+               }
+
+instance ToSchema (RPCResponse LSP.RespMethod) where
+  declareNamedSchema _ = do
+    rsp <- declareSchemaRef (Proxy :: Proxy LSP.RespMethod)
+    rspOK <- declareSchemaRef (Proxy :: Proxy ())
+    rspErr <- declareSchemaRef (Proxy :: Proxy RPCResponseError)
+    pure $ NamedSchema (Just "RPCResponse RespMethod")
+      $ mempty { _schemaParamSchema = mempty { _paramSchemaType = SwaggerObject }
+               , _schemaProperties = fromList [("RPCResp", rsp), ("RPCRespError", rspErr), ("RPCRespOK", rspOK)]
+               }
+
+instance ToSchema (RPCResponse LSP.RespDef) where
+  declareNamedSchema _ = do
+    rsp <- declareSchemaRef (Proxy :: Proxy LSP.RespDef)
+    rspOK <- declareSchemaRef (Proxy :: Proxy ())
+    rspErr <- declareSchemaRef (Proxy :: Proxy RPCResponseError)
+    pure $ NamedSchema (Just "RPCResponse RespDef")
+      $ mempty { _schemaParamSchema = mempty { _paramSchemaType = SwaggerObject }
+               , _schemaProperties = fromList [("RPCResp", rsp), ("RPCRespError", rspErr), ("RPCRespOK", rspOK)]
+               }
 
 --------------------
 -- Scripts
