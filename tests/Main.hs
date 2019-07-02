@@ -55,7 +55,6 @@ suite
     -- Non-lossy arithmetic tests
     , TestNumber.numberTests
 
-    -- , TestSwagger.apiTests
     ]
 
 -------------------------------------------------------------------------------
