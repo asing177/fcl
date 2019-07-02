@@ -334,7 +334,7 @@ evalTests = testGroup "eval" <$> sequence
       case contractE of
         Left err -> panic err
         Right contract -> do
-          evalCtx <- initTestEvalCtx (scriptHelpers script)
+          evalCtx <- initTestEvalCtx script
           calls <- parseCalls <$> readFile (replaceExtension file ".calls")
           let evalState = Eval.initEvalState contract Ref.genesisWorld
           foldM (evalMethod' evalCtx) (Right (contract, evalState)) calls
@@ -370,8 +370,8 @@ evalTests = testGroup "eval" <$> sequence
             , ("testAddr2", LAccount Ref.testAddr2)
             , ("testAddr3", LAccount Ref.testAddr3)
             ]
-    initTestEvalCtx :: [Helper] -> IO Eval.EvalCtx
-    initTestEvalCtx helpers = do
+    initTestEvalCtx :: Script -> IO Eval.EvalCtx
+    initTestEvalCtx script = do
       now <- Time.now
       pure Eval.EvalCtx
         { Eval.currentTxCtx = Just Eval.TransactionCtx
@@ -386,5 +386,6 @@ evalTests = testGroup "eval" <$> sequence
         , Eval.currentDeployer = Ref.testAddr
         , Eval.currentAddress = Ref.testAddr
         , Eval.currentPrivKey = Ref.testPriv
-        , Eval.currentHelpers = helpers
+        , Eval.currentHelpers = scriptHelpers script
+        , Eval.currentConstructorFields = Eval.scriptConstructors script
         }

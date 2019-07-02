@@ -32,6 +32,7 @@ dependencies:
 
   # Data Structures
   - containers
+  - ilist
 
   # Serialization
   - binary

@@ -18,6 +18,7 @@ module Language.FCL.Eval (
   EvalFail(..),
   runEvalM,
   execEvalM,
+  scriptConstructors,
 
   -- ** Evaluation rules
   eval,
@@ -69,6 +70,7 @@ import Datetime.Types (within, Interval(..), add, sub, subDeltas, scaleDelta)
 import qualified Datetime.Types as DT
 
 import qualified Data.List as List
+import Data.List.Index (setAt)
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 import qualified Data.Serialize as S
@@ -102,7 +104,16 @@ data EvalCtx = EvalCtx
   , currentAddress     :: Address AContract -- ^ Address of current Contract
   , currentPrivKey     :: Key.PrivateKey    -- ^ Private key of Validating node
   , currentHelpers     :: [Helper]          -- ^ Script helper functions available for call in method body
+  , currentConstructorFields :: Map NameUpper [Name] -- ^ Map constructors to their fields, preserving the order of declaration
   } deriving (Generic)
+
+scriptConstructors :: Script -> Map NameUpper [Name]
+scriptConstructors = getConstructorFields . concatMap toList . map adtConstrs . scriptADTs
+  where
+    getConstructorFields :: [ADTConstr] -> Map NameUpper [Name]
+    getConstructorFields = Map.fromList . map unADTConstr
+      where
+        unADTConstr (ADTConstr (Located _ id) fds) = (id, map (locVal . fst) fds)
 
 type LocalStorages = Map.Map (Address AAccount) Storage
 
@@ -329,14 +340,16 @@ evalLExpr (Located loc e) = case e of
 
   ELit llit       -> pure $ evalLLit llit
 
-  EAssign (v:|fds) rhs -> do
+  EAssign (var:|fds) rhs -> do
     val <- evalLExpr rhs
-    mbCurrVal <- lookupGlobalVar v
+    mbCurrVal <- lookupGlobalVar var
     case (mbCurrVal, fds) of
-      (Nothing, []) -> insertTempVar v val
+      (Nothing, []) -> insertTempVar var val
       (Nothing, (_:_)) -> panicImpossible "EAssign"
-      (Just currVal, []) -> when (initVal /= val) (updateGlobalVar v val)
-      -- (Just currVal, (_:_)) -> do
+      (Just currVal, []) -> when (currVal /= val) (updateGlobalVar var val)
+      (Just currVal@(VConstr c vs), (_:_)) -> do
+        newVal <- VConstr c . replaceRecordField c fds vs val <$> asks currentConstructorFields
+        when (currVal /= newVal) (updateGlobalVar var newVal)
 
     pure VVoid
 
@@ -511,6 +524,7 @@ evalLExpr (Located loc e) = case e of
   EHole ->
     panicImpossible $ "Evaluating hole expression at " <> show loc
 
+-- | Match a value to a pattern
 match :: Value -> Pattern -> Maybe [(Name, Value)]
 match _   PatWildCard = Just []
 match val (PatVar (Located _ var)) = Just [(var, val)]
@@ -520,6 +534,20 @@ match val (PatLit (Located _ lit))
 match (VConstr nm1 vals) (PatConstr (Located _ nm2) pats)
   | nm1 == nm2 = concat <$> zipWithM match vals pats
 match _ _ = Nothing
+
+-- | Replace the value of a field in a record
+replaceRecordField
+  :: NameUpper -- ^ the constructor
+  -> [Name]
+  -> [Value]
+  -> Value
+  -> Map NameUpper [Name]
+  -> [Value]
+replaceRecordField c [fd] vs v_new dict
+  = case List.elemIndex fd =<< Map.lookup c dict of
+    Nothing -> panic "foo"
+    Just n -> setAt n v_new vs
+-- replaceRecordField c (fd:fds) vs v_new dict
 
 -- | Evaluate a binop and two Fractional Num args
 evalBinOpF :: (Fractional a, Ord a) => BinOp -> (a -> Value) -> a -> a -> (EvalM world) Value

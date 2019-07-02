@@ -33,19 +33,20 @@ createContract
 createContract contractAddr nodeAddr mtxCtx privKey cTimestamp cOwner world body = do
   case Compile.compilePrettyErr body of
     Left err -> pure (Left err)
-    Right Compile.CheckedScript{Compile.checkedScript = script} -> do
+    Right Compile.CheckedScript{Compile.checkedScript = script} ->
       let helpers = scriptHelpers script
-      createContractWithEvalCtx (mkEvalCtx helpers) world script
-  where
-    mkEvalCtx helpers = Eval.EvalCtx
-      { currentValidator = nodeAddr
-      , currentTxCtx = mtxCtx
-      , currentCreated = cTimestamp
-      , currentDeployer = cOwner
-      , currentAddress = contractAddr
-      , currentPrivKey = privKey
-      , currentHelpers = helpers
-      }
+          constructorFields = Eval.scriptConstructors script
+          ctx = Eval.EvalCtx
+            { currentValidator = nodeAddr
+            , currentTxCtx = mtxCtx
+            , currentCreated = cTimestamp
+            , currentDeployer = cOwner
+            , currentAddress = contractAddr
+            , currentPrivKey = privKey
+            , currentHelpers = helpers
+            , currentConstructorFields = constructorFields
+            }
+        in createContractWithEvalCtx ctx world script
 
 -- | Create a contract with a supplied evaluation context
 createContractWithEvalCtx
