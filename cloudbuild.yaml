@@ -10,7 +10,7 @@ substitutions:
   # Bump the version if you make changes to `ci/Dockerfile
   _BUILD_IMAGE: gcr.io/uplink-test-cluster-174313/fcl-ci:v3
 options:
-  machineType: N1_HIGHCPU_32
+  machineType: N1_HIGHCPU_8
 steps:
   # Build uplink docker image with kaniko
 

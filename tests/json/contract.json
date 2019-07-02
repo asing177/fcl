@@ -5,70 +5,58 @@
     "owner": "fwBVDsVh8SYQy98CzYpNPcbyTRczVUZ96HszhNRB8Ve",
     "storage": {
         "g": {
-            "args": [
-                {
-                    "tag": "VNum",
-                    "contents": {
-                        "tag": "NumDecimal",
-                        "contents": {
-                            "decimalPlaces": 0,
-                            "decimalIntegerValue": 0
+            "VConstr": [
+                "Foo",
+                [
+                    {
+                        "VNum": {
+                            "NumDecimal": {
+                                "decimalPlaces": 0,
+                                "decimalIntegerValue": 0
+                            }
+                        }
+                    },
+                    {
+                        "VNum": {
+                            "NumDecimal": {
+                                "decimalPlaces": 0,
+                                "decimalIntegerValue": 1
+                            }
                         }
                     }
-                },
-                {
-                    "tag": "VNum",
-                    "contents": {
-                        "tag": "NumDecimal",
-                        "contents": {
-                            "decimalPlaces": 0,
-                            "decimalIntegerValue": 1
-                        }
-                    }
-                }
-            ],
-            "tag": "VConstr",
-            "name": "Foo"
+                ]
+            ]
         },
         "a": {
-            "tag": "VNum",
-            "contents": {
-                "tag": "NumDecimal",
-                "contents": {
+            "VNum": {
+                "NumDecimal": {
                     "decimalPlaces": 0,
                     "decimalIntegerValue": 3
                 }
             }
         },
         "d": {
-            "tag": "VAccount",
-            "contents": "fwBVDsVh8SYQy98CzYpNPcbyTRczVUZ96HszhNRB8Ve"
+            "VAccount": "fwBVDsVh8SYQy98CzYpNPcbyTRczVUZ96HszhNRB8Ve"
         },
         "b": {
-            "tag": "VNum",
-            "contents": {
-                "tag": "NumRational",
-                "contents": {
+            "VNum": {
+                "NumRational": {
                     "denominator": 7,
                     "numerator": 22
                 }
             }
         },
         "e": {
-            "tag": "VVoid",
-            "contents": null
+            "VVoid": []
         },
         "h": {
-            "tag": "VAsset",
-            "contents": "Fw68hsis6JPW4ed3ER1VC959TTf9DqberLxrq5uECKxh"
+            "VAsset": "Fw68hsis6JPW4ed3ER1VC959TTf9DqberLxrq5uECKxh"
         },
         "c": {
-            "tag": "VBool",
-            "contents": true
+            "VBool": true
         },
         "i": {
-            "tag": "VContract",
-            "contents": "fwBVDsVh8SYQy98CzYpNPcbyTRczVUZ96HszhNRB8Ve"
+            "VContract": "fwBVDsVh8SYQy98CzYpNPcbyTRczVUZ96HszhNRB8Ve"
         }
     },
     "methods": [

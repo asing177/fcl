@@ -1128,7 +1128,7 @@ arbValue n
     = oneof
       [ VMap . Map.fromList <$> Q.listOf (liftArbitrary2 (arbValue (n - 1)) (arbValue (n - 1)))
       , VSet . Set.fromList <$> Q.listOf (arbValue (n - 1))
-      , VConstr <$> arbitrary <*> (arbitrary `suchThat` (\l -> length l < 10))
+      , VConstr <$> arbitrary <*> arbSmallList
       ]
 
 instance Arbitrary Value where
@@ -1158,7 +1158,7 @@ instance Arbitrary WorkflowState where
   arbitrary = oneof
     [ unsafeWorkflowState <$> do
         hd <- arbitrary
-        tl <- arbitrary
+        tl <- arbSmallList
         pure $ Set.fromList (hd:tl)
     , pure startState
     , pure endState
@@ -1235,33 +1235,41 @@ instance Arbitrary Arg where
   arbitrary = Arg <$> arbitrary <*> arbitrary
 
 instance Arbitrary Preconditions where
-  arbitrary = Preconditions <$> arbitrary
+  arbitrary = Preconditions <$> arbSmallList
 
 instance Arbitrary Precondition where
   arbitrary = oneof [ pure PrecAfter, pure PrecBefore, pure PrecRoles ]
 
 instance Arbitrary Method where
-  arbitrary = Method <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> sized arbLExpr
+  arbitrary = Method <$> arbitrary <*> arbitrary <*> arbitrary <*> arbSmallList <*> sized arbLExpr
 
 instance Arbitrary Helper where
-  arbitrary = Helper <$> arbitrary <*> arbitrary <*> arbitrary
+  arbitrary = Helper <$> arbitrary <*> arbSmallList <*> arbitrary
 
 instance Arbitrary Transition where
   arbitrary = Arrow <$> arbitrary <*> arbitrary
 
 instance Arbitrary ADTDef where
-  arbitrary = ADTDef <$> arbitrary <*> listOf1 arbitrary
+  arbitrary = ADTDef <$> arbitrary <*> arbitrary `suchThat` (\x -> length x > 0 && length x < 10)
 
 instance Arbitrary ADTConstr where
-  arbitrary = ADTConstr <$> arbitrary <*> Q.listOf arbitraryParam
+  arbitrary = ADTConstr <$> arbitrary <*> arbTake 5 (Q.listOf arbitraryParam)
     where
       arbitraryParam = (,) <$> arbitrary <*> arbitrary
 
 instance Arbitrary Script where
-  arbitrary = Script <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
+  arbitrary
+    = Script
+      <$> arbSmallList
+      <*> arbSmallList
+      <*> arbSmallList
+      <*> arbSmallList
+      <*> arbSmallList
 
 instance Arbitrary Expr where
-  arbitrary = sized arbNonSeqExpr
+  arbitrary = do
+    n <- choose ((-5), 5)
+    arbNonSeqExpr n
 
 arbNumLogicExpr :: Int -> Gen Expr
 arbNumLogicExpr n
@@ -1279,7 +1287,7 @@ arbNumLogicExpr n
       ]
 
 arbMatches :: Int -> Gen [CaseBranch]
-arbMatches n = listOf1 (CaseBranch <$> arbPat <*> arbLExpr n)
+arbMatches n = arbTake 5 (listOf1 (CaseBranch <$> arbPat <*> arbLExpr n))
 
 arbPat :: Gen LPattern
 arbPat = Located <$> arbitrary <*> (PatLit <$> arbitrary)
@@ -1292,7 +1300,7 @@ arbNonSeqExpr n
              ]
   | otherwise = let n' = n `div` 2 in oneof
       [ EAssign <$> arbitrary         <*> addLoc (arbNonSeqExpr n')
-      , ECall   <$> arbitrary         <*> Q.listOf (addLoc (arbNonSeqExpr n'))
+      , ECall   <$> arbitrary         <*> arbTake 5 (Q.listOf (addLoc (arbNonSeqExpr n')))
       , EIf     <$> addLoc (arbNonSeqExpr n') <*> arbLExpr n' <*> arbLExpr n'
       , EBefore <$> addLoc (arbNonSeqExpr n') <*> arbLExpr n'
       , EAfter  <$> addLoc (arbNonSeqExpr n') <*> arbLExpr n'
@@ -1312,3 +1320,9 @@ arbSeqExpr n
 arbLExpr :: Int -> Gen LExpr
 arbLExpr n = oneof . map addLoc $
   [ arbNonSeqExpr n, arbSeqExpr n ]
+
+arbSmallList :: Arbitrary a => Gen [a]
+arbSmallList = arbitrary `suchThat` (\x -> length x < 10)
+
+arbTake :: Int -> Gen [a] -> Gen [a]
+arbTake n arb = arb `suchThat` (\x -> length x < n)

@@ -54,6 +54,8 @@ suite
 
     -- Non-lossy arithmetic tests
     , TestNumber.numberTests
+
+    -- , TestSwagger.apiTests
     ]
 
 -------------------------------------------------------------------------------
@@ -64,4 +66,6 @@ main :: IO ()
 main = do
   swaggerTests <- testSpec "Swagger test" $ TestSwagger.swaggerTest
   fclTests <- suite
-  defaultMain $ testGroup "All tests" [swaggerTests, fclTests]
+  defaultMain $ testGroup "All tests" [
+    swaggerTests,
+    fclTests]
