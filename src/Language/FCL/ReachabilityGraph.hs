@@ -39,7 +39,6 @@ data WFError
   | ImproperCompletionMerge WorkflowState WorkflowState
   deriving (Eq, Ord, Show, Generic, A.FromJSON, A.ToJSON)
 
--- TODO: should be record selector
 incorrectTransitionStart :: WFError -> Maybe WorkflowState
 incorrectTransitionStart (NotOneBounded wfSt _ _) = Just wfSt
 incorrectTransitionStart (ImproperCompletion wfSt _ _) = Just wfSt
@@ -174,7 +173,6 @@ reachabilityGraph declaredTransitions =
                   xs
                     | isNonEmpty xs && all (`elem` allCounreachable) xs -> -- do a sanity check
                         xs
-                    -- TODO: revisit this
                     | otherwise ->
                         panic $ "The workflow is unsound, but so is the soundness check."
                               <> show xs <> "\n" <> show allCounreachable
@@ -259,12 +257,6 @@ buildGraph :: WorkflowState -> GraphBuilderM [WorkflowState]
 buildGraph curr = do
   unvisited <- unvisitedM curr
 
-  locals <- gets bsLocallyVisted
-  -- TODO: remove these loggings
-  let isLocal = curr `S.member` locals
-  let g = map ppr . toList . places
-  -- trace (show ((g curr, not unvisited, isLocal, concatMap g $ toList locals) ) :: [Char]) $ pure ()
-
   if unvisited then do
     outgoing <- ask
     xorSplitStates <- catMaybes <$>
@@ -277,8 +269,6 @@ buildGraph curr = do
       . places                         -- Get the places in the current state
       ) curr
 
-    -- TODO: remove this logging
-    -- trace ("app" ++ show (g curr, map g xorSplitStates) :: [Char]) $ pure ()
     modifyGraph $ M.insert curr (S.fromList xorSplitStates) -- direct connections
     xorSplitResult <- forM xorSplitStates $ \lclSt -> do
       let andSplitLocalStates = splitState lclSt
@@ -304,8 +294,6 @@ buildGraph curr = do
 
       -- they are equal iff there is a single AND branch
       let isNewMergedState = not $ isSingleton andSplitLocalStates --concat individualResults /= mergedResult
-      -- TODO: remove logging
-      -- trace ("asd " ++ show (g lclSt, map (map g) ( individualResults), map g mergedResult, isNewMergedState) :: [Char]) $ pure ()
       pure (mergedResult, isNewMergedState)
 
 
@@ -374,7 +362,6 @@ checkedWfUnionM lhs rhs = case checkedWfUnion lhs rhs of
   Right wfSt -> pure wfSt
   Left  err  -> yell err >> pure (lhs <> rhs)
 
--- TODO: Update docs
 -- NOTE: AND-split handled here
 -- | Given a current global workflow state, apply a (local) transition.
 -- Returns:
