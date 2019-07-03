@@ -1,0 +1,9 @@
+ 
+Method arguments and effects:
+start: () -> {}
+nominate: () -> {write via stay}
+preTransition: () -> {}
+actualisevolume: () -> {}
+actualiseprice: () -> {}
+settle: () -> {}
+final: () -> {write via terminate}

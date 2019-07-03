@@ -1,0 +1,4 @@
+Workflow soundness errors:
+• The workflow does not represent a free choice net:
+  transition {doneAlice, doneBob} -> terminal and transition doneBob -> terminal share some input places: {doneAlice
+                                                                                                          ,doneBob}

@@ -1,0 +1,77 @@
+Reachability papers:
+  - abstractions: https://www.researchgate.net/profile/Peep_Kungas/publication/220970548_Petri_Net_Reachability_Checking_Is_Polynomial_with_Optimal_Abstraction_Hierarchies/links/00b495229c1228fc5e000000/Petri-Net-Reachability-Checking-Is-Polynomial-with-Optimal-Abstraction-Hierarchies.pdf
+  - direted unfolding (heuristic): https://bonetblai.github.io/reports/ufo07-directed.pdf
+
+Other sources:
+  - Petri Net book: https://shodhganga.inflibnet.ac.in/bitstream/10603/4733/8/08_chapter%204.pdf
+  - Petri Net slides: http://wwwis.win.tue.nl/~wvdaalst/old/courses/BIScourse/BIS-10-reachability-properties.pdf
+  - Workflow net soundness paper: https://link.springer.com/article/10.1007/s00165-010-0161-4
+  - Aalst on workflow nets: https://www.researchgate.net/profile/Wil_M_P_Aalst/publication/220783358_Lecture_Notes_in_Computer_Science/links/0deec517a5639cd182000000/Lecture-Notes-in-Computer-Science.pdf
+  - free choice petri nets book: https://www7.in.tum.de/~esparza/fcbook-middle.pdf
+  - WF-net soundness checking overview: https://link.springer.com/content/pdf/10.1007%2Fs00165-010-0161-4.pdf
+  - McMillan unfolding, original: http://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.16.6281&rep=rep1&type=pdf
+  - McMillan unfolding, deadlocks with linalg: https://link.springer.com/content/pdf/10.1007/3-540-63166-6_35.pdf
+  - wiki: http://mlwiki.org/index.php/Workflow_Soundness
+  - siphons and deadlocks: https://journals.sagepub.com/doi/pdf/10.1177/1687814017693542
+  - complexity overview for 1-safe Petri nets: http://web.cs.ucla.edu/~palsberg/paper/tcs95.pdf
+
+  - some Haskell snippets for MIPs: https://stackoverflow.com/questions/14831713/running-other-programs-in-haskell-linear-programming-package
+
+Goals:
+  - we need coverability: forall p. {i} --covers--> {p}
+  - we need 1-boundedness
+  - proper termination
+    ~ no reachable state covers {t} except itself
+    ~ no state of form {t}U<rest> is co-reachable from {t}
+
+Notes:
+  - reachability, coverability and boundedness checking is PSPACE complete for 1-safe petri nets
+  - FCPN book:
+    - incidence matrix: 29 (can be calculated statically, rank of it as well)
+    - S-invariants: 39
+    - S is positive then the net is bounded: 41
+    - clusters: 74 (easy to calculate)
+    - siphons: 76
+    - Rank Theorem: 121
+    - Theorem 10.17: 232
+
+Definitions:
+  - 1-safe (1-bounded) Petri Net: all transitions receive one token from each input place and generate one new token for each output place
+  - free-choice property: for any two places, the set of "available" transitions are either exactly the same, or have no common elements
+
+  Workflow net:
+    - unique initial and terminal states
+    - connecting {i} with {t} yields a statically strongly connected net
+
+  Workflow net soundness:
+    - from every reachable state, we can reach {t}
+      * coverab
+    - if we can reach M from {i}, and M >= {t} then M == {t}
+    - every transition is live (i.e.: there exists M such that M is reachable from {i} and M enables the transition)
+
+  Liveness:
+    - each transition can always be enabled from any state
+
+  Postset of unfold config:
+    - the places that might be reached directly from the configuration
+
+Unfolding implementation:
+  - cutoff -> Map (transition final states) (their size)
+  - concurrent places: primes and GCD (turns out might be worse than just storing a list)
+
+Unfolding checking:
+  - proper completion   ~ co-unfold, check whether we can cover {t}
+  - no dead transitions ~ check whether each transition appears in the unfolding
+  - 1-boundedness       ~ no conflicts for any place in the postset of a transition (with same, but differently labelled places)
+  - no dead lock        ~ ??? 2^n solution ...
+  - reachability        ~ ??? get all configs, calculate all final states (these will be the reachable markings) 2^n solution ...
+  - option to complete  ~ we only need this for deadlock avoidance; could be checked if we had all reachable and co-reachable states
+  - liveness            ~ similar to O2C
+  - coverability        ~ check whether the place appears in the unfolding
+
+Questions:
+  - is the soundness definition present on the website correct?
+    * it states: proper completion + 1-boundedness <=> soundness
+
+  - difference between a configuration's final state and the postset of a transition
+    * configuration's final state can be a branched thing

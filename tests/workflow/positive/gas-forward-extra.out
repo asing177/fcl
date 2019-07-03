@@ -1,0 +1,13 @@
+ 
+Method arguments and effects:
+propose: (account, decimal<2>, text, text, text, datetime, int) -> {read seller, write buyer, write dailyQuantity, write deliveryLocation, write deliveryStartDate, write index, write numberOfDeliveryDays, write pipelineName}
+match: (decimal<2>) -> {read buyer, read dailyQuantity, read dailyQuantityCounter, read deliveryStartDate, write dailyQuantityCounter}
+endDuringMatching: () -> {write via terminate, read deliveryStartDate}
+resolve: (decimal<2>) -> {read dailyQuantity, read dailyQuantityCounter, read deliveryStartDate, read seller, write dailyQuantityCounter}
+endDuringDiscrepancy: () -> {write via terminate, read deliveryStartDate}
+nominate: (decimal<2>) -> {write via stay, read counter, read nominatedQuantity, read numberOfDeliveryDays, read seller, write counter, write nominatedQuantity}
+preTransition: () -> {}
+actualisevolume: (decimal<2>) -> {read counter, read deliveredQuantity, read numberOfDeliveryDays, read pipeline, write counter, write deliveredQuantity}
+actualiseprice: (decimal<2>) -> {read admin, read deliveredQuantity, read price, write payment, write price}
+settle: () -> {write via transferHoldings, read asset_, read buyer, read payment, read seller}
+adjust: (decimal<2>) -> {write via stay, write via transferHoldings, read adjustedQuantity, read asset_, read buyer, read counter, read numberOfDeliveryDays, read payment, read pipeline, read ppa, read price, read seller, write adjustedQuantity, write counter, write ppa, write ppaPayer}
