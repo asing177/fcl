@@ -73,8 +73,8 @@ instance Pretty WFError where
         ppr r1 <+> "and" <+> ppr r2 <+> ", the resulting state contained some places more than once:" <+> setOf shared
       ImproperCompletionMerge r1 r2->
         "Improper completion at merge-site." <+> "When merging the results of two AND branches, more specifically" <+>
-        ppr r1 <+> "and" <+> ppr r2 <+> ", the resulting state contained the terminal place" <+> ppr PlaceEnd <+>
-        "while containing other places as well."
+        ppr r1 <+> "and" <+> ppr r2 <+>
+        ", the resulting state contained the terminal place while containing other places as well."
     where
       qp :: Pretty a => a -> Doc
       qp = squotes . ppr
@@ -146,17 +146,17 @@ reachabilityGraph declaredTransitions =
         unreachableTransitionErrs
           = S.map UnreachableTransition $ declaredTransitions S.\\ usedTransitions
 
-        erroneousTransitionsLhss :: [WorkflowState]
-        erroneousTransitionsLhss = mapMaybe incorrectTransitionStart
+        incorrectTransitionsLhss :: [WorkflowState]
+        incorrectTransitionsLhss = mapMaybe incorrectTransitionStart
                                  . S.toList
                                  $ stateErrs
 
-        -- exclude those states from where we possibly couldn't transition into another state
+        -- Exclude those states from where we possibly couldn't transition into another state
         -- because the transition itself was erroneous
         prunedCoreachabilityErrs :: Set WFError
         prunedCoreachabilityErrs = S.fromList $
           [ e | e@(Counreachable wfSt) <- S.toList coreachabilityErrs
-              , wfSt `notElem` erroneousTransitionsLhss
+              , wfSt `notElem` incorrectTransitionsLhss
           ]
 
         coreachabilityErrs :: Set WFError
@@ -411,7 +411,10 @@ isSingleton _   = False
 -- satisfy the free choice property.
 freeChoicePropertyViolations :: Set Transition -> [WFError]
 freeChoicePropertyViolations (S.toList -> trs)
-  = catMaybes [ sharedInputPlaces lhs rhs | lhs <- trs, rhs <- trs ]
+  = catMaybes [ sharedInputPlaces lhs rhs
+              | (k, lhs) <- zip [0..] trs
+              , rhs <- drop k trs
+              ]
 
 -- | Determines whether a pair of transitions satisfy the free choice property.
 sharedInputPlaces :: Transition -> Transition -> Maybe WFError
