@@ -60,6 +60,7 @@ dependencies:
   - servant-swagger
   - servant-swagger-ui
   - swagger2
+
 library:
   source-dirs: src
   dependencies:

@@ -78,7 +78,7 @@ instance ToSchema (RPCResponse LSP.RespScript) where
     rsp <- declareSchemaRef (Proxy :: Proxy LSP.RespScript)
     rspOK <- declareSchemaRef (Proxy :: Proxy ())
     rspErr <- declareSchemaRef (Proxy :: Proxy RPCResponseError)
-    pure $ NamedSchema (Just "RPCResponse RespScript")
+    pure $ NamedSchema (Just "RPCResponse Script")
       $ mempty { _schemaParamSchema = mempty { _paramSchemaType = SwaggerObject }
                , _schemaProperties = fromList [("RPCResp", rsp), ("RPCRespError", rspErr), ("RPCRespOK", rspOK)]
                }
@@ -88,7 +88,7 @@ instance ToSchema (RPCResponse LSP.RespMethod) where
     rsp <- declareSchemaRef (Proxy :: Proxy LSP.RespMethod)
     rspOK <- declareSchemaRef (Proxy :: Proxy ())
     rspErr <- declareSchemaRef (Proxy :: Proxy RPCResponseError)
-    pure $ NamedSchema (Just "RPCResponse RespMethod")
+    pure $ NamedSchema (Just "RPCResponse Method")
       $ mempty { _schemaParamSchema = mempty { _paramSchemaType = SwaggerObject }
                , _schemaProperties = fromList [("RPCResp", rsp), ("RPCRespError", rspErr), ("RPCRespOK", rspOK)]
                }
@@ -98,7 +98,7 @@ instance ToSchema (RPCResponse LSP.RespDef) where
     rsp <- declareSchemaRef (Proxy :: Proxy LSP.RespDef)
     rspOK <- declareSchemaRef (Proxy :: Proxy ())
     rspErr <- declareSchemaRef (Proxy :: Proxy RPCResponseError)
-    pure $ NamedSchema (Just "RPCResponse RespDef")
+    pure $ NamedSchema (Just "RPCResponse Def")
       $ mempty { _schemaParamSchema = mempty { _paramSchemaType = SwaggerObject }
                , _schemaProperties = fromList [("RPCResp", rsp), ("RPCRespError", rspErr), ("RPCRespOK", rspOK)]
                }
