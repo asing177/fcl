@@ -48,9 +48,9 @@ import Language.FCL.Prim
 import Language.FCL.Pretty hiding ((<>))
 import qualified Language.FCL.Token as Token (case_)
 import Language.FCL.Utils ((?), zipWith3M_)
+
 -- import Control.Exception (assert)
 import Control.Monad.State.Strict (modify')
-
 import qualified Data.Aeson as A
 import qualified Data.List as List
 import Data.List.NonEmpty (NonEmpty)
@@ -110,9 +110,10 @@ data TypeErrInfo
   | TooManyPatterns NameUpper Pattern
   | TooManyArguments NameUpper LExpr
   | NotEnoughArguments NameUpper (LName, Type)
-  | FieldTypeMismatch Name Type Type
-  | FieldAccessOnNonADT TypeInfo Name
+  | FieldTypeMismatch (NonEmpty (LName, Type))
+  | FieldAccessOnNonADT TypeInfo
   | InvalidField Name NameUpper [(Name, Type)]
+  | ExpectedField NameUpper
   deriving (Eq, Show, Generic, Serialize, A.FromJSON, A.ToJSON)
 
 -- | Type error
@@ -301,7 +302,7 @@ runInferM adtInfo inferState act
 -- | Create the dictionaries for the constructor/adt type membership
 -- relations from the original list of definitionSet. Assumes that there
 -- are no duplicates in the input.
-createADTInfo :: [ADTDef] -> Either TypeError ADTInfo
+createADTInfo :: [ADTDef] -> Either (NonEmpty TypeError) ADTInfo
 createADTInfo adts = ADTInfo constructorToType <$> adtToConstrsAndFields
   where
     constructorToType :: Map NameUpper (LNameUpper, [(LName, Type)])
@@ -313,10 +314,10 @@ createADTInfo adts = ADTInfo constructorToType <$> adtToConstrsAndFields
           . toList
           $ constrs
 
-    adtToConstrsAndFields :: Either TypeError (Map NameUpper (NonEmpty ADTConstr, [(Name, Type)]))
+    adtToConstrsAndFields :: Either (NonEmpty TypeError) (Map NameUpper (NonEmpty ADTConstr, [(Name, Type)]))
     adtToConstrsAndFields = Map.fromList <$> mapM go adts
       where
-        go :: ADTDef -> Either TypeError (NameUpper, (NonEmpty ADTConstr, [(Name, Type)]))
+        go :: ADTDef -> Either (NonEmpty TypeError) (NameUpper, (NonEmpty ADTConstr, [(Name, Type)]))
         go (ADTDef (Located _ tyName) constructors) = do
             fields <- getValidFields constructors
             pure (tyName, (constructors, fields))
@@ -325,21 +326,27 @@ createADTInfo adts = ADTInfo constructorToType <$> adtToConstrsAndFields
 -- exactly when they appear in each constructor. The same field appearing at
 -- different types within one type constructor is an error. Example:
 -- For @type T = C1(int x, int y) | C2(int x);@ the only valid field is @int x@.
-getValidFields :: NonEmpty ADTConstr -> Either TypeError [(Name, Type)]
-getValidFields (c1:|cs) = Map.toList <$> foldM step assocInit cs
+-- Assumes that 'Located' equality and ordering ignores the location (which is
+-- the case at the time of this writing).
+getValidFields :: NonEmpty ADTConstr -> Either (NonEmpty TypeError) [(Name, Type)]
+getValidFields cs = case partitionFields cs of
+    ([], validFields) -> Right . map (first locVal) $ validFields
+    (xs:xss, _) -> Left (map (flip TypeError NoLoc . FieldTypeMismatch) (xs :| xss))
   where
-    step :: Map Name Type -> ADTConstr -> Either TypeError (Map Name Type)
-    step assoc (ADTConstr _ params) = foldM getIntersection assoc params
-
-    assocInit :: Map Name Type
-    assocInit = Map.fromList . map (first unLoc) . adtConstrParams $ c1
-
-    getIntersection :: Map Name Type -> (LName, Type) -> Either TypeError (Map Name Type)
-    getIntersection assoc (Located loc fd, ty) = case Map.lookup fd assoc of
-      Nothing -> Right (Map.delete fd assoc)
-      Just tyExp
-        | ty == tyExp -> Right assoc
-        | otherwise -> Left $ TypeError (FieldTypeMismatch fd tyExp ty) loc
+    -- Get the fields of a constructor and partition them into the ones where a
+    -- field is  (left) and
+    -- the good (right).
+    partitionFields :: NonEmpty ADTConstr -> ([NonEmpty (LName, Type)], [(LName, Type)])
+    partitionFields cs
+      = second (concatMap toList)         -- flatten both sides of the pair
+      . List.partition ((> 1) . length)   -- if the length of a group is >1, there is a conflict
+      . map NonEmpty.nub                  -- throw out duplicates
+      . filter ((== length cs) . length)  -- only keep fields which are present in every constructor
+      . NonEmpty.groupBy ((==) `on` fst)  -- group by field name
+      . sortOn fst                        -- sort on field name
+      . sconcat                           -- concatenate into a single list
+      . map adtConstrParams               -- get the fields
+      $ cs
 
 -------------------------------------------------------------------------------
 -- Type Signatures for Methods
@@ -375,7 +382,7 @@ getValidFields (c1:|cs) = Map.toList <$> foldM step assocInit cs
 signatures :: Script -> Either (NonEmpty TypeError) [(Name,Sig)]
 signatures (Script adts defns graph methods helpers) =
     case createADTInfo adts of
-      Left err -> Left (pure err)
+      Left err -> Left err
       Right adtInfo -> do
         let inferState = snd . runInferM adtInfo emptyInferState
               $ tcDefns defns *> tcHelpers helpers
@@ -1325,11 +1332,20 @@ tcNotOp opLoc torig e1 = do
   where
     eLoc = located e1
 
-tcRecordAccess :: Loc -> TypeOrigin -> LExpr -> LExpr -> InferM TypeInfo
-tcRecordAccess = undefined
--- tcRecordAccess loc torig e1 e2 = tcLExpr e1 >>= \case
---     TADT name ->
-
+tcRecordAccess :: Loc -> unused -> LExpr -> LExpr -> InferM TypeInfo
+tcRecordAccess loc _ e1 e2 = do
+    tyInfoE1 <- tcLExpr e1
+    case ttype tyInfoE1 of
+      TADT tyName -> case e2 of
+        (Located _ (EVar (Located _ field))) ->
+          Map.lookup tyName <$> asks adtToConstrsAndFields >>= \case
+            Just (_, fields) -> do
+              case List.lookup field fields of
+                Nothing -> throwErrInferM (InvalidField field tyName fields) loc
+                Just fieldTy -> pure $ TypeInfo fieldTy (FromRecordAccess field tyName) loc
+            Nothing -> undefined
+        _ -> throwErrInferM (ExpectedField tyName) loc
+      _ -> throwErrInferM (FieldAccessOnNonADT tyInfoE1) loc
 
 -- | Helper for common pattern "Add constraint of two TypeInfos and return a TypeInfo"
 addConstrAndRetInfo :: LExpr -> TypeInfo -> (TypeInfo, TypeInfo) -> InferM TypeInfo
@@ -1470,10 +1486,10 @@ lookupAssignVarType v (fd : fds) = lookupVarType v >>= \case
               (Nothing, _) -> Just . (meta,) <$> throwErrInferM (InvalidField fd tyNm validFields) loc
               (Just fieldTy, []) -> pure $ Just (meta, TypeInfo fieldTy (FromRecordAccess fd tyNm) loc)
               (Just (TADT tyNm), (fd:fds)) -> checkFields tyNm fd fds
-              (Just ty, _) -> Just . (meta,) <$> throwErrInferM (FieldAccessOnNonADT tyInfo fd) loc
+              (Just ty, _) -> Just . (meta,) <$> throwErrInferM (FieldAccessOnNonADT tyInfo) loc
 
     Just (meta, tyInfo)
-      -> Just . (meta,) <$> throwErrInferM (FieldAccessOnNonADT tyInfo fd) loc
+      -> Just . (meta,) <$> throwErrInferM (FieldAccessOnNonADT tyInfo) loc
   where
     loc = located v
 
@@ -1748,7 +1764,7 @@ instance Pretty TypeOrigin where
     FromHole            -> "coming from a hole in the program"
     EmptyBlock          -> "inferred from an empty block (e.g. if-statement without else-branch)"
     FromRoundingPrecision -> "inferred from the precision of a rounding operation"
-    FromRecordAccess fd tyNm -> "inferred from accessing" <+> sqppr fd <+> ", which is a field of" <+> sqppr tyNm
+    FromRecordAccess fd tyNm -> "inferred from accessing" <+> sqppr fd <+> "which is a field of" <+> sqppr tyNm
 
 instance Pretty TypeInfo where
   ppr (TypeInfo t orig loc) = sqppr t <+> ppr orig <+> "on" <+> ppr loc
@@ -1827,9 +1843,20 @@ instance Pretty TypeErrInfo where
          <$$+> ( vcat $ map ("•" <+>)
             [ "round the higher precision expression to match the lower precision"
             , "use types with more (e.g. arbitrary) precision"])
-    FieldTypeMismatch nm tExp tAct
-      -> "Field" <+> sqppr nm <+> "with type" <+> sqppr tAct <+> "has already been declared at type"
-        <+> sqppr tExp <+> ", please choose a different name or make sure the types match."
+    FieldTypeMismatch fields
+      -> ("Conflicting fields in a record declaration:"
+          <$$+> vcat (toList $ map (\(Located loc fd, ty) -> sqppr (ppr ty <+> ppr fd) <+> "at" <+> ppr loc) fields))
+          <$$> "Record fields of the same name must have the same type."
+    FieldAccessOnNonADT badType
+      -> "Expecting a record type on the left hand side of a record access but got" <+> sqppr badType <> "."
+    InvalidField field tyName []
+      -> "Reference to invalid field" <+> sqppr field <> ". The data type" <+> sqppr tyName
+        <+> "does not have any valid fields. Fields are only valid if they are defined for every constructor."
+    InvalidField field tyName validFields
+      -> "Reference to invalid field" <+> sqppr field <> ". The following fields are defined for every constructor:"
+        <$$+> vcat (map (\(fd, ty) -> ppr ty <+> ppr fd) validFields)
+    ExpectedField tyName
+      -> "Expected a field name but got an expression in the record access for type" <+> sqppr tyName
 
 instance Pretty TypeError where
   ppr (TypeError tErrInfo tPos) = errName <+> "at" <+> ppr tPos <> ":"

@@ -362,8 +362,10 @@ evalLExpr (Located loc e) = case e of
           Not -> VBool $ not a'
       _ -> panicImpossible "EUnOp"
 
-  -- This logic handles the special cases of operating over homomorphic
-  -- crypto-text.
+  EBinOp (Located _ RecordAccess) e (Located _ (EVar (Located _ field))) -> do
+    VConstr c vs <- evalLExpr e
+    accessRecordField c vs field <$> asks currentConstructorFields
+
   EBinOp (Located _ op) a b -> do
     valA <- evalLExpr a
     valB <- evalLExpr b
@@ -550,6 +552,18 @@ replaceRecordField (VConstr c vs) (fd :| fds) v_new dict
       [] -> setAt n v_new vs
       (fd : fds) -> modifyAt n (\val -> replaceRecordField val (fd :| fds) v_new dict) vs
     Nothing -> panic "`replaceRecordField` was given invalid data"
+replaceRecordField v fds _ _ = panic $ "`replaceRecordField` runtime type error: " <> show (v, fds)
+
+accessRecordField
+  :: NameUpper -- ^ The constructor.
+  -> [Value] -- ^ The constructor's arguments.
+  -> Name -- ^ The field being accessed.
+  -> Map NameUpper [Name] -- ^ Dictionary mapping constructors to field names (must be in the order they were declared in).
+  -> Value
+accessRecordField c vs fd dict
+  = case List.elemIndex fd =<< Map.lookup c dict of
+    Just n -> vs List.!! n
+    Nothing -> panic "`accessRecordField` was given invalid data"
 
 -- | Evaluate a binop and two Fractional Num args
 evalBinOpF :: (Fractional a, Ord a) => BinOp -> (a -> Value) -> a -> a -> (EvalM world) Value

@@ -27,6 +27,7 @@ module Language.FCL.Parser (
   parseDateTime,
   parseWorkflowState,
   parseBlock,
+  parseAdtDef,
   parseCall,
   parseMethod,
 
@@ -144,6 +145,10 @@ parseWorkflowState input = first (mkParseErrInfo input)
 parseBlock :: T.Text -> Either ParseErrInfo LExpr
 parseBlock input = first (mkParseErrInfo input)
   $ parse (contents block) "block" input
+
+parseAdtDef :: T.Text -> Either ParseErrInfo ADTDef
+parseAdtDef input = first (mkParseErrInfo input)
+  $ parse (contents adtDef) "adtDef" input
 
 parseCall :: Text -> Either ParseErrInfo ((Either PrimOp LName), [LExpr])
 parseCall input = first (mkParseErrInfo input) $ parse call "call" input
