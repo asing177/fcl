@@ -460,17 +460,6 @@ tcArg fnm (Arg typ (Located loc anm)) argPos = do
     adtExistsCheck loc typ >>= \case
       Nothing -> pure (anm, FuncArg, TypeInfo typ (FunctionArg argPos fnm) loc)
       Just err -> pure (anm, FuncArg, err)
-  --   case typ of
-  --     TADT enm -> do
-  --       adtDoesExist <- Map.member enm . adtToConstrs <$> ask
-  --       if adtDoesExist
-  --          then pure argInfo
-  --          else do
-  --            terrInfo <- throwErrInferM (UnknownADT enm) loc
-  --            pure (anm, FuncArg, terrInfo)
-  --     _ -> pure argInfo
-  -- where
-  --   argInfo =
 
 -------------------------------------------------------------------------------
 -- Typechecker (w/ inference)
@@ -1032,7 +1021,7 @@ tcPrim le eLoc prim argExprs = do
         TypeInfo t torig tloc -> pure ()
 
 arity :: PrimOp -> Int
-arity p = case runInferM undefined emptyInferState (primSig p) of
+arity p = case runInferM (ADTInfo mempty mempty) emptyInferState (primSig p) of
   (Sig ps _, _) -> length ps
 
 -- | Type signatures of builtin primitive operations.
@@ -1343,7 +1332,7 @@ tcRecordAccess loc _ e1 e2 = do
               case List.lookup field fields of
                 Nothing -> throwErrInferM (InvalidField field tyName fields) loc
                 Just fieldTy -> pure $ TypeInfo fieldTy (FromRecordAccess field tyName) loc
-            Nothing -> undefined
+            Nothing -> panic $ "tcRecordAccess: don't have adt info for " <> prettyPrint tyName
         _ -> throwErrInferM (ExpectedField tyName) loc
       _ -> throwErrInferM (FieldAccessOnNonADT tyInfoE1) loc
 
