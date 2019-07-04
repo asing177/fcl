@@ -1,8 +1,9 @@
+{-# LANGUAGE PatternSynonyms #-}
 module Language.FCL.WorkflowGen
   ( module Language.FCL.WorkflowGen
   ) where
 
-import Protolude hiding (swap)
+import Protolude
 
 import Data.Set (Set(..))
 import Data.List.NonEmpty (NonEmpty(..))
@@ -16,13 +17,18 @@ import Language.FCL.AST
 import Language.FCL.ReachabilityGraph
 
 -- NOTE: no XOR split from "multiple" places
+-- (since we are working with free choice nets, we can AND merge those places -- sort of)
+-- NOTE: can't return back to a place that easily, only through loop
+-- NOTE: can't return back to different places from a loop (novation.s)
 data SafeWorkflowNet
   = XOR (NonEmpty SafeWorkflowNet)
   | AND (NonEmpty SafeWorkflowNet)
   | Seq SafeWorkflowNet SafeWorkflowNet
   -- looping workflow with option to exit from start
+  -- XOR splits from the beginning
   | LoopXOR SafeWorkflowNet SafeWorkflowNet
   -- looping workflow with option to exit from start and from the body of the loop
+  -- XOR splits from the body
   | LoopSeqXOR SafeWorkflowNet SafeWorkflowNet SafeWorkflowNet
   | Atom
   deriving (Eq, Ord, Show)
@@ -108,5 +114,81 @@ constructTransitionsM start end (LoopSeqXOR loopIn exit loopOut) = do
 constructTransitionsM start end Atom = do
   tell [Arrow start end]
 
-swap :: SafeWorkflowNet
-swap = XOR (Atom :| [LoopSeqXOR Atom Atom Atom])
+---------------------
+
+pattern XOR2 lhs rhs = XOR (lhs :| [rhs])
+pattern AND2 lhs rhs = AND (lhs :| [rhs])
+
+---------------------
+
+namedBasicConstruct :: [(SafeWorkflowNet, [Char])]
+namedBasicConstruct = zip basicConstructs ["atom", "XOR", "AND", "Seq", "LoopXOR", "LoopSeqXor"]
+
+basicConstructs :: [SafeWorkflowNet]
+basicConstructs = [basicAtom, basicXOR, basicAND, basicSeq, basicLoopXOR, basicLoopSeqXOR]
+
+basicAtom :: SafeWorkflowNet
+basicAtom = Atom
+
+basicXOR :: SafeWorkflowNet
+basicXOR = XOR (Atom :| [Atom, Atom])
+
+basicAND :: SafeWorkflowNet
+basicAND = AND (Atom :| [Atom, Atom])
+
+basicSeq :: SafeWorkflowNet
+basicSeq = Seq Atom Atom
+
+basicLoopXOR :: SafeWorkflowNet
+basicLoopXOR = LoopXOR Atom Atom
+
+basicLoopSeqXOR :: SafeWorkflowNet
+basicLoopSeqXOR = LoopSeqXOR Atom Atom Atom
+
+------------------------
+
+namedExampleNets :: [(SafeWorkflowNet, [Char])]
+namedExampleNets = zip exampleNets [ "swap"
+                                   , "concurrent"
+                                   , "amendment"
+                                   , "graph"
+                                   , "novation"
+                                   , "loan-contract"
+                                   , "zcb"
+                                   ]
+
+exampleNets :: [SafeWorkflowNet]
+exampleNets = [ swapNet
+              , concurrentNet
+              , amendmentNet
+              , graphNet
+              , novationNet
+              , loanContractNet
+              , zcbNet
+              ]
+
+swapNet :: SafeWorkflowNet
+swapNet = XOR2 Atom (LoopSeqXOR Atom Atom (XOR2 Atom Atom))
+
+concurrentNet :: SafeWorkflowNet
+concurrentNet = AND (Atom :| [Atom])
+
+amendmentNet :: SafeWorkflowNet
+amendmentNet = Seq (AND (Atom :| [Atom])) (LoopXOR (XOR2 (Seq Atom Atom) Atom) Atom)
+
+graphNet :: SafeWorkflowNet
+graphNet = Seq (XOR2 (Seq Atom Atom) (Seq Atom Atom)) Atom
+
+-- not 1:1, but kind of "isomorphic"
+novationNet :: SafeWorkflowNet
+novationNet = Seq (AND2 Atom Atom) (LoopSeqXOR (AND2 Atom Atom) Atom (AND2 Atom Atom))
+
+loanContractNet :: SafeWorkflowNet
+loanContractNet = Seq Atom (LoopSeqXOR Atom (XOR2 (Seq Atom (LoopXOR Atom Atom)) Atom) Atom)
+
+zcbNet :: SafeWorkflowNet
+zcbNet = XOR2 Atom (LoopSeqXOR Atom (Seq Atom Atom) (XOR2 Atom Atom))
+
+-- can't express with current tools: communication between XOR branches needed (discrepancy -> nomination)
+gasForward :: SafeWorkflowNet
+gasForward = undefined -- Seq Atom (XOR2 () Atom))
