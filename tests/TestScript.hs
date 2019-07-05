@@ -3,6 +3,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE BangPatterns #-}
+{-# LANGUAGE DataKinds #-}
 
 module TestScript
   ( evalTests
@@ -19,6 +20,7 @@ import Test.Tasty.QuickCheck
 import Control.Arrow ((&&&))
 import Control.Monad (fail)
 
+import qualified Data.Map as Map
 import qualified Data.Text as T
 import Numeric.Lossless.Number (Decimal (..))
 import System.FilePath (replaceExtension)
@@ -28,7 +30,9 @@ import qualified Language.FCL.World
 import qualified Language.FCL.Contract as Contract
 
 import Language.FCL.AST
+import Language.FCL.Address
 import Language.FCL.Storage
+import qualified Language.FCL.Asset as Asset
 import qualified Language.FCL.Time as Time
 import qualified Language.FCL.Eval as Eval
 import qualified Language.FCL.Pretty as Pretty
@@ -37,6 +41,7 @@ import qualified Language.FCL.Compile as Compile
 import qualified Language.FCL.Init as Init
 import qualified Language.FCL.Prim as Prim
 import qualified Language.FCL.Hash as Hash
+import qualified Language.FCL.SafeString as SS
 
 import qualified Reference as Ref
 
@@ -117,6 +122,7 @@ evalTests = testGroup "eval" <$> sequence
       script <- injectTestAddresses <$> Parser.parseFile file
       now <- Time.now
       let contractAddr = Ref.testAddr
+      let world = updateWorldWithGlobals now (scriptDefs script)
       contractE <-
         Init.createContract
           contractAddr
@@ -125,14 +131,14 @@ evalTests = testGroup "eval" <$> sequence
           Ref.testPriv
           now
           Ref.testAddr
-          Ref.genesisWorld
+          world
           (Pretty.prettyPrint script)
       case contractE of
         Left err -> panic err
         Right contract -> do
           evalCtx <- initTestEvalCtx (scriptHelpers script)
           calls <- parseCalls <$> readFile (replaceExtension file ".calls")
-          let evalState = Eval.initEvalState contract Ref.genesisWorld
+          let evalState = Eval.initEvalState contract world
           foldM (evalMethod' evalCtx) (Right (contract, evalState)) calls
 
     evalMethod' _ (Left err) _ = pure (Left err)
@@ -158,6 +164,49 @@ evalTests = testGroup "eval" <$> sequence
       = map (either Pretty.panicppr identity . Parser.parseCall)
       . T.lines
 
+    -- | Update the world state with the top-level definitions
+    updateWorldWithGlobals :: Time.Timestamp -> [Def] -> Ref.World
+    updateWorldWithGlobals now defs
+      = foldl' (\w def -> case def of
+                   GlobalDef TAccount _ (Name nm) (Located _ (ELit (Located _ (LAccount addr))))
+                     -> w { Ref.accounts = Map.insert addr (Ref.Account (Ref.testPub) addr "America/New_York" mempty) (Ref.accounts w) }
+                   GlobalDef (TAsset (TNum (NPDecimalPlaces n))) _ (Name nm) (Located _ (ELit (Located _ (LAsset addr))))
+                     -> w { Ref.assets = Map.insert addr (Ref.Asset
+                                                           nm
+                                                           Ref.testAddr
+                                                           now
+                                                           initialBalance
+                                                           shareHoldings
+                                                           (getRef nm)
+                                                           (Asset.Fractional n)
+                                                           addr
+                                                           mempty
+                                                         ) (Ref.assets w)
+                          }
+
+                   _ -> w
+               ) Ref.genesisWorld defs
+        where
+          getRef :: Text -> Maybe Ref.Ref
+          getRef nm = case nm of
+                        "usd" -> pure Ref.USD
+                        "gbp" -> pure Ref.GBP
+                        "eur" -> pure Ref.EUR
+                        "chf" -> pure Ref.CHF
+                        "token" -> pure Ref.Token
+                        "security" -> pure Ref.Security
+                        _ -> Nothing
+
+          getAllAccounts :: [Address AAccount]
+          getAllAccounts = foldl' (\acc def -> case def of
+                                      GlobalDef TAccount _ _ (Located _ (ELit (Located _ (LAccount addr)))) -> addr : acc
+                                      _ -> acc
+                                  ) mempty defs
+
+          initialBalance = Asset.Balance 100000
+          shareHoldings :: Ref.Holdings
+          shareHoldings = Ref.Holdings (Map.fromList $ (\addr -> (Asset.AccountHolder addr, Asset.Balance 100)) <$> getAllAccounts)
+
     injectTestAddresses :: Script -> Script
     injectTestAddresses s = s{ scriptDefs = testAddresses <> scriptDefs s }
       where
@@ -166,6 +215,7 @@ evalTests = testGroup "eval" <$> sequence
             , ("testAddr2", LAccount Ref.testAddr2)
             , ("testAddr3", LAccount Ref.testAddr3)
             ]
+
     initTestEvalCtx :: [Helper] -> IO Eval.EvalCtx
     initTestEvalCtx helpers = do
       now <- Time.now

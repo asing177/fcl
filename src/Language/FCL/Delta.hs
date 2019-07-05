@@ -12,6 +12,7 @@ module Language.FCL.Delta (
   -- ** Delta operations
   Delta(..),
   AssetOp(..),
+  DeltaCtx(..),
 
   -- ** Printing
   dumpDeltas,
@@ -23,6 +24,7 @@ import Language.FCL.Asset (Balance)
 import Language.FCL.AST
 import Language.FCL.Address
 import Language.FCL.Pretty
+import Language.FCL.Time
 import Language.FCL.Error (EvalFail(..))
 
 -------------------------------------------------------------------------------
@@ -36,7 +38,7 @@ import Language.FCL.Error (EvalFail(..))
 data Delta
   -- Contract state changes
   = ModifyGlobal Name Value       -- ^ Modify a contract state variable
-  | ModifyAsset AssetOp           -- ^ Modify an asset
+  | ModifyAsset DeltaCtx AssetOp           -- ^ Modify an asset
   | ModifyState WorkflowState     -- ^ Set a new workflow state
 
   -- Transactions
@@ -45,7 +47,17 @@ data Delta
 
   -- Evaluation failures
   | Failure EvalFail
-  deriving (Eq, Show, Generic)
+  deriving (Eq, Show)
+
+data DeltaCtx
+  = DeltaCtx
+    { dctxMethodNm :: Maybe Name
+    }
+  deriving (Eq, Show)
+
+instance Pretty DeltaCtx where
+  ppr (DeltaCtx (Just dctxMethodNm)) = ppr dctxMethodNm
+  ppr (DeltaCtx Nothing) = ppr ("No method found" :: Text)
 
 data AssetOp
   = TransferTo {
@@ -79,21 +91,30 @@ data AssetOp
 -- Printing
 -------------------------------------------------------------------------------
 
+
+instance Pretty [Delta] where
+  ppr = blockWith vcat '[' ']' . fmap ppr
+
 -- | Pretty print delta
 instance Pretty Delta where
   ppr = \case
     ModifyGlobal nm val -> "global" <+> ppr nm <+> "=" <+> ppr val
     ModifyState st -> "state" <+> "=" <+> ppr st
 
-    ModifyAsset op -> case op of
-      TransferTo asset amt holder contract       ->
-        "transferTo" <+> ppr asset
-      TransferFrom asset amt holder contract     ->
-        "transferFrom" <+> ppr asset
-      TransferHoldings asset amt holder contract ->
-        "transferHoldings" <+> ppr asset
-      Revert asset                               ->
-        "revert" <+> ppr asset
+    ModifyAsset ctx op -> do
+      case ctx of
+        DeltaCtx Nothing -> pprOp op
+        DeltaCtx (Just nm) -> "calling method" <+> "\"" <> ppr (unName nm) <> "\"" <+> "causes" <+> pprOp op
+        where
+          pprOp op = case op of
+            TransferTo asset amt holder contract       ->
+              "transferTo" <+> ppr asset
+            TransferFrom asset amt holder contract     ->
+              "transferFrom" <+> ppr asset
+            TransferHoldings asset amt holder contract ->
+              "transferHoldings" <+> ppr asset
+            Revert asset                               ->
+              "revert" <+> ppr asset
 
     Atomic a1 a2 -> "atomic" <+> "{" <+> ppr a1 <+> "," <+> ppr a2 <+> "}"
     Terminate -> "terminate"

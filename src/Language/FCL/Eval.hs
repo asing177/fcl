@@ -206,8 +206,8 @@ updateState newState = modify' $ \s -> s { workflowState = newState }
 getState :: (EvalM world) WorkflowState
 getState = gets workflowState
 
-setCurrentMethod :: Method -> (EvalM world) ()
-setCurrentMethod m = modify' $ \s -> s { currentMethod = Just m }
+setCurrentMethod :: Maybe Method -> (EvalM world) ()
+setCurrentMethod m = modify' $ \s -> s { currentMethod = m }
 
 -- | Emit a delta
 emitDelta :: Delta.Delta -> (EvalM world) ()
@@ -792,8 +792,10 @@ evalAssetPrim loc assetPrimOp args =
         Left err -> throwError $ AssetIntegrity $ show err
         Right newWorld -> setWorld newWorld
 
+      m <- (unLoc . methodName <$>) <$> gets currentMethod
+
       -- Emit the delta denoting the world state modification
-      emitDelta $ Delta.ModifyAsset $
+      emitDelta $ Delta.ModifyAsset (Delta.DeltaCtx m) $
         Delta.TransferTo assetAddr holdings senderAddr contractAddr
 
       noop
@@ -823,8 +825,10 @@ evalAssetPrim loc assetPrimOp args =
         Left err -> throwError $ AssetIntegrity $ show err
         Right newWorld -> setWorld newWorld
 
+      m <- (unLoc . methodName <$>) <$> gets currentMethod
+
       -- Emit the delta denoting the world state modification
-      emitDelta $ Delta.ModifyAsset $
+      emitDelta $ Delta.ModifyAsset (Delta.DeltaCtx m) $
         Delta.TransferFrom assetAddr holdings accAddr contractAddr
 
       noop
@@ -873,8 +877,10 @@ evalAssetPrim loc assetPrimOp args =
         Left err -> throwError $ AssetIntegrity $ show err
         Right newWorld -> setWorld newWorld
 
+      m <- (unLoc . methodName <$>) <$> gets currentMethod
+
       -- Emit the delta denoting the world state modification
-      emitDelta $ Delta.ModifyAsset $
+      emitDelta $ Delta.ModifyAsset (Delta.DeltaCtx m) $
         Delta.TransferHoldings fromAddr assetAddr holdings toAddr
 
       noop
@@ -1055,13 +1061,15 @@ checkGraph = do
 -- this is done by 'Contract.callableMethods'
 evalMethod :: (World world, Show (AccountError' world), Show (AssetError' world)) => Method -> [Value] -> (EvalM world) Value
 evalMethod meth@(Method _ _ nm argTyps body) args = do
-    setCurrentMethod meth
+    setCurrentMethod (Just meth)
     checkPreconditions meth
     checkGraph
     when (numArgs /= numArgsGiven)
          (throwError $ MethodArityError (locVal nm) numArgs numArgsGiven)
     forM_ (zip argNames args) . uncurry $ insertTempVar
-    evalLExpr body
+    val <- evalLExpr body
+    setCurrentMethod Nothing
+    pure val
   where
     numArgs = length argTyps
     numArgsGiven = length args

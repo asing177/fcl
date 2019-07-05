@@ -20,6 +20,7 @@ import Protolude
 import Test.QuickCheck
 import Unsafe (unsafeFromJust)
 import System.IO.Unsafe (unsafePerformIO)
+import Control.Exception (catch)
 
 import qualified Crypto.PubKey.ECC.Types as ECC
 import qualified Crypto.PubKey.ECC.ECDSA as ECDSA
@@ -274,31 +275,31 @@ instance World.World World where
   type AssetError' World = AssetError
 
   transferAsset assetAddr from to balance world = do
-    validateTransferAddrs world from to
+    -- validateTransferAddrs world from to
     case World.lookupAsset assetAddr world of
       Left err -> Left $ AssetDoesNotExist assetAddr
       Right asset -> do
         asset' <- transferHoldings from to balance asset world
         Right $ world { assets = Map.insert assetAddr asset' (assets world) }
-      where
-        validateTransferAddrs
-          :: World
-          -> Holder -- ^ Sender Address (account or contract)
-          -> Holder -- ^ Receiver Address (account or contract)
-          -> Either AssetError ()
-        validateTransferAddrs world from to = void $ do
-          -- Check if origin account/contract exists
-          first (const $ SenderDoesNotExist from) $
-            case World.lookupAccount (holderToAccount from) world of
-              Left err -> second (const ()) $
-                World.lookupContract (holderToContract from) world
-              Right acc -> Right ()
-          -- Check if toAddr account/contract exists
-          first (const $ ReceiverDoesNotExist to) $
-            case World.lookupAccount (holderToAccount to) world of
-              Left err -> second (const ()) $
-                World.lookupContract (holderToContract to) world
-              Right acc -> Right ()
+      -- where
+      --   validateTransferAddrs
+      --     :: World
+      --     -> Holder -- ^ Sender Address (account or contract)
+      --     -> Holder -- ^ Receiver Address (account or contract)
+      --     -> Either AssetError ()
+      --   validateTransferAddrs world from to = void $ do
+      --     -- Check if origin account/contract exists
+      --     first (const $ SenderDoesNotExist from) $
+      --       catch
+      --       (second (const ()) (World.lookupAccount (holderToAccount from) world))
+      --       (\_ -> World.lookupContract (holderToContract from) world >> Right ())
+
+      --     -- Check if toAddr account/contract exists
+      --     first (const $ ReceiverDoesNotExist to) $
+      --       case traceShow ("TO", to) World.lookupAccount (holderToAccount to) world of
+      --         Left err -> second (const ()) $
+      --           World.lookupContract (holderToContract to) world
+      --         Right acc -> Right ()
 
   circulateAsset assetAddr txOrigin amount world =
     case World.lookupAsset assetAddr world of
