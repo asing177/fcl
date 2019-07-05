@@ -53,11 +53,13 @@ fileWriteSVG path trs = transitionsToSVG trs >>= writeFile (replaceExtension pat
 
 safeWfNetWriteSVG :: FilePath -> SafeWorkflowNet -> [Char] -> IO ()
 safeWfNetWriteSVG path swf name = do
-  if isSafeWorkflowSound swf then do
-    let trs = constructTransitions swf
-    fileWriteSVG path trs
-  else
+  let trs  = constructTransitions swf
+      errs = soundnessCheck swf
+  fileWriteSVG path trs
+  when (not $ null errs) $ do
     print $ "Workflow is unsound: " <> name
+    print $ ppr errs
+    putStrLn ("" :: [Char])
 
 examplesRelPath :: FilePath
 examplesRelPath = "../../../examples"

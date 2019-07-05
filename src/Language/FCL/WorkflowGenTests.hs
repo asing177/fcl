@@ -6,6 +6,7 @@ import Protolude
 
 import qualified Data.Set as S
 
+import Language.FCL.Pretty
 import Language.FCL.ReachabilityGraph
 import Language.FCL.WorkflowGenExamples
 
@@ -15,6 +16,13 @@ isSafeWorkflowSound = null
                     . reachabilityGraph
                     . S.fromList
                     . constructTransitions
+
+soundnessCheck :: SafeWorkflowNet -> [WFError]
+soundnessCheck = S.toList
+               . fst
+               . reachabilityGraph
+               . S.fromList
+               . constructTransitions
 
 basicNetsAreSound :: [[Char]]
 basicNetsAreSound = map snd
