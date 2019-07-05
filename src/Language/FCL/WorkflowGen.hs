@@ -1,4 +1,6 @@
 {-# LANGUAGE PatternSynonyms #-}
+{-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE TypeApplications #-}
 module Language.FCL.WorkflowGen
   ( module Language.FCL.WorkflowGen
   ) where
@@ -13,6 +15,9 @@ import qualified Data.List.NonEmpty as NE
 
 import Control.Monad.Gen
 import Control.Monad.Writer
+
+import Test.QuickCheck hiding (Gen)
+import qualified Test.QuickCheck as QC
 
 import Language.FCL.AST
 
@@ -48,7 +53,7 @@ data SafeWorkflowNet
   , gXorMToLhs  :: (Maybe SafeWorkflowNet)
   }
   | Atom
-  deriving (Eq, Ord, Show)
+  deriving (Eq, Ord, Show, Generic)
 
 {-# COMPLETE XOR, AND, Seq, SimpleLoop, Loop, GenXOR #-}
 pattern XOR3 a b c   = XOR a (XOR b c)
@@ -108,3 +113,56 @@ constructTransitionsM start end GenXOR{..} = do
     constructTransitionsM rhsP lhsP (fromJust gXorMToLhs)
 constructTransitionsM start end Atom = do
   tell [Arrow start end]
+
+instance Arbitrary a => Arbitrary (NonEmpty a) where
+  arbitrary = do
+    xs <- getNonEmpty <$> arbitrary @(QC.NonEmptyList a)
+    case xs of
+      (x:xs) -> return (x :| xs)
+      _      -> panic "QuickCheck generated an empty list for a NonEmptyList"
+
+  shrink (x :| xs)
+    | yss <- shrink (QC.NonEmpty (x:xs))
+    = (flip map) yss $ \ys ->
+        case getNonEmpty ys of
+          (z:zs) -> (z :| zs)
+          _      -> panic "QuickCheck shrank a NonEmptyList into an empty list"
+
+instance Arbitrary SafeWorkflowNet where
+  arbitrary = sized genSWFNet where
+    -- | Sized `SafeWorkflowNet generation
+    genSWFNet :: Int -> QC.Gen SafeWorkflowNet
+    genSWFNet 0 = pure Atom
+    genSWFNet n | n > 0 = oneof
+      [ AND <$> someSWFNets n
+      , XOR <$> genSWFNet (n `div` 2) <*> genSWFNet (n `div` 2)
+      , XOR3 <$> genSWFNet (n `div` 3) <*> genSWFNet (n `div` 3) <*> genSWFNet (n `div` 3)
+      , Seq <$> genSWFNet (n `div` 2) <*> genSWFNet (n `div` 2)
+      , SimpleLoop <$> genSWFNet (n `div` 2) <*> genSWFNet (n `div` 2)
+      , Loop <$> genSWFNet (n `div` 3) <*> genSWFNet (n `div` 3) <*> genSWFNet (n `div` 3)
+      -- crops size 3/4 of the time
+      , GenXOR <$> genSWFNet (n `div` 6)
+               <*> genSWFNet (n `div` 6)
+               <*> genSWFNet (n `div` 6)
+               <*> genSWFNet (n `div` 6)
+               <*> mGenSWFNet (n `div` 6)
+               <*> mGenSWFNet (n `div` 6)
+      , pure Atom
+      ]
+    genSWFNet n = panic $ "Negative value for SafeWorkflowNet generation: " <> show n
+
+    -- | Generates `SafeWorkflowNet`s of summed size `n`.
+    someSWFNets :: Int -> QC.Gen (NonEmpty SafeWorkflowNet)
+    someSWFNets n = do
+      k <- frequency [ (60, pure 2)
+                     , (25, pure 3)
+                     , (10, pure 4)
+                     , (5,  pure 5)
+                     ]
+      xs <- replicateM k (genSWFNet (n `div` k))
+      pure $ NE.fromList xs
+
+    mGenSWFNet :: Int -> QC.Gen (Maybe SafeWorkflowNet)
+    mGenSWFNet n = resize n (arbitrary @(Maybe SafeWorkflowNet))
+
+  shrink = genericShrink
