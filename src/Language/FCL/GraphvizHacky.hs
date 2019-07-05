@@ -70,6 +70,12 @@ examplesGenExamplesRelPath = examplesGenRelPath </> "examples"
 netsToSVG :: FilePath -> [(SafeWorkflowNet, [Char])] -> IO ()
 netsToSVG path = mapM_ (\(net, name) -> safeWfNetWriteSVG (path </> name) net)
 
+generateBasicNetsSVGs :: IO ()
+generateBasicNetsSVGs = netsToSVG examplesGenBasicRelPath namedBasicNets
+
+generateExampleNetsSVGs :: IO ()
+generateExampleNetsSVGs = netsToSVG examplesGenExamplesRelPath namedExampleNets
+
 type Label = Name
 type Id = Text
 

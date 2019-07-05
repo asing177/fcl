@@ -5,6 +5,7 @@ module Language.FCL.WorkflowGen
 
 import Protolude
 
+import Data.Maybe
 import Data.Set (Set(..))
 import Data.List.NonEmpty (NonEmpty(..))
 import qualified Data.Set as S
@@ -19,17 +20,34 @@ import Language.FCL.ReachabilityGraph
 -- NOTE: no XOR split from "multiple" places
 -- (since we are working with free choice nets, we can AND merge those places -- sort of)
 -- NOTE: can't return back to a place that easily, only through loop
--- NOTE: can't return back to different places from a loop (novation.s)
+-- NOTE: can't return back to different places from a loop (eg.: novation.s)
+-- NOTE: syncronisation points are always singleton states (places) (eg.: novation.s)
 data SafeWorkflowNet
-  = XOR (NonEmpty SafeWorkflowNet)
-  | AND (NonEmpty SafeWorkflowNet)
-  | Seq SafeWorkflowNet SafeWorkflowNet
+  = XOR
+  { xorBranches :: NonEmpty SafeWorkflowNet
+  }
+  | AND
+  { andBranches :: NonEmpty SafeWorkflowNet
+  }
+  | Seq
+  { seqLhs :: SafeWorkflowNet
+  , seqRhs :: SafeWorkflowNet
+  }
   -- looping workflow with option to exit from start
   -- XOR splits from the beginning
-  | LoopXOR SafeWorkflowNet SafeWorkflowNet
-  -- looping workflow with option to exit from start and from the body of the loop
-  -- XOR splits from the body
-  | LoopSeqXOR SafeWorkflowNet SafeWorkflowNet SafeWorkflowNet
+  | Loop
+  { loopIn   :: Maybe SafeWorkflowNet
+  , loopExit :: SafeWorkflowNet
+  , loopOut  :: SafeWorkflowNet
+  }
+  | GenXOR
+  { gxorLhsIn   :: SafeWorkflowNet
+  , gxorLhsOut  :: SafeWorkflowNet
+  , gxorRhsIn   :: SafeWorkflowNet
+  , gxorRhsOut  :: SafeWorkflowNet
+  , gxorMToRhs  :: (Maybe SafeWorkflowNet)
+  , gxorMToLhs  :: (Maybe SafeWorkflowNet)
+  }
   | Atom
   deriving (Eq, Ord, Show)
 
@@ -111,21 +129,57 @@ constructTransitionsM start end (LoopSeqXOR loopIn exit loopOut) = do
   constructTransitionsM start inBetween loopIn
   constructTransitionsM inBetween end   exit
   constructTransitionsM inBetween start loopOut
+constructTransitionsM start end GenXOR{..} = do
+  lhsP <- genWfState
+  rhsP <- genWfState
+  when (any isJust [gxorMToRhs, gxorMToLhs]) $ do
+    constructTransitionsM start lhsP gxorLhsIn
+    constructTransitionsM lhsP  end  gxorLhsOut
+    constructTransitionsM start rhsP gxorRhsIn
+    constructTransitionsM rhsP  end  gxorRhsOut
+  when (isJust gxorMToRhs) $
+    constructTransitionsM lhsP rhsP (fromJust gxorMToRhs)
+  when (isJust gxorMToLhs) $
+    constructTransitionsM rhsP lhsP (fromJust gxorMToLhs)
 constructTransitionsM start end Atom = do
   tell [Arrow start end]
 
 ---------------------
 
+{-# COMPLETE XOR, AND, Seq, LoopXOR, LoopSeqXOR, GenXOR  #-}
 pattern XOR2 lhs rhs = XOR (lhs :| [rhs])
+pattern XOR3 a b c   = XOR (a   :| [b,c])
 pattern AND2 lhs rhs = AND (lhs :| [rhs])
+pattern LoopXOR    loop   exit         = Loop Nothing       exit loop
+pattern LoopSeqXOR loopIn exit loopOut = Loop (Just loopIn) exit loopOut
 
 ---------------------
 
-namedBasicConstruct :: [(SafeWorkflowNet, [Char])]
-namedBasicConstruct = zip basicConstructs ["atom", "XOR", "AND", "Seq", "LoopXOR", "LoopSeqXor"]
+namedBasicNets :: [(SafeWorkflowNet, [Char])]
+namedBasicNets = zip basicNets [ "atom"
+                               , "XOR"
+                               , "AND"
+                               , "Seq"
+                               , "LoopXOR"
+                               , "LoopSeqXor"
+                               , "compeleteGenXOR"
+                               , "toRightGenXOR"
+                               , "toLeftGenXOR"
+                               , "simpleGenXOR"
+                               ]
 
-basicConstructs :: [SafeWorkflowNet]
-basicConstructs = [basicAtom, basicXOR, basicAND, basicSeq, basicLoopXOR, basicLoopSeqXOR]
+basicNets :: [SafeWorkflowNet]
+basicNets = [ basicAtom
+            , basicXOR
+            , basicAND
+            , basicSeq
+            , basicLoopXOR
+            , basicLoopSeqXOR
+            , compeleteGenXOR
+            , toRightGenXOR
+            , toLeftGenXOR
+            , simpleGenXOR
+            ]
 
 basicAtom :: SafeWorkflowNet
 basicAtom = Atom
@@ -145,6 +199,18 @@ basicLoopXOR = LoopXOR Atom Atom
 basicLoopSeqXOR :: SafeWorkflowNet
 basicLoopSeqXOR = LoopSeqXOR Atom Atom Atom
 
+compeleteGenXOR :: SafeWorkflowNet
+compeleteGenXOR = GenXOR Atom Atom Atom Atom (Just Atom) (Just Atom)
+
+toRightGenXOR :: SafeWorkflowNet
+toRightGenXOR = GenXOR Atom Atom Atom Atom (Just Atom) Nothing
+
+toLeftGenXOR :: SafeWorkflowNet
+toLeftGenXOR = GenXOR Atom Atom Atom Atom Nothing (Just Atom)
+
+simpleGenXOR :: SafeWorkflowNet
+simpleGenXOR = GenXOR Atom Atom Atom Atom Nothing Nothing
+
 ------------------------
 
 namedExampleNets :: [(SafeWorkflowNet, [Char])]
@@ -155,6 +221,9 @@ namedExampleNets = zip exampleNets [ "swap"
                                    , "novation"
                                    , "loan-contract"
                                    , "zcb"
+                                   , "product"
+                                   , "gas-forward-simple"
+                                   , "gas-forward"
                                    ]
 
 exampleNets :: [SafeWorkflowNet]
@@ -165,6 +234,9 @@ exampleNets = [ swapNet
               , novationNet
               , loanContractNet
               , zcbNet
+              , productNet
+              , gasForwardSimpleNet
+              , gasForwardNet
               ]
 
 swapNet :: SafeWorkflowNet
@@ -190,5 +262,15 @@ zcbNet :: SafeWorkflowNet
 zcbNet = XOR2 Atom (LoopSeqXOR Atom (Seq Atom Atom) (XOR2 Atom Atom))
 
 -- can't express with current tools: communication between XOR branches needed (discrepancy -> nomination)
-gasForward :: SafeWorkflowNet
-gasForward = undefined -- Seq Atom (XOR2 () Atom))
+-- we need GenXOR
+gasForwardSimpleNet :: SafeWorkflowNet
+gasForwardSimpleNet = Seq Atom (XOR2 (GenXOR Atom (LoopXOR Atom Atom) Atom Atom (Just Atom) Nothing) Atom)
+
+gasForwardNet :: SafeWorkflowNet
+gasForwardNet = Seq Atom (XOR2 (GenXOR Atom (LoopXOR Atom Atom) Atom gasForwardNominationSubNet (Just Atom) Nothing) Atom)
+
+gasForwardNominationSubNet :: SafeWorkflowNet
+gasForwardNominationSubNet = LoopXOR Atom (Seq (AND2 Atom (LoopXOR Atom Atom)) (LoopXOR Atom Atom))
+
+productNet :: SafeWorkflowNet
+productNet = Seq Atom (XOR2 (Seq Atom (LoopXOR (XOR3 Atom Atom Atom) (XOR2 (Seq Atom (XOR3 (Seq Atom Atom) (Seq Atom Atom) (Seq Atom Atom))) (LoopSeqXOR Atom (Seq Atom Atom) (XOR2 Atom (Seq Atom Atom)))))) Atom)
