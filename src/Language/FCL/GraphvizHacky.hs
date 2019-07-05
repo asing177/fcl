@@ -29,6 +29,7 @@ import Language.FCL.Pretty (hsep, prettyPrint, ppr, panicppr)
 import Language.FCL.ReachabilityGraph (allPlaces)
 import Language.FCL.Utils ((?))
 import Language.FCL.WorkflowGenExamples
+import Language.FCL.WorkflowGenTests
 
 type SVG = Text
 type Graphviz = Text
@@ -50,8 +51,13 @@ callDot g = do
 fileWriteSVG :: FilePath -> [Transition] -> IO ()
 fileWriteSVG path trs = transitionsToSVG trs >>= writeFile (replaceExtension path ".svg")
 
-safeWfNetWriteSVG :: FilePath -> SafeWorkflowNet -> IO ()
-safeWfNetWriteSVG path = fileWriteSVG path . constructTransitions
+safeWfNetWriteSVG :: FilePath -> SafeWorkflowNet -> [Char] -> IO ()
+safeWfNetWriteSVG path swf name = do
+  if isSafeWorkflowSound swf then do
+    let trs = constructTransitions swf
+    fileWriteSVG path trs
+  else
+    print $ "Workflow is unsound: " <> name
 
 examplesRelPath :: FilePath
 examplesRelPath = "../../../examples"
@@ -65,14 +71,20 @@ examplesGenBasicRelPath = examplesGenRelPath </> "basic"
 examplesGenExamplesRelPath :: FilePath
 examplesGenExamplesRelPath = examplesGenRelPath </> "examples"
 
+examplesGenArbitraryRelPath :: FilePath
+examplesGenArbitraryRelPath = examplesGenRelPath </> "arbitrary"
+
 netsToSVG :: FilePath -> [(SafeWorkflowNet, [Char])] -> IO ()
-netsToSVG path = mapM_ (\(net, name) -> safeWfNetWriteSVG (path </> name) net)
+netsToSVG path = mapM_ (\(net, name) -> safeWfNetWriteSVG (path </> name) net name)
 
 generateBasicNetsSVGs :: IO ()
 generateBasicNetsSVGs = netsToSVG examplesGenBasicRelPath namedBasicNets
 
 generateExampleNetsSVGs :: IO ()
 generateExampleNetsSVGs = netsToSVG examplesGenExamplesRelPath namedExampleNets
+
+generateArbitraryNetsSVGs :: IO ()
+generateArbitraryNetsSVGs = netsToSVG examplesGenArbitraryRelPath namedArbitraryNets
 
 type Label = Name
 type Id = Text
