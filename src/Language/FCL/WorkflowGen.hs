@@ -17,85 +17,42 @@ import Control.Monad.Writer
 import Language.FCL.AST
 import Language.FCL.ReachabilityGraph
 
--- NOTE: no XOR split from "multiple" places
--- (since we are working with free choice nets, we can AND merge those places -- sort of)
--- NOTE: can't return back to a place that easily, only through loop
 -- NOTE: can't return back to different places from a loop (eg.: novation.s)
 -- NOTE: syncronisation points are always singleton states (places) (eg.: novation.s)
+-- NOTE: a loop is hidden inside GenXOR
 data SafeWorkflowNet
-  = XOR
-  { xorBranches :: NonEmpty SafeWorkflowNet
-  }
-  | AND
-  { andBranches :: NonEmpty SafeWorkflowNet
-  }
+  = XOR { xorBranches :: NonEmpty SafeWorkflowNet }
+  | AND { andBranches :: NonEmpty SafeWorkflowNet }
   | Seq
   { seqLhs :: SafeWorkflowNet
   , seqRhs :: SafeWorkflowNet
   }
-  -- looping workflow with option to exit from start
-  -- XOR splits from the beginning
-  | Loop
-  { loopIn   :: Maybe SafeWorkflowNet
-  , loopExit :: SafeWorkflowNet
-  , loopOut  :: SafeWorkflowNet
+  -- looping construct with option to exit from the body of the loop
+  -- (can also exit from the start -- no gLoopIn)
+  | GenLoop
+  { gLoopIn   :: Maybe SafeWorkflowNet
+  , gLoopExit :: SafeWorkflowNet
+  , gLoopOut  :: SafeWorkflowNet
   }
+  -- GenXOR lhsIn lhsOut rhsIn rhsOut Nothing Nothing is equivalent to
+  -- XOR (Seq lhsIn lhsOut) (Seq rhsIn rhsOut)
   | GenXOR
-  { gxorLhsIn   :: SafeWorkflowNet
-  , gxorLhsOut  :: SafeWorkflowNet
-  , gxorRhsIn   :: SafeWorkflowNet
-  , gxorRhsOut  :: SafeWorkflowNet
-  , gxorMToRhs  :: (Maybe SafeWorkflowNet)
-  , gxorMToLhs  :: (Maybe SafeWorkflowNet)
+  { gXorLhsIn   :: SafeWorkflowNet
+  , gXorLhsOut  :: SafeWorkflowNet
+  , gXorRhsIn   :: SafeWorkflowNet
+  , gXorRhsOut  :: SafeWorkflowNet
+  -- communication between the different bracnhes
+  , gXorMToRhs  :: (Maybe SafeWorkflowNet)
+  , gXorMToLhs  :: (Maybe SafeWorkflowNet)
   }
   | Atom
   deriving (Eq, Ord, Show)
-
-data IncompleteTransition
-  = From WorkflowState
-  | To WorkflowState
-  | Empty
-  deriving (Eq, Ord, Show)
-
-incompleteFrom :: Name -> IncompleteTransition
-incompleteFrom n = From (mkWfState n)
-
-incompleteTo :: Name -> IncompleteTransition
-incompleteTo n = To (mkWfState n)
 
 mkWfState :: Name -> WorkflowState
 mkWfState = fromPlace . makePlace
 
 fromPlace :: Place -> WorkflowState
 fromPlace = unsafeWorkflowState . S.singleton
-
-mkTranstion :: Name -> Name -> Transition
-mkTranstion lhs rhs = Arrow (mkWfState lhs) (mkWfState rhs)
-
-plugTransition :: Name -> Name -> IncompleteTransition -> Transition
-plugTransition _ to (From wfSt) = Arrow wfSt (mkWfState to)
-plugTransition from _ (To wfSt) = Arrow (mkWfState from) wfSt
-plugTransition from to Empty    = mkTranstion from to
-
-plugFrom :: Name -> IncompleteTransition -> Either IncompleteTransition Transition
-plugFrom from (To to)      = Right $ Arrow (mkWfState from) to
-plugFrom from itr@(From{}) = Left itr
-plugFrom from Empty        = Left $ From (mkWfState from)
-
-plugTo :: Name -> IncompleteTransition -> Either IncompleteTransition Transition
-plugTo to (From from) = Right $ Arrow (mkWfState to) from
-plugTo to itr@(To{})  = Left itr
-plugTo to Empty       = Left $ To (mkWfState to)
-
--- plugWithPlace :: Place -> IncompleteTransition -> Place -> Transition
--- plugWithPlace _ (From wfSt) p = Arrow wfSt (fromPlace p)
--- plugWithPlace p (To wfSt) _ = Arrow (fromPlace p) wfSt
--- plugWithPlace from Empty to = Arrow (fromPlace from) (fromPlace to)
-
-plugWithState :: WorkflowState -> WorkflowState -> IncompleteTransition -> Transition
-plugWithState _ to (From wfSt) = Arrow wfSt to
-plugWithState from _ (To wfSt) = Arrow from wfSt
-plugWithState from to Empty    = Arrow from to
 
 genName :: (MonadGen e m, Show e) => m Name
 genName = Name . show <$> gen
@@ -121,37 +78,36 @@ constructTransitionsM start end (Seq lhs rhs) = do
   inBetween <- genWfState
   constructTransitionsM start inBetween lhs
   constructTransitionsM inBetween end   rhs
-constructTransitionsM start end (LoopXOR loop exit) = do
+constructTransitionsM start end (SimpleLoop loop exit) = do
   constructTransitionsM start start loop
   constructTransitionsM start end   exit
-constructTransitionsM start end (LoopSeqXOR loopIn exit loopOut) = do
+constructTransitionsM start end (Loop gLoopIn exit gLoopOut) = do
   inBetween <- genWfState
-  constructTransitionsM start inBetween loopIn
+  constructTransitionsM start inBetween gLoopIn
   constructTransitionsM inBetween end   exit
-  constructTransitionsM inBetween start loopOut
+  constructTransitionsM inBetween start gLoopOut
 constructTransitionsM start end GenXOR{..} = do
   lhsP <- genWfState
   rhsP <- genWfState
-  when (any isJust [gxorMToRhs, gxorMToLhs]) $ do
-    constructTransitionsM start lhsP gxorLhsIn
-    constructTransitionsM lhsP  end  gxorLhsOut
-    constructTransitionsM start rhsP gxorRhsIn
-    constructTransitionsM rhsP  end  gxorRhsOut
-  when (isJust gxorMToRhs) $
-    constructTransitionsM lhsP rhsP (fromJust gxorMToRhs)
-  when (isJust gxorMToLhs) $
-    constructTransitionsM rhsP lhsP (fromJust gxorMToLhs)
+  constructTransitionsM start lhsP gXorLhsIn
+  constructTransitionsM lhsP  end  gXorLhsOut
+  constructTransitionsM start rhsP gXorRhsIn
+  constructTransitionsM rhsP  end  gXorRhsOut
+  when (isJust gXorMToRhs) $
+    constructTransitionsM lhsP rhsP (fromJust gXorMToRhs)
+  when (isJust gXorMToLhs) $
+    constructTransitionsM rhsP lhsP (fromJust gXorMToLhs)
 constructTransitionsM start end Atom = do
   tell [Arrow start end]
 
 ---------------------
 
-{-# COMPLETE XOR, AND, Seq, LoopXOR, LoopSeqXOR, GenXOR  #-}
+{-# COMPLETE XOR, AND, Seq, SimpleLoop, Loop, GenXOR  #-}
 pattern XOR2 lhs rhs = XOR (lhs :| [rhs])
 pattern XOR3 a b c   = XOR (a   :| [b,c])
 pattern AND2 lhs rhs = AND (lhs :| [rhs])
-pattern LoopXOR    loop   exit         = Loop Nothing       exit loop
-pattern LoopSeqXOR loopIn exit loopOut = Loop (Just loopIn) exit loopOut
+pattern SimpleLoop loop   exit         = GenLoop Nothing       exit loop
+pattern Loop       gLoopIn exit gLoopOut = GenLoop (Just gLoopIn) exit gLoopOut
 
 ---------------------
 
@@ -160,8 +116,8 @@ namedBasicNets = zip basicNets [ "atom"
                                , "XOR"
                                , "AND"
                                , "Seq"
-                               , "LoopXOR"
-                               , "LoopSeqXor"
+                               , "SimpleLoop"
+                               , "Loop"
                                , "compeleteGenXOR"
                                , "toRightGenXOR"
                                , "toLeftGenXOR"
@@ -173,8 +129,8 @@ basicNets = [ basicAtom
             , basicXOR
             , basicAND
             , basicSeq
-            , basicLoopXOR
-            , basicLoopSeqXOR
+            , basicSimpleLoop
+            , basicLoop
             , compeleteGenXOR
             , toRightGenXOR
             , toLeftGenXOR
@@ -193,11 +149,11 @@ basicAND = AND (Atom :| [Atom, Atom])
 basicSeq :: SafeWorkflowNet
 basicSeq = Seq Atom Atom
 
-basicLoopXOR :: SafeWorkflowNet
-basicLoopXOR = LoopXOR Atom Atom
+basicSimpleLoop :: SafeWorkflowNet
+basicSimpleLoop = SimpleLoop Atom Atom
 
-basicLoopSeqXOR :: SafeWorkflowNet
-basicLoopSeqXOR = LoopSeqXOR Atom Atom Atom
+basicLoop :: SafeWorkflowNet
+basicLoop = Loop Atom Atom Atom
 
 compeleteGenXOR :: SafeWorkflowNet
 compeleteGenXOR = GenXOR Atom Atom Atom Atom (Just Atom) (Just Atom)
@@ -240,37 +196,37 @@ exampleNets = [ swapNet
               ]
 
 swapNet :: SafeWorkflowNet
-swapNet = XOR2 Atom (LoopSeqXOR Atom Atom (XOR2 Atom Atom))
+swapNet = XOR2 Atom (Loop Atom Atom (XOR2 Atom Atom))
 
 concurrentNet :: SafeWorkflowNet
 concurrentNet = AND (Atom :| [Atom])
 
 amendmentNet :: SafeWorkflowNet
-amendmentNet = Seq (AND (Atom :| [Atom])) (LoopXOR (XOR2 (Seq Atom Atom) Atom) Atom)
+amendmentNet = Seq (AND (Atom :| [Atom])) (SimpleLoop (XOR2 (Seq Atom Atom) Atom) Atom)
 
 graphNet :: SafeWorkflowNet
 graphNet = Seq (XOR2 (Seq Atom Atom) (Seq Atom Atom)) Atom
 
 -- not 1:1, but kind of "isomorphic"
 novationNet :: SafeWorkflowNet
-novationNet = Seq (AND2 Atom Atom) (LoopSeqXOR (AND2 Atom Atom) Atom (AND2 Atom Atom))
+novationNet = Seq (AND2 Atom Atom) (Loop (AND2 Atom Atom) Atom (AND2 Atom Atom))
 
 loanContractNet :: SafeWorkflowNet
-loanContractNet = Seq Atom (LoopSeqXOR Atom (XOR2 (Seq Atom (LoopXOR Atom Atom)) Atom) Atom)
+loanContractNet = Seq Atom (Loop Atom (XOR2 (Seq Atom (SimpleLoop Atom Atom)) Atom) Atom)
 
 zcbNet :: SafeWorkflowNet
-zcbNet = XOR2 Atom (LoopSeqXOR Atom (Seq Atom Atom) (XOR2 Atom Atom))
+zcbNet = XOR2 Atom (Loop Atom (Seq Atom Atom) (XOR2 Atom Atom))
 
 -- can't express with current tools: communication between XOR branches needed (discrepancy -> nomination)
 -- we need GenXOR
 gasForwardSimpleNet :: SafeWorkflowNet
-gasForwardSimpleNet = Seq Atom (XOR2 (GenXOR Atom (LoopXOR Atom Atom) Atom Atom (Just Atom) Nothing) Atom)
+gasForwardSimpleNet = Seq Atom (XOR2 (GenXOR Atom (SimpleLoop Atom Atom) Atom Atom (Just Atom) Nothing) Atom)
 
 gasForwardNet :: SafeWorkflowNet
-gasForwardNet = Seq Atom (XOR2 (GenXOR Atom (LoopXOR Atom Atom) Atom gasForwardNominationSubNet (Just Atom) Nothing) Atom)
+gasForwardNet = Seq Atom (XOR2 (GenXOR Atom (SimpleLoop Atom Atom) Atom gasForwardNominationSubNet (Just Atom) Nothing) Atom)
 
 gasForwardNominationSubNet :: SafeWorkflowNet
-gasForwardNominationSubNet = LoopXOR Atom (Seq (AND2 Atom (LoopXOR Atom Atom)) (LoopXOR Atom Atom))
+gasForwardNominationSubNet = SimpleLoop Atom (Seq (AND2 Atom (SimpleLoop Atom Atom)) (SimpleLoop Atom Atom))
 
 productNet :: SafeWorkflowNet
-productNet = Seq Atom (XOR2 (Seq Atom (LoopXOR (XOR3 Atom Atom Atom) (XOR2 (Seq Atom (XOR3 (Seq Atom Atom) (Seq Atom Atom) (Seq Atom Atom))) (LoopSeqXOR Atom (Seq Atom Atom) (XOR2 Atom (Seq Atom Atom)))))) Atom)
+productNet = Seq Atom (XOR2 (Seq Atom (SimpleLoop (XOR3 Atom Atom Atom) (XOR2 (Seq Atom (XOR3 (Seq Atom Atom) (Seq Atom Atom) (Seq Atom Atom))) (Loop Atom (Seq Atom Atom) (XOR2 Atom (Seq Atom Atom)))))) Atom)
