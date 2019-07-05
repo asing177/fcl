@@ -281,26 +281,7 @@ instance World.World World where
       Right asset -> do
         asset' <- transferHoldings from to balance asset world
         Right $ world { assets = Map.insert assetAddr asset' (assets world) }
-      -- where
-      --   validateTransferAddrs
-      --     :: World
-      --     -> Holder -- ^ Sender Address (account or contract)
-      --     -> Holder -- ^ Receiver Address (account or contract)
-      --     -> Either AssetError ()
-      --   validateTransferAddrs world from to = void $ do
-      --     -- Check if origin account/contract exists
-      --     first (const $ SenderDoesNotExist from) $
-      --       catch
-      --       (second (const ()) (World.lookupAccount (holderToAccount from) world))
-      --       (\_ -> World.lookupContract (holderToContract from) world >> Right ())
-
-      --     -- Check if toAddr account/contract exists
-      --     first (const $ ReceiverDoesNotExist to) $
-      --       case traceShow ("TO", to) World.lookupAccount (holderToAccount to) world of
-      --         Left err -> second (const ()) $
-      --           World.lookupContract (holderToContract to) world
-      --         Right acc -> Right ()
-
+      
   circulateAsset assetAddr txOrigin amount world =
     case World.lookupAsset assetAddr world of
     Left err    -> Left $ AssetDoesNotExist assetAddr
