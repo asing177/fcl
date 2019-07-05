@@ -281,7 +281,7 @@ instance World.World World where
       Right asset -> do
         asset' <- transferHoldings from to balance asset world
         Right $ world { assets = Map.insert assetAddr asset' (assets world) }
-      
+
   circulateAsset assetAddr txOrigin amount world =
     case World.lookupAsset assetAddr world of
     Left err    -> Left $ AssetDoesNotExist assetAddr

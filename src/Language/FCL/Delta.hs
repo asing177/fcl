@@ -24,7 +24,6 @@ import Language.FCL.Asset (Balance)
 import Language.FCL.AST
 import Language.FCL.Address
 import Language.FCL.Pretty
-import Language.FCL.Time
 import Language.FCL.Error (EvalFail(..))
 
 -------------------------------------------------------------------------------
@@ -38,7 +37,7 @@ import Language.FCL.Error (EvalFail(..))
 data Delta
   -- Contract state changes
   = ModifyGlobal Name Value       -- ^ Modify a contract state variable
-  | ModifyAsset DeltaCtx AssetOp           -- ^ Modify an asset
+  | ModifyAsset DeltaCtx AssetOp  -- ^ Modify an asset
   | ModifyState WorkflowState     -- ^ Set a new workflow state
 
   -- Transactions
@@ -52,12 +51,7 @@ data Delta
 data DeltaCtx
   = DeltaCtx
     { dctxMethodNm :: Maybe Name
-    }
-  deriving (Eq, Show)
-
-instance Pretty DeltaCtx where
-  ppr (DeltaCtx (Just dctxMethodNm)) = ppr dctxMethodNm
-  ppr (DeltaCtx Nothing) = ppr ("No method found" :: Text)
+    } deriving (Eq, Show)
 
 data AssetOp
   = TransferTo {
@@ -93,7 +87,7 @@ data AssetOp
 
 
 instance Pretty [Delta] where
-  ppr = blockWith vcat '[' ']' . fmap ppr
+  ppr = defaultPprList
 
 -- | Pretty print delta
 instance Pretty Delta where

@@ -61,9 +61,9 @@ module Language.FCL.Pretty (
   spaced,
   punctuate,
   intersperse,
-  blockWith,
   sqppr,
   panicppr,
+  defaultPprList,
 
   -- ** Testing
   testPpr,
