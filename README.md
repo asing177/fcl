@@ -1,5 +1,7 @@
 <p align="center">
-  <a href="http://www.adjoint.io"><img src="https://www.adjoint.io/assets/img/adjoint-logo@2x.png" width="250"/></a>
+<a href="https://www.adjoint.io">
+  <img width="250" src="./.assets/fcl.png" alt="Adjoint Logo" />
+</a>
 </p>
 
 FCL
