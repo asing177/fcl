@@ -146,7 +146,7 @@ instance (Pretty a, Pretty b) => Pretty (Map a b) where
 -------------------------------------------------------------------------------
 
 defaultPprList :: Pretty a => [a] -> Doc
-defaultPprList l = blockWith vcat '[' ']' . fmap ppr $ l
+defaultPprList l = encloseSep "[" "]" "," . fmap ppr $ l
 
 (<$$+>) :: Doc -> Doc -> Doc
 d1 <$$+> d2 = d1 <$$> indent 3 d2
@@ -211,11 +211,6 @@ print = render . ppr
 
 printList :: Pretty a => [a] -> LText
 printList xs = render (vcat (fmap ppr xs))
-
-blockWith :: ([Doc] -> Doc) -> Char -> Char -> [Doc] -> Doc
-blockWith _ a b []      = char a <> char b
-blockWith f a b (d:ds)  = f $
-  (char a <+> d) : [ char ',' <+> x | x <- ds ] ++ [ char b ]
 
 -- | Pretty print to stdout. Declare @default (Text)@ in the file if you get
 -- an "ambiguous type variable" error.
