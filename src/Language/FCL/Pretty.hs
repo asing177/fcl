@@ -63,7 +63,6 @@ module Language.FCL.Pretty (
   intersperse,
   sqppr,
   panicppr,
-  defaultPprList,
 
   -- ** Testing
   testPpr,
@@ -144,9 +143,6 @@ instance (Pretty a, Pretty b) => Pretty (Map a b) where
 -------------------------------------------------------------------------------
 -- Utils
 -------------------------------------------------------------------------------
-
-defaultPprList :: Pretty a => [a] -> Doc
-defaultPprList l = encloseSep "[" "]" "," . fmap ppr $ l
 
 (<$$+>) :: Doc -> Doc -> Doc
 d1 <$$+> d2 = d1 <$$> indent 3 d2

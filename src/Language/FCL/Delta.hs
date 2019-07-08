@@ -91,7 +91,7 @@ data AssetOp
 
 
 instance Pretty [Delta] where
-  ppr = defaultPprList
+  ppr = bracketList
 
 -- | Pretty print delta
 instance Pretty Delta where
