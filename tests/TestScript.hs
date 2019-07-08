@@ -157,55 +157,58 @@ evalTests = testGroup "eval" <$> sequence
       , Contract.state         = Eval.workflowState evalState
       }
 
-    -- | To pretty print this apply
+    -- To pretty print this apply
     -- @T.unlines . map (Pretty.prettyPrint . uncurry ECall)@
     parseCalls :: Text -> [(Either Prim.PrimOp LName, [LExpr])]
     parseCalls
       = map (either Pretty.panicppr identity . Parser.parseCall)
       . T.lines
 
-    -- | Update the world state with the top-level definitions
+    -- Update the world state with the top-level definitions
     updateWorldWithGlobals :: Time.Timestamp -> [Def] -> Ref.World
-    updateWorldWithGlobals now defs
-      = foldl' (\w def -> case def of
-                   GlobalDef TAccount _ (Name nm) (Located _ (ELit (Located _ (LAccount addr))))
-                     -> w { Ref.accounts = Map.insert addr (Ref.Account (Ref.testPub) addr "America/New_York" mempty) (Ref.accounts w) }
-                   GlobalDef (TAsset (TNum (NPDecimalPlaces n))) _ (Name nm) (Located _ (ELit (Located _ (LAsset addr))))
-                     -> w { Ref.assets = Map.insert addr (Ref.Asset
-                                                           nm
-                                                           Ref.testAddr
-                                                           now
-                                                           initialBalance
-                                                           shareHoldings
-                                                           (getRef nm)
-                                                           (Asset.Fractional n)
-                                                           addr
-                                                           mempty
-                                                         ) (Ref.assets w)
-                          }
+    updateWorldWithGlobals now defs = foldl' step Ref.genesisWorld defs
+      where
+        step :: Ref.World -> Def -> Ref.World
+        step w = \case
+          GlobalDef TAccount _ (Name nm) (Located _ (ELit (Located _ (LAccount addr))))
+            -> w { Ref.accounts = Map.insert addr (Ref.Account (Ref.testPub) addr "America/New_York" mempty) (Ref.accounts w) }
+          GlobalDef (TAsset (TNum (NPDecimalPlaces n))) _ (Name nm) (Located _ (ELit (Located _ (LAsset addr))))
+            -> w { Ref.assets = addAsset (Ref.assets w)}
+              where
+                addAsset = Map.insert addr
+                    $ Ref.Asset
+                      nm
+                      Ref.testAddr
+                      now
+                      initialBalance
+                      shareHoldings
+                      (getRef nm)
+                      (Asset.Fractional n)
+                      addr
+                      mempty
+          _ -> w
 
-                   _ -> w
-               ) Ref.genesisWorld defs
-        where
-          getRef :: Text -> Maybe Ref.Ref
-          getRef nm = case nm of
-                        "usd" -> pure Ref.USD
-                        "gbp" -> pure Ref.GBP
-                        "eur" -> pure Ref.EUR
-                        "chf" -> pure Ref.CHF
-                        "token" -> pure Ref.Token
-                        "security" -> pure Ref.Security
-                        _ -> Nothing
+        getRef :: Text -> Maybe Ref.Ref
+        getRef nm = case nm of
+                      "usd" -> pure Ref.USD
+                      "gbp" -> pure Ref.GBP
+                      "eur" -> pure Ref.EUR
+                      "chf" -> pure Ref.CHF
+                      "token" -> pure Ref.Token
+                      "security" -> pure Ref.Security
+                      _ -> Nothing
 
-          getAllAccounts :: [Address AAccount]
-          getAllAccounts = foldl' (\acc def -> case def of
-                                      GlobalDef TAccount _ _ (Located _ (ELit (Located _ (LAccount addr)))) -> addr : acc
-                                      _ -> acc
-                                  ) mempty defs
+        getAllAccounts :: [Address AAccount]
+        getAllAccounts = foldl' (\acc def -> case def of
+                                    GlobalDef TAccount _ _ (Located _ (ELit (Located _ (LAccount addr)))) -> addr : acc
+                                    _ -> acc
+                                ) mempty defs
 
-          initialBalance = Asset.Balance 100000
-          shareHoldings :: Ref.Holdings
-          shareHoldings = Ref.Holdings (Map.fromList $ (\addr -> (Asset.AccountHolder addr, Asset.Balance 100)) <$> getAllAccounts)
+        initialBalance :: Asset.Balance
+        initialBalance = Asset.Balance 100000
+
+        shareHoldings :: Ref.Holdings
+        shareHoldings = Ref.Holdings (Map.fromList $ (\addr -> (Asset.AccountHolder addr, Asset.Balance 100)) <$> getAllAccounts)
 
     injectTestAddresses :: Script -> Script
     injectTestAddresses s = s{ scriptDefs = testAddresses <> scriptDefs s }
