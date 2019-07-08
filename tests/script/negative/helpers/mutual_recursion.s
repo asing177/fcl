@@ -1,4 +1,7 @@
-type Bit = O | I;
+type Bit {
+  O; // zero
+  I; // one
+}
 
 global Bit b;
 

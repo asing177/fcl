@@ -1,4 +1,4 @@
-type Point = P(num x, num y);
+type Point { P(num x, num y) }
 
 global Point p;
 

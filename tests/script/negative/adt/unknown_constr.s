@@ -1,4 +1,4 @@
-type T = C;
+type T { C }
 
 @initial
 run(T arg) {

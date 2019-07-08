@@ -1,4 +1,4 @@
-type T = C(int f1, bool f2);
+type T { C(int f1, bool f2) }
 
 bool b;
 

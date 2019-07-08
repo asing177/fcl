@@ -1,4 +1,8 @@
-type Investor = BigInvestor | SmallInvestor;
+type Investor {
+  BigInvestor;
+  MedInvestor;
+  SmallInvestor;
+}
 
 global map<account, int> shares = ();
 global map<account, int> runoff = ();

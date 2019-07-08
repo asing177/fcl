@@ -1,6 +1,6 @@
 Error at No location info:
    Conflicting fields in a record declaration:
-      'int f1' at Line 2, Column 13
-      'bool f1' at Line 3, Column 13
-      'text f1' at Line 4, Column 13
+      'int f1' at Line 2, Column 11
+      'bool f1' at Line 3, Column 11
+      'text f1' at Line 4, Column 11
    Record fields of the same name must have the same type.

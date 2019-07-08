@@ -1,55 +1,55 @@
-Error at Line 5, Column 15:
+Error at Line 12, Column 22:
    Reference to undefined constructor:
       Nope
 
-Error at Line 5, Column 15:
+Error at Line 12, Column 22:
    Reference to undefined type:
       Bogus1
 
-Error at Line 6, Column 8:
+Error at Line 13, Column 15:
    Reference to undefined type:
       Bogus2
 
-Type error at Line 11, Column 25:
-   Expected: 'bool' inferred from type of field 'sprinkles' of constructor 'Milkshake' on Line 11, Column 25
-   But got:  'int' inferred from the type signature of argument 1 of function 'foo' on Line 9, Column 9
+Type error at Line 18, Column 25:
+   Expected: 'bool' inferred from type of field 'sprinkles' of constructor 'Milkshake' on Line 18, Column 25
+   But got:  'int' inferred from the type signature of argument 1 of function 'foo' on Line 16, Column 9
 
-Error at Line 12, Column 26:
+Error at Line 19, Column 26:
    Constructor 'Milkshake' is applied to too many arguments ('1')
 
-Error at Line 13, Column 7:
+Error at Line 20, Column 7:
    Constructor 'Chips' is not applied to enough arguments; expecting an argument of type 'Size' for field 'size'
 
-Error at Line 18, Column 20:
+Error at Line 25, Column 20:
    Reference to undefined type:
       Bogus
 
-Error at Line 20, Column 5:
+Error at Line 27, Column 5:
    Constructor 'Milkshake' is not applied to enough arguments; expecting an argument of type 'bool' for field 'sprinkles'
 
-Type error at Line 20, Column 21:
-   Expected: 'int' inferred from variable binding 'p' in case body on Line 20, Column 15
-   But got:  'bool' inferred from variable binding 'p2' in case body on Line 21, Column 18
+Type error at Line 27, Column 21:
+   Expected: 'int' inferred from variable binding 'p' in case body on Line 27, Column 15
+   But got:  'bool' inferred from variable binding 'p2' in case body on Line 28, Column 18
 
-Type error at Line 20, Column 21:
-   Expected: 'int' inferred from variable binding 'p' in case body on Line 20, Column 15
-   But got:  'bool' inferred from variable binding 'p1' in case body on Line 22, Column 18
+Type error at Line 27, Column 21:
+   Expected: 'int' inferred from variable binding 'p' in case body on Line 27, Column 15
+   But got:  'bool' inferred from variable binding 'p1' in case body on Line 29, Column 18
 
-Error at Line 22, Column 15:
+Error at Line 29, Column 15:
    The binding 'p1' shadows the variable bound by a pattern
       of the same name, of type 'bool',
-      bound at Line 22, Column 18.
+      bound at Line 29, Column 18.
 
-Error at Line 23, Column 21:
+Error at Line 30, Column 21:
    Constructor 'Milkshake' is applied to too many patterns ('p3')
 
-Error at Line 23, Column 24:
+Error at Line 30, Column 24:
    Constructor 'Milkshake' is applied to too many patterns ('p4')
 
-Type error at Line 24, Column 18:
-   Expected: 'bool' inferred from type of field 'sprinkles' of constructor 'Milkshake' on Line 24, Column 18
-   But got:  'int' inferred from literal '2' on Line 24, Column 18
+Type error at Line 31, Column 18:
+   Expected: 'bool' inferred from type of field 'sprinkles' of constructor 'Milkshake' on Line 31, Column 18
+   But got:  'int' inferred from literal '2' on Line 31, Column 18
 
-Error at Line 28, Column 11:
+Error at Line 35, Column 11:
    Reference to undefined constructor:
       Little

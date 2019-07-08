@@ -1,5 +1,5 @@
-type Address = Addr(text street, int houseNumber, text city);
-type Person = Pers(text name, Address address);
+type Address { Addr(text street, int houseNumber, text city) }
+type Person { Pers(text name, Address address) }
 
 Person bob = Pers("bob", Addr("main st", 42, "springfield"));
 int n;

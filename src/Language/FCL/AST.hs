@@ -791,9 +791,9 @@ instance Pretty Helper where
 
 instance Pretty ADTDef where
   ppr (ADTDef lname lconstrsAndTypes)
-    = token Token.type_ <+> ppr (locVal lname) <+> token Token.assign
-      <+> (hsep . punctuate " |" . map ppr . toList $ lconstrsAndTypes)
-      <> token Token.semi
+    = token Token.type_ <+> ppr (locVal lname) <+> lbrace
+      <$$> indent 2 (semify . hsep . punctuate "; " . map ppr $ toList lconstrsAndTypes)
+      <$$> rbrace
 
 instance Pretty Def where
   ppr = \case

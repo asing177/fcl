@@ -1,5 +1,8 @@
-
-type Investor = BigInvestor | MedInvestor | SmallInvestor;
+type Investor {
+  BigInvestor;
+  MedInvestor;
+  SmallInvestor;
+}
 
 global map<Investor,set<account>> investors =
   ( BigInvestor : {}

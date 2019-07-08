@@ -1,4 +1,4 @@
-type Point = P(int x, int y);
+type Point { P(int x, int y) }
 
 int x;
 int y;

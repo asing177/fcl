@@ -1,4 +1,4 @@
-type T = A | B;
+type T { A; B }
 
 @initial
 run(T arg) {

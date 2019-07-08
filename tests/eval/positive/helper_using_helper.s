@@ -1,4 +1,4 @@
-type Bit = O | I;
+type Bit { O; I }
 
 @initial
 go(Bit bit) {

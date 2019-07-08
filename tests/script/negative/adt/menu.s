@@ -1,9 +1,16 @@
-type Size = Big | Small;
+type Size {
+  Big;
+  Small;
+}
 
-type Item = Chips(Size size) | Milkshake(int millilitres, bool sprinkles) | Salad;
+type Item {
+  Chips(Size size);
+  Milkshake(int millilitres, bool sprinkles);
+  Salad;
+}
 
-Bogus1 bog1 = Nope; // undefined constructor + undefined type
-Bogus2 bog2;        // undefined type
+global Bogus1 bog1 = Nope; // undefined constructor + undefined type
+global Bogus2 bog2;        // undefined type
 
 @initial
 foo(int volume) {

@@ -1,4 +1,4 @@
-type Direction = Left | Right;
+type Direction { Left; Right }
 
 @initial
 start() {
