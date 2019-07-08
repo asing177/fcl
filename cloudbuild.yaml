@@ -50,6 +50,9 @@ steps:
     - |
       set -euxo pipefail
 
+      apt update
+      apt install -y liblzma-dev
+
       stack config set system-ghc --global true
       stack config set install-ghc --global false
 
@@ -96,6 +99,8 @@ steps:
     - |
       set -euxo pipefail
       mkdir ./bin
+      apt update
+      apt install -y liblzma-dev
       stack install \
         --no-terminal \
         --fast \

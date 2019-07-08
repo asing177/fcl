@@ -26,7 +26,7 @@ import System.FilePath (replaceExtension)
 import System.Process.Text (readProcessWithExitCode)
 
 import Language.FCL.AST
-import Language.FCL.Analysis (actualTransitions)
+import Language.FCL.Analysis (inferMethodsTransitions)
 import Language.FCL.Parser (parseFile)
 import Language.FCL.Pretty (hsep, prettyPrint, ppr, panicppr)
 import Language.FCL.ReachabilityGraph (allPlaces)
@@ -129,7 +129,7 @@ methodsToGraphviz methods = digraph $ unlines
             ]
 
     labelledTransitions :: [(Method, Transition, Id)]
-    labelledTransitions = zipWith mkUnique (actualTransitions methods) [1..]
+    labelledTransitions = zipWith mkUnique (inferMethodsTransitions methods) [1..]
       where
         mkUnique (meth, tr) n = (meth, tr, show n)
 

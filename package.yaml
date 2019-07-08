@@ -32,6 +32,7 @@ dependencies:
 
   # Data Structures
   - containers
+  - insert-ordered-containers
 
   # Serialization
   - binary
@@ -45,6 +46,20 @@ dependencies:
 
   # Text
   - bytestring
+
+  # Quickcheck
+  - QuickCheck
+  - quickcheck-instances
+
+  # Http
+  - wai
+  - wai-cors
+  - warp
+  - servant
+  - servant-server
+  - servant-swagger
+  - servant-swagger-ui
+  - swagger2
 
 library:
   source-dirs: src
@@ -81,10 +96,6 @@ library:
   - x509
   - asn1-types
   - asn1-encoding
-
-  # Quickcheck
-  - QuickCheck
-  - quickcheck-instances
 
   ghc-options:
     -fwarn-tabs
@@ -152,8 +163,12 @@ library:
     - Language.FCL.Time
     - Language.FCL.World
     - Language.FCL.Warning
+
     - Numeric.Lossless.Decimal
     - Numeric.Lossless.Number
+
+    - HTTP.FCL.API
+    - HTTP.FCL.SwaggerSchema
 
 executables:
   fcl:
@@ -169,9 +184,9 @@ executables:
     - optparse-applicative
     - aeson-pretty
 
-  fcl-lsp:
+  fcl-http:
     main: Main.hs
-    source-dirs: lsp
+    source-dirs: http
     ghc-options:
     - -threaded
     - -rtsopts
@@ -184,7 +199,8 @@ executables:
 tests:
   fcl-test:
     main:                Main.hs
-    source-dirs:         tests
+    source-dirs:
+    - tests
     ghc-options:
     - -threaded
     - -rtsopts
@@ -199,5 +215,8 @@ tests:
     - tasty-hunit
     - tasty-golden
     - tasty-quickcheck
-    - QuickCheck
+    - tasty-hspec
+    - hspec
+    - warp
+    - quickcheck-instances
     - aeson-pretty

@@ -4,21 +4,45 @@
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE LambdaCase #-}
 
-module Language.FCL.LanguageServerProtocol where
+module Language.FCL.LanguageServerProtocol
+  ( ReqScript(..)
+  , ReqMethod(..)
+  , ReqDef(..)
+  , RespScript(..)
+  , RespMethod(..)
+  , RespDef(..)
+  , ReqADTDef(..)
+  , ReqTransition(..)
+  , ReqMethodArg(..)
+  , scriptCompile
+  , scriptCompileRaw
+  , scriptParse
+  , methodCompile
+  , methodCompileRaw
+  , defCompile
+  , defCompileRaw
+  , LSPErr(..)
+  , LSP(..)
+  , toLSP
+  ) where
 
 import Protolude
 
-import Data.Aeson (ToJSON(..), FromJSON)
+import Test.QuickCheck
+import Data.Aeson as A
 import qualified Data.Text as Text
 import qualified Data.List.NonEmpty as NE
+import Text.PrettyPrint.Leijen.Text as PP hiding (Pretty, equals, (<$>))
 
 import qualified Language.FCL.AST as AST
 import qualified Language.FCL.Analysis as Analysis
 import qualified Language.FCL.Compile as Compile
 import qualified Language.FCL.Graphviz as Graphviz
 import qualified Language.FCL.Parser as Parser
-import qualified Language.FCL.Pretty as Pretty
+import Language.FCL.Pretty as Pretty
 import qualified Language.FCL.Typecheck as Typecheck
+import qualified Language.FCL.Token as Token
+
 import Language.FCL.Warning (Warning(..))
 import qualified Language.FCL.Effect as Effect
 import qualified Language.FCL.Duplicate as Dupl
@@ -33,13 +57,25 @@ data ReqScript
   , adts :: [ReqADTDef]
   , methods :: [ReqMethod]
   , transitions :: [ReqTransition]
-  } deriving (Eq, Ord, Show, Generic, ToJSON, FromJSON)
+  } deriving (Eq, Ord, Show, Generic)
+
+instance ToJSON ReqScript where
+  toJSON = genericToJSON (defaultOptions { sumEncoding = ObjectWithSingleField })
+
+instance FromJSON ReqScript where
+  parseJSON = genericParseJSON (defaultOptions { sumEncoding = ObjectWithSingleField })
 
 data ReqTransition
   = ReqTransition
   { fromState :: Text
   , toState :: Text
-  } deriving (Eq, Ord, Show, Generic, ToJSON, FromJSON)
+  } deriving (Eq, Ord, Show, Generic)
+
+instance ToJSON ReqTransition where
+  toJSON = genericToJSON (defaultOptions { sumEncoding = ObjectWithSingleField })
+
+instance FromJSON ReqTransition where
+  parseJSON = genericParseJSON (defaultOptions { sumEncoding = ObjectWithSingleField })
 
 data ReqMethod
   = ReqMethod
@@ -48,66 +84,71 @@ data ReqMethod
   , methodName :: AST.Name
   , methodBodyText :: Text
   , methodArgs :: [ReqMethodArg]
-  } deriving (Eq, Ord, Show, Generic, ToJSON, FromJSON)
+  } deriving (Eq, Ord, Show, Generic)
+
+instance ToJSON ReqMethod where
+  toJSON = genericToJSON (defaultOptions { sumEncoding = ObjectWithSingleField })
+
+instance FromJSON ReqMethod where
+  parseJSON = genericParseJSON (defaultOptions { sumEncoding = ObjectWithSingleField })
 
 data ReqMethodArg
   = ReqMethodArg
   { argName :: AST.Name
   , argType :: Text
-  } deriving (Eq, Ord, Show, Generic, ToJSON, FromJSON)
+  } deriving (Eq, Ord, Show, Generic)
 
--- TODO: Add other defs (GlobalDefNull)
+instance ToJSON ReqMethodArg where
+  toJSON = genericToJSON (defaultOptions { sumEncoding = ObjectWithSingleField })
+
+instance FromJSON ReqMethodArg where
+  parseJSON = genericParseJSON (defaultOptions { sumEncoding = ObjectWithSingleField })
+
 data ReqDef
-  = ReqGlobalDef
-  { defName :: Text
-  , defType :: Text
-  , defValue :: Text
-  } deriving (Eq, Ord, Show, Generic, ToJSON, FromJSON)
+  = ReqDef
+    { defType :: Text
+    , defName :: Text
+    , defValue :: Text
+    } deriving (Eq, Ord, Show, Generic)
+
+instance ToJSON ReqDef where
+  toJSON = genericToJSON (defaultOptions { sumEncoding = ObjectWithSingleField })
+
+instance FromJSON ReqDef where
+  parseJSON = genericParseJSON (defaultOptions { sumEncoding = ObjectWithSingleField })
+
+instance Pretty.Pretty ReqDef where
+  ppr (ReqDef typ name val) = case Parser.parseDecimal val of
+        Left _ -> hsep [token Token.global, ppr typ, ppr name `assign` ppshow val]
+        Right d -> hsep [token Token.global, ppr typ, ppr name `assign` ppr d]
 
 data ReqADTDef
   = ReqADTDef
   { adtName :: AST.NameUpper
   , adtConstr :: [AST.ADTConstr]
-  } deriving (Eq, Ord, Show, Generic, ToJSON, FromJSON)
+  } deriving (Eq, Ord, Show, Generic)
+
+instance ToJSON ReqADTDef where
+  toJSON = genericToJSON (defaultOptions { sumEncoding = ObjectWithSingleField })
+
+instance FromJSON ReqADTDef where
+  parseJSON = genericParseJSON (defaultOptions { sumEncoding = ObjectWithSingleField })
+
+------------------------
+-- Response datatypes --
+------------------------
 
 data RespMethod
   = RespMethod
   { respMethod :: AST.Method
   , respPpMethod :: Text
-  } deriving (Eq, Show, Generic, ToJSON, FromJSON)
+  } deriving (Eq, Show, Generic)
 
-parseMethod :: ReqMethod -> Either Parser.ParseErrInfo AST.Method
-parseMethod  reqMethod@ReqMethod{..} = do
-  parsedMethodBody <- Parser.parseBlock methodBodyText
-  argTypes <- sequence $ (\a -> Parser.parseType (argType a)) <$> methodArgs
-  let args = zipWith AST.Arg argTypes (AST.Located AST.NoLoc . argName <$> methodArgs)
-  pure AST.Method
-        { methodInputPlaces = methodInputPlaces
-        , methodPreconditions = methodPreconditions
-        , methodName = (AST.Located AST.NoLoc methodName)
-        , methodBody = parsedMethodBody
-        , methodArgs = args
-        }
+instance ToJSON RespMethod where
+  toJSON = genericToJSON (defaultOptions { sumEncoding = ObjectWithSingleField })
 
-parseScript :: ReqScript -> Either Parser.ParseErrInfo AST.Script
-parseScript reqScript@ReqScript{..} = do
-  methods <- sequence $ parseMethod <$> methods
-  defs <- sequence $ Parser.parseDefn . textifyReqDef <$> defs
-  pure AST.Script
-      { scriptDefs = defs
-      , scriptADTs = (\e -> AST.ADTDef
-                                (AST.Located AST.NoLoc (adtName e))
-                                (adtConstr e)
-                             ) <$> adts
-      , scriptMethods = methods
-      , scriptTransitions = []
-      , scriptHelpers = []
-      }
-
-compileScript :: ReqScript -> Either Compile.CompilationErr Compile.CheckedScript
-compileScript reqScript@ReqScript{..} = do
-  ast <- first Compile.ParseErr (parseScript reqScript)
-  Compile.compileScript ast
+instance FromJSON RespMethod where
+  parseJSON = genericParseJSON (defaultOptions { sumEncoding = ObjectWithSingleField })
 
 data RespScript = RespScript
   { respScript :: AST.Script -- TODO: Keep method body text as it came
@@ -115,11 +156,33 @@ data RespScript = RespScript
   , respScriptWarnings :: [Warning]
   , respScriptSigs :: [(AST.Name, Typecheck.Sig, Effect.Effects)]
   , respGraphviz :: Graphviz.Graphviz
-  } deriving (Show, Generic, ToJSON, FromJSON)
+  } deriving (Show, Generic)
 
-validateScript :: ReqScript -> Either Compile.CompilationErr RespScript
-validateScript reqScript@ReqScript{..} = do
-  cs <- compileScript reqScript
+instance ToJSON RespScript where
+  toJSON = genericToJSON (defaultOptions { sumEncoding = ObjectWithSingleField })
+
+instance FromJSON RespScript where
+  parseJSON = genericParseJSON (defaultOptions { sumEncoding = ObjectWithSingleField })
+
+data RespDef = RespDef
+  { respDef :: AST.Def
+  , respPpDef :: Text
+  } deriving (Show, Generic)
+
+instance ToJSON RespDef where
+  toJSON = genericToJSON (defaultOptions { sumEncoding = ObjectWithSingleField })
+
+instance FromJSON RespDef where
+  parseJSON = genericParseJSON (defaultOptions { sumEncoding = ObjectWithSingleField })
+
+-------------
+-- Scripts --
+-------------
+
+scriptCompile :: ReqScript -> Either LSPErr RespScript
+scriptCompile req@ReqScript{..} = do
+  ast <- respScript <$> scriptParse req
+  cs <- first toLSPErr (Compile.compileScript ast)
   let script = Compile.checkedScript cs
   pure $ RespScript
     { respScript = script
@@ -129,11 +192,92 @@ validateScript reqScript@ReqScript{..} = do
     , respGraphviz = Graphviz.methodsToGraphviz (AST.scriptMethods script)
     }
 
+scriptCompileRaw :: Text -> Either LSPErr RespScript
+scriptCompileRaw text
+  = first toLSPErr $ Compile.compile text >>= \cs -> do
+  let script = Compile.checkedScript cs
+  pure $ RespScript
+    { respScript = script
+    , respPpScript = toS $ Pretty.prettyPrint script
+    , respScriptWarnings = Compile.checkedScriptWarnings cs
+    , respScriptSigs = Compile.checkedScriptSigs cs
+    , respGraphviz = Graphviz.methodsToGraphviz (AST.scriptMethods script)
+    }
+
+scriptParse :: ReqScript -> Either LSPErr RespScript
+scriptParse reqScript@ReqScript{..} = do
+  methods <- sequence $ methodCompile <$> methods
+  defs <- first (toLSPErr . Compile.ParseErr) (sequence $ Parser.parseDefn . Pretty.prettyPrint <$> defs)
+  let adts' = (\e -> AST.ADTDef
+                                (AST.Located AST.NoLoc (adtName e))
+                                (adtConstr e)
+                             ) <$> adts
+  let script = AST.Script adts' defs [] (respMethod <$> methods) []
+  pure $ RespScript
+           script
+           (Pretty.prettyPrint script)
+           []
+           []
+           (Graphviz.methodsToGraphviz (AST.scriptMethods script))
+
+-------------
+-- Methods --
+-------------
+
+methodCompile :: ReqMethod -> Either LSPErr RespMethod
+methodCompile  reqMethod@ReqMethod{..} = do
+  parsedMethodBody <- first (toLSPErr . Compile.ParseErr) (Parser.parseBlock methodBodyText)
+  argTypes <- first (toLSPErr . Compile.ParseErr) (sequence $ (Parser.parseType . argType) <$> methodArgs)
+  let args = zipWith AST.Arg argTypes (AST.Located AST.NoLoc . argName <$> methodArgs)
+  let method = AST.Method
+        { methodInputPlaces = methodInputPlaces
+        , methodPreconditions = methodPreconditions
+        , methodName = (AST.Located AST.NoLoc methodName)
+        , methodBody = parsedMethodBody
+        , methodArgs = args
+        }
+  pure $ RespMethod method (Pretty.prettyPrint method)
+
+
+methodCompileRaw :: Text -> Either LSPErr RespMethod
+methodCompileRaw text
+  = first (toLSPErr . Compile.ParseErr) $ do
+  method <- (Parser.parseMethod text)
+  pure $ RespMethod method text
+
+----------
+-- Defs --
+----------
+
+defCompile :: ReqDef -> Either LSPErr RespDef
+defCompile def = defCompileRaw (Pretty.prettyPrint def)
+
+defCompileRaw :: Text -> Either LSPErr RespDef
+defCompileRaw text = do
+  defn <- first (toLSPErr . Compile.ParseErr) (Parser.parseDefn text)
+  first (toLSPErr . Compile.TypecheckErr) (Typecheck.runSolverM . snd
+                $ Typecheck.runInferM
+                (AST.ADTInfo mempty mempty)
+                Typecheck.emptyInferState
+                (Typecheck.tcDefn defn))
+  pure $ RespDef defn (Pretty.prettyPrint defn)
+
 (<..>) :: Text -> Text -> Text
 (<..>) t1 t2 = t1 <> " " <> t2
 
-textifyReqDef :: ReqDef -> Text
-textifyReqDef ReqGlobalDef{..} = defType <..> defName <..> "=" <..> defValue <> ";"
+data LSPErr = LSPErr
+  { lsp :: [LSP]
+  , err :: Compile.CompilationErr
+  } deriving (Show, Generic, FromJSON)
+
+instance ToJSON LSPErr where
+  toJSON (LSPErr{..}) = object
+    [ "lsp"      .= toJSON lsp
+    , "errorMsg" .= (Pretty.prettyPrint $ err :: Text)
+    ]
+
+toLSPErr :: Compile.CompilationErr -> LSPErr
+toLSPErr err = LSPErr (toLSP err) err
 
 -- Language Server Protocol (LSP)
 data LSP = LSP
@@ -143,9 +287,14 @@ data LSP = LSP
   , endColumn :: Int
   , message :: Text
   , severity :: Int
-  } deriving (Show, Generic, ToJSON, FromJSON)
+  } deriving (Show, Generic)
 
--- TODO: Return the type of the compilation error
+instance ToJSON LSP where
+  toJSON = genericToJSON defaultOptions
+
+instance FromJSON LSP where
+  parseJSON = genericParseJSON defaultOptions
+
 toLSP :: Compile.CompilationErr -> [LSP]
 toLSP cErr = case cErr of
   Compile.ParseErr Parser.ParseErrInfo{..}
@@ -248,3 +397,41 @@ toLSP cErr = case cErr of
 
     endOfLine :: Int
     endOfLine = 1000
+
+-------------------
+-- Arbitrary
+-------------------
+
+instance Arbitrary LSPErr where
+  arbitrary = LSPErr <$> arbitrary <*> arbitrary
+
+instance Arbitrary LSP where
+  arbitrary
+    = LSP <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
+
+instance Arbitrary ReqScript where
+  arbitrary = ReqScript <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
+
+instance Arbitrary ReqTransition where
+  arbitrary = ReqTransition <$> arbitrary <*> arbitrary
+
+instance Arbitrary ReqMethod where
+  arbitrary = ReqMethod <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
+
+instance Arbitrary ReqMethodArg where
+  arbitrary = ReqMethodArg <$> arbitrary <*> arbitrary
+
+instance Arbitrary ReqDef where
+  arbitrary = ReqDef <$> arbitrary <*> arbitrary <*> arbitrary
+
+instance Arbitrary ReqADTDef where
+  arbitrary = ReqADTDef <$> arbitrary <*> arbitrary
+
+instance Arbitrary RespMethod where
+  arbitrary = RespMethod <$> arbitrary <*> arbitrary
+
+instance Arbitrary RespScript where
+  arbitrary = RespScript <$> arbitrary <*> arbitrary <*> pure [] <*> pure [] <*> arbitrary
+
+instance Arbitrary RespDef where
+  arbitrary = RespDef <$> arbitrary <*> arbitrary

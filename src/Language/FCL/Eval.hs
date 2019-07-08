@@ -305,7 +305,6 @@ handleArithError m = do
 evalLit :: Lit -> Value
 evalLit lit = case lit of
   LNum n      -> VNum (NumDecimal n)
-  LVoid       -> VVoid
   LBool n     -> VBool n
   LAccount n  -> VAccount n
   LAsset n    -> VAsset n

@@ -10,7 +10,6 @@ module Language.FCL.Address (
 ) where
 
 import Protolude
-import qualified Data.ByteString as BS
 import Test.QuickCheck
 import Language.FCL.Hash as Hash (Hashable(..), Hash(..), getRawHash)
 import Language.FCL.Encoding as Encoding

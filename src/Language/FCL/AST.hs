@@ -57,7 +57,7 @@ module Language.FCL.AST (
   -- ** State Labels
   Place(..),
   Transition(..),
-  WorkflowState,
+  WorkflowState(..),
   places,
   unsafeWorkflowState,
   makePlace,
@@ -121,7 +121,7 @@ import qualified Datetime.Types as DT
 import qualified Data.Hourglass as DH
 import qualified Data.Time.Calendar as DC
 
-import Data.Aeson (ToJSON(..), FromJSON(..), FromJSONKey(..), ToJSONKey(..))
+import Data.Aeson as A hiding (Value)
 import qualified Data.Binary as B
 import Data.Char (isUpper)
 import qualified Data.Map as Map
@@ -143,10 +143,22 @@ import Language.FCL.SafeInteger
 data Loc
   = NoLoc
   | Loc { line :: Int, col :: Int }
-  deriving (Eq, Show, Ord, Generic, Serialize, FromJSON, ToJSON, Hash.Hashable)
+  deriving (Eq, Show, Ord, Generic, Serialize, Hash.Hashable)
 
-data Located a = Located{ located :: Loc, locVal :: a }
-  deriving (Generic, Show, FromJSON, ToJSON, FromJSONKey, ToJSONKey, Hash.Hashable)
+instance ToJSON Loc where
+  toJSON = genericToJSON (defaultOptions { sumEncoding = ObjectWithSingleField })
+
+instance FromJSON Loc where
+  parseJSON = genericParseJSON (defaultOptions { sumEncoding = ObjectWithSingleField })
+
+data Located a = Located { located :: Loc, locVal :: a }
+  deriving (Generic, Show, FromJSONKey, ToJSONKey, Hash.Hashable)
+
+instance ToJSON a => ToJSON (Located a) where
+  toJSON = genericToJSON (defaultOptions { sumEncoding = ObjectWithSingleField })
+
+instance FromJSON a => FromJSON (Located a) where
+  parseJSON = genericParseJSON (defaultOptions { sumEncoding = ObjectWithSingleField })
 
 -- -- For debugging (reduces clutter)
 -- instance Show a => Show (Located a) where
@@ -174,21 +186,45 @@ type LPattern = Located Pattern
 -- | ADT constructor as given in a type definition.
 data ADTConstr = ADTConstr
   { adtConstrId :: LNameUpper, adtConstrParams :: [(Type, LName)] }
-  deriving (Eq, Show, Ord, Generic, Hash.Hashable, FromJSON, ToJSON, Serialize)
+  deriving (Eq, Show, Ord, Generic, Hash.Hashable, Serialize)
+
+instance ToJSON ADTConstr where
+  toJSON = genericToJSON (defaultOptions { sumEncoding = ObjectWithSingleField })
+
+instance FromJSON ADTConstr where
+  parseJSON = genericParseJSON (defaultOptions { sumEncoding = ObjectWithSingleField })
 
 -- | Variable names
 newtype Name = Name { unName :: Text }
   deriving (Eq, Show, Ord, Generic, B.Binary, Serialize, FromJSONKey, ToJSONKey, Hash.Hashable)
 
+instance ToJSON Name where
+  toJSON (Name nm) = toJSON nm
+
+instance FromJSON Name where
+  parseJSON = fmap Name . parseJSON
+
 newtype NameUpper = MkNameUpper Text
-  deriving (Eq, Show, Ord, Generic, B.Binary, Serialize, FromJSON, ToJSON, Hash.Hashable)
+  deriving (Eq, Show, Ord, Generic, B.Binary, Serialize, Hash.Hashable)
+
+instance ToJSON NameUpper where
+  toJSON = genericToJSON (defaultOptions { sumEncoding = ObjectWithSingleField })
+
+instance FromJSON NameUpper where
+  parseJSON = genericParseJSON (defaultOptions { sumEncoding = ObjectWithSingleField })
 
 -- | Datetime literals
 newtype DateTime = DateTime { unDateTime :: DT.Datetime }
   deriving (Eq, Ord, Show, Generic, Serialize)
 
 newtype TimeDelta = TimeDelta { unTimeDelta :: DT.Delta }
-   deriving (Eq, Ord, Show, Generic, Serialize, ToJSON, FromJSON)
+   deriving (Eq, Ord, Show, Generic, Serialize)
+
+instance ToJSON TimeDelta where
+  toJSON = genericToJSON (defaultOptions { sumEncoding = ObjectWithSingleField })
+
+instance FromJSON TimeDelta where
+  parseJSON = genericParseJSON (defaultOptions { sumEncoding = ObjectWithSingleField })
 
 instance Hash.Hashable TimeDelta where
   toHash = Hash.toHash . (toS :: [Char] -> ByteString) . show
@@ -202,7 +238,13 @@ data Pattern
   | PatLit LLit                    -- ^ Literal pattern
   | PatVar LName                   -- ^ Variable pattern
   | PatWildCard                    -- ^ Wildcard ("don't care") pattern
-  deriving (Eq, Ord, Show, Generic, FromJSON, ToJSON, Hash.Hashable)
+  deriving (Eq, Ord, Show, Generic, Hash.Hashable)
+
+instance ToJSON Pattern where
+  toJSON = genericToJSON (defaultOptions { sumEncoding = ObjectWithSingleField })
+
+instance FromJSON Pattern where
+  parseJSON = genericParseJSON (defaultOptions { sumEncoding = ObjectWithSingleField })
 
 -- | Retrieve the location associated with a pattern ('PatWildCard' returns 'NoLoc')
 patLoc :: Pattern -> Loc
@@ -215,7 +257,13 @@ patLoc = \case
 -- | A case branch, consisting of a pattern and a branch body
 data CaseBranch
   = CaseBranch{ matchPat :: LPattern, matchBody :: LExpr }
-  deriving (Eq, Ord, Show, Generic, FromJSON, ToJSON, Hash.Hashable)
+  deriving (Eq, Ord, Show, Generic, Hash.Hashable)
+
+instance ToJSON CaseBranch where
+  toJSON = genericToJSON (defaultOptions { sumEncoding = ObjectWithSingleField })
+
+instance FromJSON CaseBranch where
+  parseJSON = genericParseJSON (defaultOptions { sumEncoding = ObjectWithSingleField })
 
 -- | FCL expressions
 data Expr
@@ -236,7 +284,13 @@ data Expr
   | EMap     (Map LExpr LExpr)     -- ^ Map k v
   | ESet     (Set LExpr)           -- ^ Set v
   | EConstr NameUpper [LExpr]           -- ^ Constructor
-  deriving (Eq, Ord, Show, Generic, FromJSON, ToJSON, Hash.Hashable)
+  deriving (Eq, Ord, Show, Generic, Hash.Hashable)
+
+instance ToJSON Expr where
+  toJSON = genericToJSON (defaultOptions { sumEncoding = ObjectWithSingleField })
+
+instance FromJSON Expr where
+  parseJSON = genericParseJSON (defaultOptions { sumEncoding = ObjectWithSingleField })
 
 -- | Binary operators
 data BinOp
@@ -252,11 +306,23 @@ data BinOp
   | GEqual  -- ^ Greater equal
   | Lesser  -- ^ Lesser
   | Greater -- ^ Greater
-  deriving (Eq, Ord, Show, Generic, FromJSON, ToJSON, Hash.Hashable)
+  deriving (Eq, Ord, Show, Generic, Hash.Hashable)
+
+instance ToJSON BinOp where
+  toJSON = genericToJSON (defaultOptions { sumEncoding = ObjectWithSingleField })
+
+instance FromJSON BinOp where
+  parseJSON = genericParseJSON (defaultOptions { sumEncoding = ObjectWithSingleField })
 
 -- | Unary operators
 data UnOp = Not -- ^ Logical negation
-  deriving (Eq, Ord, Show, Generic, FromJSON, ToJSON, Hash.Hashable)
+  deriving (Eq, Ord, Show, Generic, Hash.Hashable)
+
+instance ToJSON UnOp where
+  toJSON _ = "Not"
+
+instance FromJSON UnOp where
+  parseJSON _ = pure Not
 
 -- | Literal representing Value
 data Lit
@@ -271,8 +337,13 @@ data Lit
   | LDateTime  DateTime
   | LTimeDelta TimeDelta
   -- | LConstr    Name
-  | LVoid
-  deriving (Eq, Ord, Show, Generic, FromJSON, ToJSON, Hash.Hashable)
+  deriving (Eq, Ord, Show, Generic, Hash.Hashable)
+
+instance ToJSON Lit where
+  toJSON = genericToJSON (defaultOptions { sumEncoding = ObjectWithSingleField })
+
+instance FromJSON Lit where
+  parseJSON = genericParseJSON (defaultOptions { sumEncoding = ObjectWithSingleField })
 
 -- | Values in which literals are evaluated to
 data Value
@@ -299,7 +370,13 @@ data TVar
   | TAV Text -- ^ Type variable used for inferring return types of prim ops operating over assets
   | TCV Text -- ^ Type variable used for inferring return types of prim ops operating over collections
   | THV Type -- ^ Type variable used for inferring holdings type of polymorphic asset prim ops.
-  deriving (Eq, Ord, Show, Generic, FromJSON, ToJSON, Hash.Hashable)
+  deriving (Eq, Ord, Show, Generic, Hash.Hashable)
+
+instance ToJSON TVar where
+  toJSON = genericToJSON (defaultOptions { sumEncoding = ObjectWithSingleField })
+
+instance FromJSON TVar where
+  parseJSON = genericParseJSON (defaultOptions { sumEncoding = ObjectWithSingleField })
 
 -- | Collection types
 data TCollection
@@ -314,7 +391,13 @@ data NumPrecision
   | NPDecimalPlaces Integer          -- ^ fixed number of decimal places
   | NPAdd NumPrecision NumPrecision  -- ^ internal (for multiplication)
   | NPMax NumPrecision NumPrecision  -- ^ internal (for addition)
-  deriving (Eq, Ord, Show, Generic, Serialize, FromJSON, ToJSON, Hash.Hashable)
+  deriving (Eq, Ord, Show, Generic, Serialize, Hash.Hashable)
+
+instance ToJSON NumPrecision where
+  toJSON = genericToJSON (defaultOptions { sumEncoding = ObjectWithSingleField })
+
+instance FromJSON NumPrecision where
+  parseJSON = genericParseJSON (defaultOptions { sumEncoding = ObjectWithSingleField })
 
 -- | Smart constructor for 'NumPrecision' for integers
 nPInt :: NumPrecision
@@ -354,15 +437,33 @@ data Type
   | TFun [Type] Type -- ^ Type signature of helper functions--argument types and return type
   | TColl TCollection -- ^ Type of collection values
   | TTransition     -- ^ Transition type
-  deriving (Eq, Ord, Show, Generic, FromJSON, ToJSON, Hash.Hashable)
+  deriving (Eq, Ord, Show, Generic, Hash.Hashable)
+
+instance ToJSON Type where
+  toJSON = genericToJSON (defaultOptions { sumEncoding = ObjectWithSingleField })
+
+instance FromJSON Type where
+  parseJSON = genericParseJSON (defaultOptions { sumEncoding = ObjectWithSingleField })
 
 -- | Function argument
 data Arg
   = Arg { argType :: Type, argName ::  LName }
-  deriving (Eq, Ord, Show, Generic, FromJSON, ToJSON, Hash.Hashable)
+  deriving (Eq, Ord, Show, Generic, Hash.Hashable)
+
+instance ToJSON Arg where
+  toJSON = genericToJSON (defaultOptions { sumEncoding = ObjectWithSingleField })
+
+instance FromJSON Arg where
+  parseJSON = genericParseJSON (defaultOptions { sumEncoding = ObjectWithSingleField })
 
 data Precondition = PrecAfter | PrecBefore | PrecRoles
-  deriving (Eq, Ord, Show, Generic, Serialize, FromJSON, ToJSON, Hash.Hashable)
+  deriving (Eq, Ord, Show, Generic, Serialize, Hash.Hashable)
+
+instance ToJSON Precondition where
+  toJSON = genericToJSON (defaultOptions { sumEncoding = ObjectWithSingleField })
+
+instance FromJSON Precondition where
+  parseJSON = genericParseJSON (defaultOptions { sumEncoding = ObjectWithSingleField })
 
 instance Pretty Precondition where
   ppr = \case
@@ -372,7 +473,13 @@ instance Pretty Precondition where
 
 newtype Preconditions = Preconditions
   { unPreconditions :: [(Precondition, LExpr)] }
-  deriving (Eq, Ord, Show, Generic, Serialize, FromJSON, ToJSON, Hash.Hashable)
+  deriving (Eq, Ord, Show, Generic, Serialize, Hash.Hashable)
+
+instance ToJSON Preconditions where
+  toJSON (Preconditions p) = toJSON p
+
+instance FromJSON Preconditions where
+  parseJSON = fmap Preconditions . parseJSON
 
 instance Semigroup Preconditions where
   Preconditions ps1 <> Preconditions ps2 = Preconditions $ ps1 <> ps2
@@ -398,26 +505,59 @@ data Method = Method
   , methodName          :: LName
   , methodArgs          :: [Arg]
   , methodBody          :: LExpr
-  } deriving (Eq, Ord, Show, Generic, FromJSON, ToJSON, Hash.Hashable)
+  } deriving (Eq, Ord, Show, Generic, Hash.Hashable)
+
+instance ToJSON Method where
+  toJSON = genericToJSON (defaultOptions { sumEncoding = ObjectWithSingleField })
+
+instance FromJSON Method where
+  parseJSON = genericParseJSON (defaultOptions { sumEncoding = ObjectWithSingleField })
 
 -- | "Pure" Helper functions
 data Helper = Helper
   { helperName :: LName
   , helperArgs :: [Arg]
   , helperBody :: LExpr
-  } deriving (Eq, Ord, Show, Generic, FromJSON, ToJSON, Hash.Hashable)
+  } deriving (Eq, Ord, Show, Generic, Hash.Hashable)
 
--- | ADTeration
+instance ToJSON Helper where
+  toJSON = genericToJSON (defaultOptions { sumEncoding = ObjectWithSingleField })
+
+instance FromJSON Helper where
+  parseJSON = genericParseJSON (defaultOptions { sumEncoding = ObjectWithSingleField })
+
+-- | ADT
 data ADTDef = ADTDef
   { adtName :: LNameUpper
   , adtConstrs :: [ADTConstr]
-  } deriving (Eq, Ord, Show, Generic, ToJSON, FromJSON, Hash.Hashable)
+  } deriving (Eq, Ord, Show, Generic, Hash.Hashable)
+
+instance ToJSON ADTDef where
+  toJSON = genericToJSON (defaultOptions { sumEncoding = ObjectWithSingleField })
+
+instance FromJSON ADTDef where
+  parseJSON = genericParseJSON (defaultOptions { sumEncoding = ObjectWithSingleField })
 
 -- | Definition
 data Def
-  = GlobalDef Type Preconditions Name LExpr
-  | GlobalDefNull Type Preconditions LName
-  deriving (Eq, Ord, Show, Generic, FromJSON, ToJSON, Hash.Hashable)
+  = GlobalDef
+    { gDefType :: Type
+    , gDefPrec :: Preconditions
+    , gDefName :: Name
+    , gDefExpr :: LExpr
+    }
+  | GlobalDefNull
+    { gDefNullType :: Type
+    , gDefNullPrec :: Preconditions
+    , gDefNullName :: LName
+    }
+  deriving (Eq, Ord, Show, Generic, Hash.Hashable)
+
+instance ToJSON Def where
+  toJSON = genericToJSON (defaultOptions { sumEncoding = ObjectWithSingleField })
+
+instance FromJSON Def where
+  parseJSON = genericParseJSON (defaultOptions { sumEncoding = ObjectWithSingleField })
 
 defnName :: Def -> Name
 defnName = locVal . defnLName
@@ -439,7 +579,13 @@ data Script = Script
   , scriptTransitions :: [Transition]
   , scriptMethods     :: [Method]
   , scriptHelpers     :: [Helper]
-  } deriving (Eq, Ord, Show, Generic, ToJSON, FromJSON, Hash.Hashable)
+  } deriving (Eq, Ord, Show, Generic, Hash.Hashable)
+
+instance ToJSON Script where
+  toJSON = genericToJSON (defaultOptions { sumEncoding = ObjectWithSingleField })
+
+instance FromJSON Script where
+  parseJSON = genericParseJSON (defaultOptions { sumEncoding = ObjectWithSingleField })
 
 emptyScript :: Script
 emptyScript = Script
@@ -715,7 +861,6 @@ instance Pretty Lit where
     LAsset addr    -> "a" <> squotes (ppr addr)
     LContract addr -> "c" <> squotes (ppr addr)
     LSig (r,s)     -> tupleOf [ppr r, ppr s]
-    LVoid          -> token Token.void
     LState name    -> token Token.at <> ppr name
     LDateTime dt   -> dquotes $ ppr $ (DT.formatDatetime (unDateTime dt) :: [Char])
     LTimeDelta d   -> ppr d
@@ -850,12 +995,6 @@ ppScript = render . ppr
 -- To/FromJSON
 -------------------------------------------------------------------------------
 
-instance ToJSON Name where
-  toJSON (Name nm) = toJSON nm
-
-instance FromJSON Name where
-  parseJSON = fmap Name . parseJSON
-
 instance ToJSON DateTime where
   toJSON (DateTime dt) = toJSON dt
 
@@ -870,7 +1009,14 @@ data Place
   = PlaceStart
   | Place { placeName :: Name }
   | PlaceEnd
-  deriving (Eq, Ord, Show, Generic, Serialize, ToJSON, FromJSON, FromJSONKey, ToJSONKey, Hash.Hashable)
+  deriving (Eq, Ord, Show, Generic, Serialize, FromJSONKey, ToJSONKey, Hash.Hashable)
+
+instance ToJSON Place where
+  toJSON = genericToJSON (defaultOptions { sumEncoding = ObjectWithSingleField })
+
+instance FromJSON Place where
+  parseJSON = genericParseJSON (defaultOptions { sumEncoding = ObjectWithSingleField })
+
 
 instance Pretty Place where
   ppr PlaceStart = ppr Token.initial
@@ -898,11 +1044,20 @@ instance ToJSON WorkflowState where
   toJSON = toJSON . prettyPrint
 
 instance FromJSON WorkflowState where
-  parseJSON = fmap (WorkflowState . Set.fromList . fmap (makePlace . Name) . T.splitOn (T.pack ",")) . parseJSON
+  parseJSON wf = parseJSON wf >>= \t
+    -> pure $ case (T.take 1 t, T.takeEnd 1 t) of
+         ("{", "}") -> WorkflowState . Set.fromList . fmap (makePlace . Name . T.strip) . T.splitOn (T.pack ",") . T.dropEnd 1 . T.drop 1 $ t
+         _ -> WorkflowState . Set.fromList . fmap (makePlace . Name . T.strip) . T.splitOn (T.pack ",") $ t
 
 data Transition
   = Arrow WorkflowState WorkflowState
-  deriving (Eq, Ord, Show, Generic, Serialize, ToJSON, FromJSON, Hash.Hashable)
+  deriving (Eq, Ord, Show, Generic, Serialize, Hash.Hashable)
+
+instance ToJSON Transition where
+  toJSON = genericToJSON (defaultOptions { sumEncoding = ObjectWithSingleField })
+
+instance FromJSON Transition where
+  parseJSON = genericParseJSON (defaultOptions { sumEncoding = ObjectWithSingleField })
 
 instance Pretty Transition where
   ppr (Arrow from to) = token Token.transition <+> ppr from <+> token Token.rarrow <+> ppr to
@@ -943,7 +1098,7 @@ instance Arbitrary DT.Period where
   arbitrary = do
     year <- choose (0,1000)
     month <- choose (0,12)
-    let monthNumDays = DC.gregorianMonthLength (fromIntegral year) (fromIntegral month)
+    let monthNumDays = DC.gregorianMonthLength (fromIntegral year) month
     day <- choose (0, monthNumDays)
     pure $ DT.Period $ DH.Period year month day
 
@@ -976,7 +1131,7 @@ arbValue n
     = oneof
       [ VMap . Map.fromList <$> Q.listOf (liftArbitrary2 (arbValue (n - 1)) (arbValue (n - 1)))
       , VSet . Set.fromList <$> Q.listOf (arbValue (n - 1))
-      , VConstr <$> arbitrary <*> (arbitrary `suchThat` (\l -> length l < 10))
+      , VConstr <$> arbitrary <*> arbSmallList
       ]
 
 instance Arbitrary Value where
@@ -1006,7 +1161,7 @@ instance Arbitrary WorkflowState where
   arbitrary = oneof
     [ unsafeWorkflowState <$> do
         hd <- arbitrary
-        tl <- arbitrary
+        tl <- arbSmallList
         pure $ Set.fromList (hd:tl)
     , pure startState
     , pure endState
@@ -1083,33 +1238,41 @@ instance Arbitrary Arg where
   arbitrary = Arg <$> arbitrary <*> arbitrary
 
 instance Arbitrary Preconditions where
-  arbitrary = Preconditions <$> arbitrary
+  arbitrary = Preconditions <$> arbSmallList
 
 instance Arbitrary Precondition where
   arbitrary = oneof [ pure PrecAfter, pure PrecBefore, pure PrecRoles ]
 
 instance Arbitrary Method where
-  arbitrary = Method <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> sized arbLExpr
+  arbitrary = Method <$> arbitrary <*> arbitrary <*> arbitrary <*> arbSmallList <*> sized arbLExpr
 
 instance Arbitrary Helper where
-  arbitrary = Helper <$> arbitrary <*> arbitrary <*> arbitrary
+  arbitrary = Helper <$> arbitrary <*> arbSmallList <*> arbitrary
 
 instance Arbitrary Transition where
   arbitrary = Arrow <$> arbitrary <*> arbitrary
 
 instance Arbitrary ADTDef where
-  arbitrary = ADTDef <$> arbitrary <*> listOf1 arbitrary
+  arbitrary = ADTDef <$> arbitrary <*> arbitrary `suchThat` (\x -> length x > 0 && length x < 10)
 
 instance Arbitrary ADTConstr where
-  arbitrary = ADTConstr <$> arbitrary <*> Q.listOf arbitraryParam
+  arbitrary = ADTConstr <$> arbitrary <*> arbTake 5 (Q.listOf arbitraryParam)
     where
       arbitraryParam = (,) <$> arbitrary <*> arbitrary
 
 instance Arbitrary Script where
-  arbitrary = Script <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
+  arbitrary
+    = Script
+      <$> arbSmallList
+      <*> arbSmallList
+      <*> arbSmallList
+      <*> arbSmallList
+      <*> arbSmallList
 
 instance Arbitrary Expr where
-  arbitrary = sized arbNonSeqExpr
+  arbitrary = do
+    n <- choose ((-5), 5)
+    arbNonSeqExpr n
 
 arbNumLogicExpr :: Int -> Gen Expr
 arbNumLogicExpr n
@@ -1127,7 +1290,7 @@ arbNumLogicExpr n
       ]
 
 arbMatches :: Int -> Gen [CaseBranch]
-arbMatches n = listOf1 (CaseBranch <$> arbPat <*> arbLExpr n)
+arbMatches n = arbTake 5 (listOf1 (CaseBranch <$> arbPat <*> arbLExpr n))
 
 arbPat :: Gen LPattern
 arbPat = Located <$> arbitrary <*> (PatLit <$> arbitrary)
@@ -1140,7 +1303,7 @@ arbNonSeqExpr n
              ]
   | otherwise = let n' = n `div` 2 in oneof
       [ EAssign <$> arbitrary         <*> addLoc (arbNonSeqExpr n')
-      , ECall   <$> arbitrary         <*> Q.listOf (addLoc (arbNonSeqExpr n'))
+      , ECall   <$> arbitrary         <*> arbTake 5 (Q.listOf (addLoc (arbNonSeqExpr n')))
       , EIf     <$> addLoc (arbNonSeqExpr n') <*> arbLExpr n' <*> arbLExpr n'
       , EBefore <$> addLoc (arbNonSeqExpr n') <*> arbLExpr n'
       , EAfter  <$> addLoc (arbNonSeqExpr n') <*> arbLExpr n'
@@ -1160,3 +1323,9 @@ arbSeqExpr n
 arbLExpr :: Int -> Gen LExpr
 arbLExpr n = oneof . map addLoc $
   [ arbNonSeqExpr n, arbSeqExpr n ]
+
+arbSmallList :: Arbitrary a => Gen [a]
+arbSmallList = arbitrary `suchThat` (\x -> length x < 10)
+
+arbTake :: Int -> Gen [a] -> Gen [a]
+arbTake n arb = arb `suchThat` (\x -> length x < n)

@@ -19,6 +19,7 @@ module Language.FCL.Parser (
   parseText,
   parseFile,
 
+  parseADTDef,
   parseDefn,
   parseLit,
   parseDecimal,
@@ -58,6 +59,8 @@ module Language.FCL.Parser (
 import Protolude hiding
   ((<|>), (<>), bool, many, try, option, optional, sourceLine, sourceColumn, Type)
 import Prelude (read)
+import Test.QuickCheck
+import Test.QuickCheck.Instances.Text ()
 
 import Text.Parsec
 import Text.Parsec.Text
@@ -65,7 +68,7 @@ import Text.Parsec.Expr as Expr
 import Text.ParserCombinators.Parsec.Error
 import qualified Text.Parsec.Token as Tok
 
-import Data.Aeson (ToJSON(..), FromJSON)
+import Data.Aeson as A
 import qualified Data.ByteString.Char8 as BS8
 import Data.Char (isDigit)
 import Data.Foldable (foldr1)
@@ -108,6 +111,10 @@ parseFile :: FilePath -> IO Script
 parseFile path = do
   eScript <- parseScript <$> readFile path
   either panicppr pure eScript
+
+parseADTDef :: Text -> Either ParseErrInfo ADTDef
+parseADTDef input = first (mkParseErrInfo input)
+  $ parse (contents adtDef) "ADT" input
 
 parseDefn :: Text -> Either ParseErrInfo Def
 parseDefn input = first (mkParseErrInfo input)
@@ -664,7 +671,7 @@ transition = do
   <?> "transition"
 
 -------------------------------------------------------------------------------
--- ADTeration type definition
+-- ADT type definition
 -------------------------------------------------------------------------------
 
 adtDef :: Parser ADTDef
@@ -704,7 +711,13 @@ data ParseErrInfo = ParseErrInfo
   , lineAfterContents :: Text
   , column       :: Int
   , errMsg       :: Text
-  } deriving (Eq, Show, Generic, ToJSON, FromJSON)
+  } deriving (Eq, Show, Generic)
+
+instance ToJSON ParseErrInfo where
+  toJSON = genericToJSON (defaultOptions { sumEncoding = ObjectWithSingleField })
+
+instance FromJSON ParseErrInfo where
+  parseJSON = genericParseJSON (defaultOptions { sumEncoding = ObjectWithSingleField })
 
 mkParseErrInfo :: Text -> ParseError -> ParseErrInfo
 mkParseErrInfo input perr = ParseErrInfo
@@ -725,3 +738,10 @@ instance Pretty ParseErrInfo where
     <> text (toS $ T.replicate (column - 1) "-") <> "^"
     <$$> text (toS lineAfterContents)
     <$$> (text $ toS errMsg )
+
+-------------------------
+-- Arbitrary
+-------------------------
+
+instance Arbitrary ParseErrInfo where
+  arbitrary = ParseErrInfo <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary

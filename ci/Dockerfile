@@ -11,6 +11,7 @@ RUN \
   apt-get update -yqq && \
   apt-get -yq --no-install-recommends install \
     google-cloud-sdk  && \
+  apt-get install -y liblzma-dev && \
   rm -rf /var/lib/apt/lists/*
 
 ENTRYPOINT []
