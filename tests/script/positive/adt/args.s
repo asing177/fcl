@@ -1,4 +1,4 @@
-type T = A | B(num x) | C(text y);
+type T { A; B(num x); C(text y) }
 
 global T t = A;
 
