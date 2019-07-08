@@ -5,7 +5,7 @@ The following commands start a server an listen to port `8080`:
 ```
 stack install
 
-fcl-api
+fcl-http
 ```
 
 
