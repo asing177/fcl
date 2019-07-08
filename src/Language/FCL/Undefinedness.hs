@@ -25,7 +25,7 @@ import qualified Language.FCL.Prim as Prim
 import Language.FCL.Pretty (Pretty(..), vcat, token, listOf, (<+>), (<$$>), nest, linebreak)
 import Language.FCL.Warning (Warning(UnusedVarWarn))
 
-import qualified Data.Aeson as A
+import Data.Aeson as A hiding (Error)
 import qualified Data.List as List
 import qualified Data.Map as Map
 import qualified Data.Set as Set
@@ -127,7 +127,13 @@ data StackTraceItem
   { method :: Name
   , initialState :: Marking UndefinednessEnv
   , resultState  :: Marking UndefinednessEnv
-  } deriving (Show, Eq, Ord, Generic, A.FromJSON, A.ToJSON)
+  } deriving (Show, Eq, Ord, Generic)
+
+instance ToJSON StackTraceItem where
+  toJSON = genericToJSON (defaultOptions { sumEncoding = ObjectWithSingleField })
+
+instance FromJSON StackTraceItem where
+  parseJSON = genericParseJSON (defaultOptions { sumEncoding = ObjectWithSingleField })
 
 -- | Valid stack trace
 data ValidStackTrace
@@ -149,7 +155,13 @@ data InvalidStackTrace
     , invalidErrMsgs :: [Text]
     -- ^ Messages explaining what went wrong
     }
-  deriving (Show, Eq, Generic, A.FromJSON, A.ToJSON)
+  deriving (Show, Eq, Generic)
+
+instance ToJSON InvalidStackTrace where
+  toJSON = genericToJSON (defaultOptions { sumEncoding = ObjectWithSingleField })
+
+instance FromJSON InvalidStackTrace where
+  parseJSON = genericParseJSON (defaultOptions { sumEncoding = ObjectWithSingleField })
 
 instance Pretty [InvalidStackTrace] where
   ppr []
@@ -276,7 +288,13 @@ data IsInitialized
   = Initialized
   | Uninitialized
   | Error (Set Loc)
-    deriving (Show, Eq, Ord, Generic, A.FromJSON, A.ToJSON)
+    deriving (Show, Eq, Ord, Generic)
+
+instance ToJSON IsInitialized where
+  toJSON = genericToJSON (defaultOptions { sumEncoding = ObjectWithSingleField })
+
+instance FromJSON IsInitialized where
+  parseJSON = genericParseJSON (defaultOptions { sumEncoding = ObjectWithSingleField })
 
 instance MeetSemiLattice IsInitialized where
   Initialized   /\ Initialized   = Initialized

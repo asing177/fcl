@@ -21,7 +21,7 @@ import Data.Sequence (Seq(..))
 import qualified Data.Sequence as Sq
 import Data.Set (Set)
 import qualified Data.Set as S
-import qualified Data.Aeson as A
+import Data.Aeson as A
 
 import Language.FCL.AST (Place(..), Transition(..), WorkflowState, (\\), endState, isSubWorkflow, places, startState, wfIntersection, wfUnion)
 import Language.FCL.Pretty (Doc, Pretty(..), (<+>), listOf, squotes, text, vcat)
@@ -34,7 +34,13 @@ data WFError
   | TransFromEnd Transition
   | Counreachable WorkflowState
   | UnreachableTransition Transition
-  deriving (Eq, Ord, Show, Generic, A.FromJSON, A.ToJSON)
+  deriving (Eq, Ord, Show, Generic)
+
+instance ToJSON WFError where
+  toJSON = genericToJSON (defaultOptions { sumEncoding = ObjectWithSingleField })
+
+instance FromJSON WFError where
+  parseJSON = genericParseJSON (defaultOptions { sumEncoding = ObjectWithSingleField })
 
 instance Pretty WFError where
   ppr = \case

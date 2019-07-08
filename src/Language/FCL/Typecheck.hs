@@ -27,7 +27,7 @@ module Language.FCL.Typecheck (
   signatures,
   methodSig,
   functionSig,
-  -- tcMethodCall,
+  tcMethodCall,
   runInferM,
   tcDefns,
   tcDefn,
@@ -51,7 +51,7 @@ import Language.FCL.Utils ((?), zipWith3M_)
 
 -- import Control.Exception (assert)
 import Control.Monad.State.Strict (modify')
-import qualified Data.Aeson as A
+import Data.Aeson as A hiding (Value)
 import qualified Data.List as List
 import Data.List.NonEmpty (NonEmpty)
 import qualified Data.List.NonEmpty as NonEmpty
@@ -65,7 +65,14 @@ import qualified Data.Map as Map
 
 -- | Type signature
 data Sig = Sig [Type] Type
-  deriving (Eq, Show, Generic, Serialize, A.FromJSON, A.ToJSON)
+  deriving (Eq, Show, Generic, Serialize)
+
+instance ToJSON Sig where
+  toJSON = genericToJSON (defaultOptions { sumEncoding = ObjectWithSingleField })
+
+instance FromJSON Sig where
+  parseJSON = genericParseJSON (defaultOptions { sumEncoding = ObjectWithSingleField })
+
 
 -- | Type error metadata
 -- This type uses ByteString for ad-hoc error messages so that we can get a
@@ -354,30 +361,30 @@ getValidFields cs = case partitionFields cs of
 
 -- | Typechecks whether the values supplied as arguments to the method
 -- call match the method argument types expected
--- tcMethodCall :: ADTInfo -> Method -> [Value] -> Either TypeErrInfo ()
--- tcMethodCall adtInfo method argVals
---   = do
---   actualTypes <- mapM valueType argVals
---   zipWithM_ validateTypes expectedTypes actualTypes
---   where
---     valueType :: Value -> Either TypeErrInfo Type
---     valueType val
---       = case (val, mapType adtInfo val) of
---           (_, Just ty) -> pure ty
---           (VADT c, Nothing) -> Left $ UnknownConstructor c
---           (o, Nothing) -> Left $ Impossible $ "Malformed value: " <> show o
+tcMethodCall :: ADTInfo -> Method -> [Value] -> Either TypeErrInfo ()
+tcMethodCall adtInfo method argVals
+  = do
+  actualTypes <- mapM valueType argVals
+  zipWithM_ validateTypes expectedTypes actualTypes
+  where
+    valueType :: Value -> Either TypeErrInfo Type
+    valueType val
+      = case (val, mapType adtInfo val) of
+          (_, Just ty) -> pure ty
+          (VConstr c _, Nothing) -> Left $ UnknownConstructor c
+          (o, Nothing) -> Left $ Impossible $ "Malformed value: " <> show o
 
---     expectedTypes = Language.FCL.AST.argtys' method
+    expectedTypes = Language.FCL.AST.argtys' method
 
---     validateTypes expected actual =
---       when (not $ validMethodArgType expected actual) $
---         Left $ InvalidArgType (locVal $ methodName method) expected actual
+    validateTypes expected actual =
+      when (not $ validMethodArgType expected actual) $
+        Left $ InvalidArgType (locVal $ methodName method) expected actual
 
---     validMethodArgType :: Type -> Type -> Bool
---     validMethodArgType (TAsset _) (TAsset TAny) = True
---     validMethodArgType (TAsset TAny) (TAsset _) = True
---     validMethodArgType (TNum np1) (TNum np2) = np1 <= np2
---     validMethodArgType t1 t2 = t1 == t2
+    validMethodArgType :: Type -> Type -> Bool
+    validMethodArgType (TAsset _) (TAsset TAny) = True
+    validMethodArgType (TAsset TAny) (TAsset _) = True
+    validMethodArgType (TNum np1) (TNum np2) = np1 <= np2
+    validMethodArgType t1 t2 = t1 == t2
 
 signatures :: Script -> Either (NonEmpty TypeError) [(Name,Sig)]
 signatures (Script adts defns graph methods helpers) =
@@ -751,7 +758,6 @@ tcLit lit =
   case lit of
     LNum (Decimal p v)        -> Right (TNum $ NPDecimalPlaces p)
     LBool _                   -> Right TBool
-    LVoid                     -> Right TVoid
     LText _                   -> Right TText
     LSig _                    -> Right TSig
     LAccount addr             -> Right TAccount

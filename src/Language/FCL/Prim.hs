@@ -24,10 +24,11 @@ module Language.FCL.Prim (
 ) where
 
 import Protolude hiding (Hashable)
+import Test.QuickCheck
 import Language.FCL.Hash (Hashable)
 import Control.Arrow ((&&&))
 
-import Data.Aeson (ToJSON(..), FromJSON(..))
+import Data.Aeson as A
 import qualified Data.List
 import Data.Serialize (Serialize)
 
@@ -71,7 +72,13 @@ data PrimOp
   | MapPrimOp MapPrimOp
   | SetPrimOp SetPrimOp
   | CollPrimOp CollPrimOp
-  deriving (Eq, Show, Generic, Ord, Serialize, FromJSON, ToJSON, Hashable)
+  deriving (Eq, Show, Generic, Ord, Serialize, Hashable)
+
+instance ToJSON PrimOp where
+  toJSON = genericToJSON (defaultOptions { sumEncoding = ObjectWithSingleField })
+
+instance FromJSON PrimOp where
+  parseJSON = genericParseJSON (defaultOptions { sumEncoding = ObjectWithSingleField })
 
 -- | These prim ops are "polymorphic" in the sense that their argument or return
 -- types vary based on the type of asset that is passed as an argument
@@ -81,7 +88,13 @@ data AssetPrimOp
   | TransferFrom        -- ^ @transferFrom(asset,amount,acc)@                 : Transfer n asset holdings from contract to account
   | CirculateSupply     -- ^ @circulate(asset,amount)@                        : Circulate n asset supply to issuer's holdings
   | TransferHoldings    -- ^ @transferHoldings(from,asset,amount,to)@         : Transfer asset holdings from account to account
-  deriving (Eq, Show, Generic, Ord, Serialize, FromJSON, ToJSON, Hashable)
+  deriving (Eq, Show, Generic, Ord, Serialize, Hashable)
+
+instance ToJSON AssetPrimOp where
+  toJSON = genericToJSON (defaultOptions { sumEncoding = ObjectWithSingleField })
+
+instance FromJSON AssetPrimOp where
+  parseJSON = genericParseJSON (defaultOptions { sumEncoding = ObjectWithSingleField })
 
 -- | These primops are polymorphic over the key and value type parameters of the
 -- map supplied as an argument.
@@ -90,12 +103,24 @@ data MapPrimOp
   | MapDelete  -- ^ @mapDelete(key, map)@            : Delete an element from map. If the element doesn't exist, an error occurs.
   | MapLookup  -- ^ @lookup(key, map)@            : Lookup an element from a map
   | MapModify  -- ^ @modify(key, f, map)@         : Modify an element in the map
-  deriving (Eq, Show, Generic, Ord, Enum, Bounded, Serialize, FromJSON, ToJSON, Hashable)
+  deriving (Eq, Show, Generic, Ord, Enum, Bounded, Serialize, Hashable)
+
+instance ToJSON MapPrimOp where
+  toJSON = genericToJSON (defaultOptions { sumEncoding = ObjectWithSingleField })
+
+instance FromJSON MapPrimOp where
+  parseJSON = genericParseJSON (defaultOptions { sumEncoding = ObjectWithSingleField })
 
 data SetPrimOp
   = SetInsert -- ^ @setInsert(value, set)@ : Insert an element into a set. If the element already exists, the original set is returned.
   | SetDelete -- ^ @setDelete(value, set)@ : Delete an element from a set. If the element does not exist, and error occurs.
-  deriving (Eq, Show, Generic, Ord, Enum, Bounded, Serialize, FromJSON, ToJSON, Hashable)
+  deriving (Eq, Show, Generic, Ord, Enum, Bounded, Serialize, Hashable)
+
+instance ToJSON SetPrimOp where
+  toJSON = genericToJSON (defaultOptions { sumEncoding = ObjectWithSingleField })
+
+instance FromJSON SetPrimOp where
+  parseJSON = genericParseJSON (defaultOptions { sumEncoding = ObjectWithSingleField })
 
 data CollPrimOp
   = Aggregate  -- ^ @aggregate(v, f, coll)@   : Fold over a collection, accumulating a resulting value with 'f' using 'v' as the initial value
@@ -103,7 +128,13 @@ data CollPrimOp
   | Filter     -- ^ @filter(p, coll)@         : Produce a new collection by removing the values that do not satisfy the supplied predicate
   | Element    -- ^ @element(v, coll)@        : Checks for membership of a value to a collection
   | IsEmpty    -- ^ @isEmpty(coll)@           : Checks if the given collection is empty or not
-  deriving (Eq, Show, Generic, Ord, Enum, Bounded, Serialize, FromJSON, ToJSON, Hashable)
+  deriving (Eq, Show, Generic, Ord, Enum, Bounded, Serialize, Hashable)
+
+instance ToJSON CollPrimOp where
+  toJSON = genericToJSON (defaultOptions { sumEncoding = ObjectWithSingleField })
+
+instance FromJSON CollPrimOp where
+  parseJSON = genericParseJSON (defaultOptions { sumEncoding = ObjectWithSingleField })
 
 {-# INLINE primName #-}
 primName :: IsString s => PrimOp -> s
@@ -245,3 +276,58 @@ lookupPrim p = Data.List.lookup p prims
 
 instance Pretty PrimOp where
   ppr = ppr . (primName :: PrimOp -> Text)
+
+---------------
+-- Arbitrary --
+---------------
+
+instance Arbitrary PrimOp where
+  arbitrary = oneof
+    [ pure Verify
+    , pure Sign
+    , pure Block
+    , pure Deployer
+    , pure Sender
+    , pure Created
+    , pure Address
+    , pure Validator
+    , pure Sha256
+    , pure AccountExists
+    , pure AssetExists
+    , pure ContractExists
+    , pure Terminate
+    , pure Now
+    , pure TransitionTo
+    , pure CurrentState
+    , pure TxHash
+    , pure ContractValueExists
+    , pure ContractState
+    , pure IsBusinessDayUK
+    , pure NextBusinessDayUK
+    , pure IsBusinessDayNYSE
+    , pure NextBusinessDayNYSE
+    , pure Between
+    , pure ContractValue
+    , pure Round
+    , pure RoundUp
+    , pure RoundDown
+    , pure RoundRem
+    , pure RoundUpRem
+    , pure RoundDownRem
+    , AssetPrimOp <$> arbAssetPrim
+    , MapPrimOp <$> arbMapPrim
+    ]
+    where
+      arbAssetPrim = elements
+        [ HolderBalance
+        , TransferTo
+        , TransferFrom
+        , CirculateSupply
+        , TransferHoldings
+        ]
+
+      arbMapPrim = elements
+        [ MapInsert
+        , MapDelete
+        , MapLookup
+        ]

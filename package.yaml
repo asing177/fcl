@@ -33,9 +33,12 @@ dependencies:
   # Data Structures
   - containers
   - ilist
+  - insert-ordered-containers
 
   # Serialization
   - binary
+  - cereal
+  - aeson
 
   # Date & Time
   - time
@@ -44,6 +47,20 @@ dependencies:
 
   # Text
   - bytestring
+
+  # Quickcheck
+  - QuickCheck
+  - quickcheck-instances
+
+  # Http
+  - wai
+  - wai-cors
+  - warp
+  - servant
+  - servant-server
+  - servant-swagger
+  - servant-swagger-ui
+  - swagger2
 
 library:
   source-dirs: src
@@ -57,9 +74,7 @@ library:
   - process-extras
 
   # Serialization
-  - cereal
   - cereal-text
-  - aeson
   - pretty-hex
 
   # Exceptions
@@ -117,8 +132,6 @@ library:
     - Language.FCL.Contract
     - Language.FCL.AST
     - Language.FCL.Delta
-    - Numeric.Lossless.Decimal
-    - Numeric.Lossless.Number
     - Language.FCL.Init
     - Language.FCL.Storage
     - Language.FCL.Pretty
@@ -153,11 +166,18 @@ library:
     - Language.FCL.Warning
     - Language.FCL.Orphans
 
+    - Numeric.Lossless.Decimal
+    - Numeric.Lossless.Number
+
+    - HTTP.FCL.API
+    - HTTP.FCL.SwaggerSchema
+
 executables:
   fcl:
     main:                Main.hs
     source-dirs:         exe
     ghc-options:
+    - -O2
     - -threaded
     - -rtsopts
     - -with-rtsopts=-N
@@ -166,9 +186,9 @@ executables:
     - optparse-applicative
     - aeson-pretty
 
-  fcl-lsp:
+  fcl-http:
     main: Main.hs
-    source-dirs: lsp
+    source-dirs: http
     ghc-options:
     - -threaded
     - -rtsopts
@@ -177,12 +197,12 @@ executables:
     - fcl
     - wai-logger
     - scotty
-    - aeson
 
 tests:
   fcl-test:
     main:                Main.hs
-    source-dirs:         tests
+    source-dirs:
+    - tests
     ghc-options:
     - -threaded
     - -rtsopts
@@ -197,4 +217,8 @@ tests:
     - tasty-hunit
     - tasty-golden
     - tasty-quickcheck
-    - QuickCheck
+    - tasty-hspec
+    - hspec
+    - warp
+    - quickcheck-instances
+    - aeson-pretty

@@ -1,0 +1,56 @@
+{
+    "g": {
+        "VConstr": [
+            "Foo",
+            [
+                {
+                    "VNum": {
+                        "NumDecimal": {
+                            "decimalPlaces": 0,
+                            "decimalIntegerValue": 0
+                        }
+                    }
+                },
+                {
+                    "VNum": {
+                        "NumDecimal": {
+                            "decimalPlaces": 0,
+                            "decimalIntegerValue": 1
+                        }
+                    }
+                }
+            ]
+        ]
+    },
+    "a": {
+        "VNum": {
+            "NumDecimal": {
+                "decimalPlaces": 0,
+                "decimalIntegerValue": 3
+            }
+        }
+    },
+    "d": {
+        "VAccount": "fwBVDsVh8SYQy98CzYpNPcbyTRczVUZ96HszhNRB8Ve"
+    },
+    "b": {
+        "VNum": {
+            "NumRational": {
+                "denominator": 7,
+                "numerator": 22
+            }
+        }
+    },
+    "e": {
+        "VVoid": []
+    },
+    "h": {
+        "VAsset": "Fw68hsis6JPW4ed3ER1VC959TTf9DqberLxrq5uECKxh"
+    },
+    "c": {
+        "VBool": true
+    },
+    "i": {
+        "VContract": "fwBVDsVh8SYQy98CzYpNPcbyTRczVUZ96HszhNRB8Ve"
+    }
+}

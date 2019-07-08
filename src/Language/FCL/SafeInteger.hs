@@ -28,20 +28,21 @@ module Language.FCL.SafeInteger (
 ) where
 
 import qualified Prelude             (show)
-import           Protolude           hiding (get, put)
+import Protolude           hiding (get, put)
+import Test.QuickCheck
 
-import           Control.Exception   (Exception, throw)
+import Control.Exception   (Exception, throw)
 
-import           Crypto.Number.Basic (numBits)
+import Crypto.Number.Basic (numBits)
 
-import           Data.Aeson          as A
-import           Data.Aeson.Types    as A
-import           Data.Serialize      as S (Serialize (..), getWord16be,
+import Data.Aeson          as A
+import Data.Aeson.Types    as A
+import Data.Serialize      as S (Serialize (..), getWord16be,
                                            getWord8, putWord16be, putWord8,
                                            runPut)
-import           Data.Text.Read      (decimal, signed)
+import Data.Text.Read      (decimal, signed)
 
-import           Language.FCL.Pretty
+import Language.FCL.Pretty
 import Language.FCL.Unsafe
 import qualified Language.FCL.Hash as Hash
 
@@ -169,3 +170,13 @@ roll :: (Integral a, Bits a) => [Word8] -> a
 roll = foldr unstep 0
   where
     unstep a b = b `shiftL` 8 .|. fromIntegral a
+
+---------------
+-- Arbitrary --
+---------------
+
+instance Arbitrary SafeInteger where
+  arbitrary =
+    let minBound' = fromSafeInteger minBound
+        maxBound' = fromSafeInteger maxBound
+    in toSafeInteger' <$> choose (minBound',maxBound')

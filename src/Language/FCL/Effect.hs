@@ -13,6 +13,7 @@ Compute what effects an FCL expression has
 
 module Language.FCL.Effect
   ( Effects
+  , Effect(..)
   , ScriptEffects(..)
   , EffectError(..)
   , effectCheckScript
@@ -22,7 +23,7 @@ module Language.FCL.Effect
 
 import Protolude
 
-import qualified Data.Aeson as A
+import Data.Aeson as A
 import qualified Data.Either as Either
 import qualified Data.List as List
 import qualified Data.List.NonEmpty as NonEmpty
@@ -35,14 +36,26 @@ import Language.FCL.Prim
 import Language.FCL.Typecheck (Sig(..))
 
 newtype Effects = Effects { effectSet :: Set Effect }
-  deriving (Show, Eq, Generic, A.FromJSON, A.ToJSON)
+  deriving (Show, Eq, Generic)
+
+instance ToJSON Effects where
+  toJSON = genericToJSON (defaultOptions { sumEncoding = ObjectWithSingleField })
+
+instance FromJSON Effects where
+  parseJSON = genericParseJSON (defaultOptions { sumEncoding = ObjectWithSingleField })
 
 data Effect
   = Write PrimOp -- ^ write to ledger state
   | Read PrimOp -- ^  read from ledger state
   | ReadVar Name -- ^ read from contract state
   | WriteVar Name -- ^ write to contract state
-  deriving (Show, Eq, Ord, Generic, A.FromJSON, A.ToJSON)
+  deriving (Show, Eq, Ord, Generic)
+
+instance ToJSON Effect where
+  toJSON = genericToJSON (defaultOptions { sumEncoding = ObjectWithSingleField })
+
+instance FromJSON Effect where
+  parseJSON = genericParseJSON (defaultOptions { sumEncoding = ObjectWithSingleField })
 
 meet :: Effects -> Effects -> Effects
 meet (Effects l) (Effects r) = Effects (Set.union l r)
@@ -96,7 +109,14 @@ data EffectError
     { disallowedEffects :: Effects
     , effectLocation :: Loc
     }
-  deriving (Show, Generic, A.FromJSON, A.ToJSON)
+  deriving (Show, Generic)
+
+instance ToJSON EffectError where
+  toJSON = genericToJSON (defaultOptions { sumEncoding = ObjectWithSingleField })
+
+instance FromJSON EffectError where
+  parseJSON = genericParseJSON (defaultOptions { sumEncoding = ObjectWithSingleField })
+
 
 instance Pretty Effects where
   ppr (Effects effs) = listOf . Set.toList $ effs

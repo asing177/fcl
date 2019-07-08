@@ -41,8 +41,9 @@ module Numeric.Lossless.Decimal (
 ) where
 
 import Protolude hiding (Hashable, option, show, lift)
+import Test.QuickCheck
 
-import Data.Aeson (ToJSON(..), FromJSON(..))
+import Data.Aeson as A
 import Data.Binary (Binary(..))
 import Data.Char (isDigit)
 import Data.List (genericLength, genericReplicate, genericSplitAt)
@@ -58,8 +59,13 @@ import Language.FCL.Utils ((?), putBinaryViaSerialize, getBinaryViaSerialize)
 data Decimal = Decimal
   { decimalPlaces :: Integer
   , decimalIntegerValue :: Integer
-  } deriving (Generic, Hashable, Serialize, ToJSON, FromJSON)
+  } deriving (Generic, Hashable, Serialize)
 
+instance ToJSON Decimal where
+  toJSON = genericToJSON (defaultOptions { sumEncoding = ObjectWithSingleField })
+
+instance FromJSON Decimal where
+  parseJSON = genericParseJSON (defaultOptions { sumEncoding = ObjectWithSingleField })
 
 --------------------------------------------------------------------------------
 -- * Maths-related instances
@@ -186,3 +192,12 @@ instance Binary Decimal where
   put = putBinaryViaSerialize
   get = getBinaryViaSerialize
 
+
+---------------
+-- Arbitrary --
+---------------
+
+instance Arbitrary Decimal where
+  arbitrary = Decimal
+    <$> arbitrary
+    <*> liftA2 (^) arbitrary (arbitrary :: Gen Word8)

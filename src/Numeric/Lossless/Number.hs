@@ -21,8 +21,8 @@ module Numeric.Lossless.Number
   where
 
 import Protolude hiding (Hashable, option, show, lift)
-
-import Data.Aeson (ToJSON(..), FromJSON(..))
+import Test.QuickCheck
+import Data.Aeson as A
 import Data.Serialize (Serialize(..))
 
 import Numeric.Lossless.Decimal
@@ -30,7 +30,13 @@ import Language.FCL.Pretty (Pretty(..))
 import Language.FCL.Hash (Hashable(..))
 
 data Number = NumDecimal Decimal | NumRational Rational
-  deriving (Show, Generic, Hashable, Serialize, FromJSON, ToJSON)
+  deriving (Show, Generic, Hashable, Serialize)
+
+instance ToJSON Number where
+  toJSON = genericToJSON (defaultOptions { sumEncoding = ObjectWithSingleField })
+
+instance FromJSON Number where
+  parseJSON = genericParseJSON (defaultOptions { sumEncoding = ObjectWithSingleField })
 
 instance Num Number where
   NumDecimal  f1 + NumDecimal  f2 = NumDecimal  (f1           + f2)
@@ -76,3 +82,12 @@ instance Pretty Number where
   ppr (NumRational n) = ppr n
 
 
+---------------
+-- Arbitrary --
+---------------
+
+instance Arbitrary Number where
+  arbitrary = oneof
+      [ NumDecimal <$> arbitrary
+      , NumRational <$> arbitrary
+      ]

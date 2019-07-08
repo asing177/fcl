@@ -17,8 +17,10 @@ module Reference where
 
 import Protolude
 
+import Test.QuickCheck
 import Unsafe (unsafeFromJust)
 import System.IO.Unsafe (unsafePerformIO)
+import Control.Exception (catch)
 
 import qualified Crypto.PubKey.ECC.Types as ECC
 import qualified Crypto.PubKey.ECC.ECDSA as ECDSA
@@ -132,6 +134,9 @@ data Ref
   | Token             -- ^ Abstract token
   | Security          -- ^ Security
   deriving (Eq, Ord, Show, Read, Enum, Bounded, Generic)
+
+instance Arbitrary Reference.Ref where
+  arbitrary = elements [ minBound.. maxBound ]
 
 -------------------------------------------------------------------------------
 -- Account
@@ -270,31 +275,12 @@ instance World.World World where
   type AssetError' World = AssetError
 
   transferAsset assetAddr from to balance world = do
-    validateTransferAddrs world from to
+    -- validateTransferAddrs world from to
     case World.lookupAsset assetAddr world of
       Left err -> Left $ AssetDoesNotExist assetAddr
       Right asset -> do
         asset' <- transferHoldings from to balance asset world
         Right $ world { assets = Map.insert assetAddr asset' (assets world) }
-      where
-        validateTransferAddrs
-          :: World
-          -> Holder -- ^ Sender Address (account or contract)
-          -> Holder -- ^ Receiver Address (account or contract)
-          -> Either AssetError ()
-        validateTransferAddrs world from to = void $ do
-          -- Check if origin account/contract exists
-          first (const $ SenderDoesNotExist from) $
-            case World.lookupAccount (holderToAccount from) world of
-              Left err -> second (const ()) $
-                World.lookupContract (holderToContract from) world
-              Right acc -> Right ()
-          -- Check if toAddr account/contract exists
-          first (const $ ReceiverDoesNotExist to) $
-            case World.lookupAccount (holderToAccount to) world of
-              Left err -> second (const ()) $
-                World.lookupContract (holderToContract to) world
-              Right acc -> Right ()
 
   circulateAsset assetAddr txOrigin amount world =
     case World.lookupAsset assetAddr world of
@@ -485,3 +471,4 @@ testTransactionCtx = Eval.TransactionCtx
   , transactionBlockTs = testTimestamp
   , transactionBlockIdx = 7
   }
+

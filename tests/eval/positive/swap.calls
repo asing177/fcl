@@ -1,0 +1,4 @@
+propose(5,3)
+reject()
+propose(4,3)
+accept()
