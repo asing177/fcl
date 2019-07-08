@@ -18,7 +18,6 @@ module Reference where
 import Protolude
 
 import Test.QuickCheck
-import Unsafe (unsafeFromJust)
 import System.IO.Unsafe (unsafePerformIO)
 import Control.Exception (catch)
 
@@ -49,7 +48,6 @@ import Language.FCL.Parser (parseFile)
 import qualified Language.FCL.Key as Key
 import Language.FCL.Time as Time
 import qualified Language.FCL.Delta as Delta
-import qualified Language.FCL.SafeString as SafeString
 import qualified Language.FCL.Prim as Prim
 
 -------------------------------------------------------------------------------
@@ -145,7 +143,7 @@ instance Arbitrary Reference.Ref where
 data Account = Account
   { acPk        :: Key.PubKey
   , acAddress   :: Address AAccount
-  , timezone    :: SafeString.SafeString
+  , timezone    :: ByteString
   , metadata    :: Metadata
   } deriving (Show, Eq)
 
