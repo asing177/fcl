@@ -49,6 +49,8 @@ data Delta
   | Failure EvalFail
   deriving (Eq, Show)
 
+-- | It provides additional information about the context in which a method was called.
+-- It allows knowing which method caused which side-effect and when it happened.
 data DeltaCtx
   = DeltaCtx
     { dcMethodNm :: Maybe Name
