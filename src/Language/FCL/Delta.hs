@@ -24,6 +24,7 @@ import Language.FCL.Asset (Balance)
 import Language.FCL.AST
 import Language.FCL.Address
 import Language.FCL.Pretty
+import Language.FCL.Time
 import Language.FCL.Error (EvalFail(..))
 
 -------------------------------------------------------------------------------
@@ -50,7 +51,8 @@ data Delta
 
 data DeltaCtx
   = DeltaCtx
-    { dctxMethodNm :: Maybe Name
+    { dcMethodNm :: Maybe Name
+    , dcTime :: Timestamp
     } deriving (Eq, Show)
 
 data AssetOp
@@ -97,8 +99,8 @@ instance Pretty Delta where
 
     ModifyAsset ctx op -> do
       case ctx of
-        DeltaCtx Nothing -> pprOp op
-        DeltaCtx (Just nm) -> "calling method" <+> "\"" <> ppr (unName nm) <> "\"" <+> "causes" <+> pprOp op
+        DeltaCtx Nothing t -> "modifying asset at:" <+> ppr t <+> pprOp op
+        DeltaCtx (Just nm) t -> "calling method" <+> "\"" <> ppr (unName nm) <> "\"" <+> "at" <+> ppr t <+> pprOp op
         where
           pprOp op = case op of
             TransferTo asset amt holder contract       ->

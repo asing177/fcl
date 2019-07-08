@@ -2,7 +2,10 @@
 [ ModifyGlobal Name { unName = "usdAmount" } (VNum (NumDecimal 5))
 , ModifyGlobal Name { unName = "gbpAmount" } (VNum (NumDecimal 3))
 , ModifyAsset
-    DeltaCtx { dctxMethodNm = Just Name { unName = "propose" } }
+    DeltaCtx
+      { dcMethodNm = Just Name { unName = "propose" }
+      , dcTime = 1562573549365574
+      }
     TransferTo
       { asset = Address "2vJ8JYN43hKwZx6p3r7fuRToZ3NiqGrPRngdq63hAskf"
       , amount = Balance { unBalance = 5 }
@@ -15,7 +18,10 @@
           fromList [ Place { placeName = Name { unName = "proposed" } } ]
       }
 , ModifyAsset
-    DeltaCtx { dctxMethodNm = Just Name { unName = "reject" } }
+    DeltaCtx
+      { dcMethodNm = Just Name { unName = "reject" }
+      , dcTime = 1562573549365574
+      }
     TransferFrom
       { asset = Address "2vJ8JYN43hKwZx6p3r7fuRToZ3NiqGrPRngdq63hAskf"
       , amount = Balance { unBalance = 5 }
@@ -25,7 +31,10 @@
 , ModifyState WorkflowState { places = fromList [ PlaceStart ] }
 , ModifyGlobal Name { unName = "usdAmount" } (VNum (NumDecimal 4))
 , ModifyAsset
-    DeltaCtx { dctxMethodNm = Just Name { unName = "propose" } }
+    DeltaCtx
+      { dcMethodNm = Just Name { unName = "propose" }
+      , dcTime = 1562573549365574
+      }
     TransferTo
       { asset = Address "2vJ8JYN43hKwZx6p3r7fuRToZ3NiqGrPRngdq63hAskf"
       , amount = Balance { unBalance = 4 }
@@ -38,7 +47,10 @@
           fromList [ Place { placeName = Name { unName = "proposed" } } ]
       }
 , ModifyAsset
-    DeltaCtx { dctxMethodNm = Just Name { unName = "accept" } }
+    DeltaCtx
+      { dcMethodNm = Just Name { unName = "accept" }
+      , dcTime = 1562573549365574
+      }
     TransferHoldings
       { from = Address "6fgCTVBrVLiXxCdZZWBznabxwEebfu6iAP93S1s358Ca"
       , asset = Address "6fgCTVBrVLiXxCdZZWBznabxwEebfu6iAP93S1s358Ca"
@@ -46,7 +58,10 @@
       , to = Address "2vJ8JYN43hKwZx6p3r7fuRToZ3NiqGrPRngdq63hAskf"
       }
 , ModifyAsset
-    DeltaCtx { dctxMethodNm = Just Name { unName = "accept" } }
+    DeltaCtx
+      { dcMethodNm = Just Name { unName = "accept" }
+      , dcTime = 1562573549365574
+      }
     TransferFrom
       { asset = Address "2vJ8JYN43hKwZx6p3r7fuRToZ3NiqGrPRngdq63hAskf"
       , amount = Balance { unBalance = 4 }

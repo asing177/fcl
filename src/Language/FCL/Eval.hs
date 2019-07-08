@@ -793,9 +793,10 @@ evalAssetPrim loc assetPrimOp args =
         Right newWorld -> setWorld newWorld
 
       m <- (unLoc . methodName <$>) <$> gets currentMethod
+      now <- currBlockTimestamp loc
 
       -- Emit the delta denoting the world state modification
-      emitDelta $ Delta.ModifyAsset (Delta.DeltaCtx m) $
+      emitDelta $ Delta.ModifyAsset (Delta.DeltaCtx m now) $
         Delta.TransferTo assetAddr holdings senderAddr contractAddr
 
       noop
@@ -826,9 +827,10 @@ evalAssetPrim loc assetPrimOp args =
         Right newWorld -> setWorld newWorld
 
       m <- (unLoc . methodName <$>) <$> gets currentMethod
+      now <- currBlockTimestamp loc
 
       -- Emit the delta denoting the world state modification
-      emitDelta $ Delta.ModifyAsset (Delta.DeltaCtx m) $
+      emitDelta $ Delta.ModifyAsset (Delta.DeltaCtx m now) $
         Delta.TransferFrom assetAddr holdings accAddr contractAddr
 
       noop
@@ -878,9 +880,10 @@ evalAssetPrim loc assetPrimOp args =
         Right newWorld -> setWorld newWorld
 
       m <- (unLoc . methodName <$>) <$> gets currentMethod
+      now <- currBlockTimestamp loc
 
       -- Emit the delta denoting the world state modification
-      emitDelta $ Delta.ModifyAsset (Delta.DeltaCtx m) $
+      emitDelta $ Delta.ModifyAsset (Delta.DeltaCtx m now) $
         Delta.TransferHoldings fromAddr assetAddr holdings toAddr
 
       noop
