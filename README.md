@@ -1,6 +1,6 @@
 <p align="center">
 <a href="https://www.adjoint.io">
-  <img width="250" src="./.assets/fcl.png" alt="Adjoint Logo" />
+  <img width="250" src="./assets/fcl.png" alt="Adjoint Logo" />
 </a>
 </p>
 
