@@ -675,10 +675,12 @@ transition = do
 
 adtDef :: Parser ADTDef
 adtDef = do
-    _ <- reserved Token.type_
-    ADTDef
-      <$> (Lexer.locNameUpper <* reservedOp Token.assign)
-      <*> nonEmptyUnsafe ((constructor `sepEndBy1` (char '|' <* whiteSpace)) <* semi)
+    _ <- (reserved Token.type_ <|> reserved Token.enum)
+    tyName <- Lexer.locNameUpper
+    _ <- symbol Token.lbrace
+    constructors <- nonEmptyUnsafe (constructor `sepEndBy1` semi)
+    _ <- symbol Token.rbrace
+    pure (ADTDef tyName constructors)
   where
     constructor = ADTConstr
       <$> Lexer.locNameUpper

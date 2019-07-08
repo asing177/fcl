@@ -30,6 +30,7 @@ text     = "text"
 datetime = "datetime"
 timedelta = "timedelta"
 type_    = "type"
+enum     = "enum"
 map      = "map"
 set      = "set"
 if_      = "if"
@@ -97,6 +98,7 @@ keywords =
   , datetime
   , timedelta
   , type_
+  , enum
   , map
   , set
   , if_
