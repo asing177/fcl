@@ -1,0 +1,99 @@
+*** Deltas ***
+[ ModifyGlobal Name { unName = "usdAmount" } (VNum (NumDecimal 5))
+, ModifyGlobal Name { unName = "gbpAmount" } (VNum (NumDecimal 3))
+, ModifyAsset
+    DeltaCtx
+      { dcMethodNm = Just Name { unName = "propose" }
+      , dcTime = 1562574113981591
+      }
+    TransferTo
+      { asset = Address "2vJ8JYN43hKwZx6p3r7fuRToZ3NiqGrPRngdq63hAskf"
+      , amount = Balance { unBalance = 5 }
+      , holder = Address "fwBVDsVh8SYQy98CzYpNPcbyTRczVUZ96HszhNRB8Ve"
+      , contract = Address "fwBVDsVh8SYQy98CzYpNPcbyTRczVUZ96HszhNRB8Ve"
+      }
+, ModifyState
+    WorkflowState
+      { places =
+          fromList [ Place { placeName = Name { unName = "proposed" } } ]
+      }
+, ModifyAsset
+    DeltaCtx
+      { dcMethodNm = Just Name { unName = "reject" }
+      , dcTime = 1562574113981591
+      }
+    TransferFrom
+      { asset = Address "2vJ8JYN43hKwZx6p3r7fuRToZ3NiqGrPRngdq63hAskf"
+      , amount = Balance { unBalance = 5 }
+      , to = Address "2vJ8JYN43hKwZx6p3r7fuRToZ3NiqGrPRngdq63hAskf"
+      , contract = Address "fwBVDsVh8SYQy98CzYpNPcbyTRczVUZ96HszhNRB8Ve"
+      }
+, ModifyState WorkflowState { places = fromList [ PlaceStart ] }
+, ModifyGlobal Name { unName = "usdAmount" } (VNum (NumDecimal 4))
+, ModifyAsset
+    DeltaCtx
+      { dcMethodNm = Just Name { unName = "propose" }
+      , dcTime = 1562574113981591
+      }
+    TransferTo
+      { asset = Address "2vJ8JYN43hKwZx6p3r7fuRToZ3NiqGrPRngdq63hAskf"
+      , amount = Balance { unBalance = 4 }
+      , holder = Address "fwBVDsVh8SYQy98CzYpNPcbyTRczVUZ96HszhNRB8Ve"
+      , contract = Address "fwBVDsVh8SYQy98CzYpNPcbyTRczVUZ96HszhNRB8Ve"
+      }
+, ModifyState
+    WorkflowState
+      { places =
+          fromList [ Place { placeName = Name { unName = "proposed" } } ]
+      }
+, ModifyAsset
+    DeltaCtx
+      { dcMethodNm = Just Name { unName = "accept" }
+      , dcTime = 1562574113981591
+      }
+    TransferHoldings
+      { from = Address "6fgCTVBrVLiXxCdZZWBznabxwEebfu6iAP93S1s358Ca"
+      , asset = Address "6fgCTVBrVLiXxCdZZWBznabxwEebfu6iAP93S1s358Ca"
+      , amount = Balance { unBalance = 3 }
+      , to = Address "2vJ8JYN43hKwZx6p3r7fuRToZ3NiqGrPRngdq63hAskf"
+      }
+, ModifyAsset
+    DeltaCtx
+      { dcMethodNm = Just Name { unName = "accept" }
+      , dcTime = 1562574113981591
+      }
+    TransferFrom
+      { asset = Address "2vJ8JYN43hKwZx6p3r7fuRToZ3NiqGrPRngdq63hAskf"
+      , amount = Balance { unBalance = 4 }
+      , to = Address "6fgCTVBrVLiXxCdZZWBznabxwEebfu6iAP93S1s358Ca"
+      , contract = Address "fwBVDsVh8SYQy98CzYpNPcbyTRczVUZ96HszhNRB8Ve"
+      }
+, ModifyState WorkflowState { places = fromList [ PlaceEnd ] }
+]
+
+*** Globals ***
+fromList
+  [ ( Key { unKey = "alice" }
+    , VAccount (Address "2vJ8JYN43hKwZx6p3r7fuRToZ3NiqGrPRngdq63hAskf")
+    )
+  , ( Key { unKey = "bob" }
+    , VAccount (Address "6fgCTVBrVLiXxCdZZWBznabxwEebfu6iAP93S1s358Ca")
+    )
+  , ( Key { unKey = "gbp" }
+    , VAsset (Address "6fgCTVBrVLiXxCdZZWBznabxwEebfu6iAP93S1s358Ca")
+    )
+  , ( Key { unKey = "gbpAmount" } , VNum (NumDecimal 3) )
+  , ( Key { unKey = "testAddr" }
+    , VAccount (Address "fwBVDsVh8SYQy98CzYpNPcbyTRczVUZ96HszhNRB8Ve")
+    )
+  , ( Key { unKey = "testAddr2" }
+    , VAccount (Address "Fw68hsis6JPW4ed3ER1VC959TTf9DqberLxrq5uECKxh")
+    )
+  , ( Key { unKey = "testAddr3" }
+    , VAccount (Address "4Stv5gWGt78D3p919HFcKEschSmyGKGrAX2G35xJgdhw")
+    )
+  , ( Key { unKey = "usd" }
+    , VAsset (Address "2vJ8JYN43hKwZx6p3r7fuRToZ3NiqGrPRngdq63hAskf")
+    )
+  , ( Key { unKey = "usdAmount" } , VNum (NumDecimal 4) )
+  ]
