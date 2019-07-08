@@ -218,12 +218,12 @@ evalTests = testGroup "eval" <$> sequence
 
     initTestEvalCtx :: [Helper] -> IO Eval.EvalCtx
     initTestEvalCtx helpers = do
-      now <- Time.now
+      -- Use a deterministic timestamp
+      let now = 1562574113981591
       pure Eval.EvalCtx
         { Eval.currentTxCtx = Just Eval.TransactionCtx
             { Eval.transactionBlockIdx = 0
             , Eval.transactionHash = Hash.toHash ("DummyTx" :: ByteString)
--- = Hash.toHash (Ref.testTx Ref.testCall)
             , Eval.transactionBlockTs = now
             , Eval.transactionIssuer = Ref.testAddr
             }
