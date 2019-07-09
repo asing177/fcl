@@ -24,10 +24,8 @@ import qualified Data.Set as S
 import qualified Data.Aeson as A
 
 import Language.FCL.AST (unsafeWorkflowState, Place(..), Transition(..), WorkflowState, (\\), endState, isSubWorkflow, places, startState, wfIntersection, wfUnion)
--- TODO: sort these out
-import Language.FCL.Pretty (Doc, Pretty(..), (<+>), listOf, squotes, text, vcat, setOf, (<$$>), indent, bracketList, token)
-import qualified Language.FCL.Token as Token
-import Text.PrettyPrint.Leijen.Text ((</>), comma)
+import Language.FCL.Pretty (Doc, Pretty(..), (<+>), (</+>), listOf, squotes, text, vcat, setOf, (<$$>), indent, bracketList, comma)
+import Language.FCL.Debug
 
 -- | A reason why the workflow is unsound. (Refer to 'Pretty' instance for
 -- explanations.
@@ -42,20 +40,6 @@ data WFError
   | ImproperCompletionMerge WorkflowState WorkflowState
   | LoopingANDBranch WorkflowState WorkflowState
   deriving (Eq, Ord, Show, Generic, A.FromJSON, A.ToJSON)
-
--- TODO: move these to Language.FCL.Pretty
-newtype Debug a = Debug a
-  deriving (Eq, Ord)
-
-instance Pretty (Debug WorkflowState) where
-  ppr (Debug wfs) = setOf . S.toList . places $ wfs
-
-instance Pretty (Debug Transition) where
-  ppr (Debug (Arrow from to)) =
-    token Token.transition <+> ppr (Debug from) <+> token Token.rarrow <+> ppr (Debug to)
-
-instance Pretty (Debug Place) where
-  ppr (Debug p) = ppr p
 
 instance Pretty WFError where
   ppr = \case
@@ -102,9 +86,6 @@ instance Pretty WFError where
       -- different from Language.FCL.Pretty (only indents by 2)
       (<$$+>) :: Doc -> Doc -> Doc
       (<$$+>) lhs rhs = lhs <$$> (indent 2 rhs)
-
-      (</+>) :: Doc -> Doc -> Doc
-      (</+>) lhs rhs = lhs </> indent 2 rhs
 
 instance Pretty [WFError] where
   ppr [] = "The workflow is sound."
