@@ -302,8 +302,8 @@ type_ =  intType
      <|> textType
      <|> dateType
      <|> timedeltaType
-     <|> adtType
      <|> collectionType
+     <|> adtType
      <?> "type"
 
 intType :: Parser Type
@@ -350,7 +350,7 @@ timedeltaType :: Parser Type
 timedeltaType = TTimeDelta <$ try (reserved Token.timedelta)
 
 adtType :: Parser Type
-adtType = TADT <$> Lexer.nameUpper
+adtType = TADT <$> Lexer.name
 
 collectionType :: Parser Type
 collectionType =
@@ -682,7 +682,9 @@ transition = do
 adtDef :: Parser ADTDef
 adtDef = do
     _ <- (reserved Token.type_ <|> reserved Token.enum)
-    tyName <- Lexer.locNameUpper
+    tyName <- Lexer.locName
+    -- when (locVal tyName `elem` Token.keywords)
+    --   (parserFail )
     _ <- symbol Token.lbrace
     constructors <- nonEmptyUnsafe (constructor `sepEndBy1` semi)
     _ <- symbol Token.rbrace

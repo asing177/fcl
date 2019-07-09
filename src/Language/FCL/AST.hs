@@ -433,7 +433,7 @@ data Type
   | TDateTime       -- ^ DateTime with Timezone
   | TTimeDelta      -- ^ Type of difference in time
   | TState          -- ^ Contract state
-  | TADT NameUpper -- ^ Algebraic data type
+  | TADT Name       -- ^ User-declared algebraic data type
   | TFun [Type] Type -- ^ Type signature of helper functions--argument types and return type
   | TColl TCollection -- ^ Type of collection values
   | TTransition     -- ^ Transition type
@@ -528,7 +528,7 @@ instance FromJSON Helper where
 
 -- | ADT
 data ADTDef = ADTDef
-  { adtName :: LNameUpper
+  { adtName :: LName
   , adtConstrs :: NonEmpty ADTConstr
   } deriving (Eq, Ord, Show, Generic, Hash.Hashable)
 
@@ -671,8 +671,8 @@ mapType einfo   (VSet vset)   =
 
 -- | Associations between type- and value-constructors
 data ADTInfo = ADTInfo
-  { constructorToType :: Map NameUpper (LNameUpper, [(LName, Type)])
-  , adtToConstrsAndFields :: Map NameUpper (NonEmpty ADTConstr, [(Name, Type)])
+  { constructorToType :: Map NameUpper (LName, [(LName, Type)])
+  , adtToConstrsAndFields :: Map Name (NonEmpty ADTConstr, [(Name, Type)])
   }
 
 -------------------------------------------------------------------------------
