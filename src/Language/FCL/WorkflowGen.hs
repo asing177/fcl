@@ -46,7 +46,7 @@ data SafeWorkflowNet
   | GenLoop { gLoopIn   :: Maybe SafeWorkflowNet     -- ^ First half of the body of the loop
             , gLoopExit :: SafeWorkflowNet           -- ^ Exit from the loop
             , gLoopOut  :: SafeWorkflowNet           -- ^ Seconds half of the body of the loop
-  }
+            }
   -- | General XOR split with the possibility of moving between the branches.
   | GenXOR { gXorLhsIn   :: SafeWorkflowNet          -- ^ First half of left-hand side
            , gXorLhsOut  :: SafeWorkflowNet          -- ^ Second half of left-hand side
