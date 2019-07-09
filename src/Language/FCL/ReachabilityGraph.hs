@@ -37,12 +37,8 @@ data WFError
   | FreeChoiceViolation Transition Transition (Set Place)
   | NotOneBoundedMerge WorkflowState WorkflowState (Set Place)
   | ImproperCompletionMerge WorkflowState WorkflowState
+  | LoopingANDBranch WorkflowState WorkflowState
   deriving (Eq, Ord, Show, Generic, A.FromJSON, A.ToJSON)
-
-incorrectTransitionStart :: WFError -> Maybe WorkflowState
-incorrectTransitionStart (NotOneBounded wfSt _ _) = Just wfSt
-incorrectTransitionStart (ImproperCompletion wfSt _ _) = Just wfSt
-incorrectTransitionStart _ = Nothing
 
 instance Pretty WFError where
   ppr = \case
@@ -74,6 +70,10 @@ instance Pretty WFError where
         "Improper completion at merge-site." <+> "When merging the results of two AND branches, more specifically" <+>
         ppr r1 <+> "and" <+> ppr r2 <+>
         ", the resulting state contained the terminal place while containing other places as well."
+      LoopingANDBranch splittingPoint splitHead ->
+        "Erroneous looping AND branch." <+> "When AND-splitting from" <+> qp splittingPoint <> "," <+>
+        "the result branch of" <+> qp splitHead <+> "loops indefinetely locally, or loops back to the splitting point."
+
     where
       qp :: Pretty a => a -> Doc
       qp = squotes . ppr
@@ -137,7 +137,7 @@ reachabilityGraph declaredTransitions =
       = runRWS
           (buildGraph startState)      -- Function to run in RWS monad
           outgoing                     -- The static context
-          (BuilderState mempty mempty) -- The dynamic context
+          (BuilderState mempty [mempty]) -- The dynamic context
 
     allErrs :: Set WFError
     allErrs = mconcat [stateErrs, prunedCoreachabilityErrs, unreachableTransitionErrs]
@@ -145,17 +145,23 @@ reachabilityGraph declaredTransitions =
         unreachableTransitionErrs
           = S.map UnreachableTransition $ declaredTransitions S.\\ usedTransitions
 
-        incorrectTransitionsLhss :: [WorkflowState]
-        incorrectTransitionsLhss = mapMaybe incorrectTransitionStart
-                                 . S.toList
-                                 $ stateErrs
+        erronousState :: WFError -> Maybe WorkflowState
+        erronousState (NotOneBounded wfSt _ _)      = Just wfSt -- ^ incorrect transitions
+        erronousState (ImproperCompletion wfSt _ _) = Just wfSt -- ^ incorrect transitions
+        erronousState (LoopingANDBranch wfSt _)     = Just wfSt -- ^ erroneous AND branch loops
+        erronousState _ = Nothing
+
+        erronousStates :: [WorkflowState]
+        erronousStates = mapMaybe erronousState
+                       . S.toList
+                       $ stateErrs
 
         -- Exclude those states from where we possibly couldn't transition into another state
         -- because the transition itself was erroneous
         prunedCoreachabilityErrs :: Set WFError
         prunedCoreachabilityErrs = S.fromList $
           [ e | e@(Counreachable wfSt) <- S.toList coreachabilityErrs
-              , wfSt `notElem` incorrectTransitionsLhss
+              , wfSt `notElem` erronousStates
           ]
 
         coreachabilityErrs :: Set WFError
@@ -257,24 +263,44 @@ buildGraph :: WorkflowState -> GraphBuilderM [WorkflowState]
 buildGraph curr = do
   unvisited <- unvisitedM curr
 
+  -- locals <- getLocalContext
+  -- localsStack <- gets bsLocallyVisted
+  -- traceM ("current: " <> show (ppr curr) :: Text)
+  -- traceM ("locals stack: " <> show (listOf . map (setOf . S.toList) $ localsStack) :: Text)
+
   if unvisited then do
     outgoing <- ask
     xorSplitStates <- catMaybes <$>
       -- NOTE: XOR-split here
-      ( mapM (applyTransitionLclM curr)   -- Get the valid neighbouring states
+      ( mapM (applyTransitionLclM curr)  -- Get the valid neighbouring states
       . S.toList
-      . S.unions                       -- Throw out duplicate transitions
-      . mapMaybe (`M.lookup` outgoing) -- Get potentially relevant transitions
+      . S.unions                         -- Throw out duplicate transitions
+      . mapMaybe (`M.lookup` outgoing)   -- Get potentially relevant transitions
       . S.toList
-      . places                         -- Get the places in the current state
+      . places                           -- Get the places in the current state
       ) curr
 
+    -- traceM $ ("XOR split: " <> show (ppr curr, setOf xorSplitStates) :: Text)
     modifyGraph $ M.insert curr (S.fromList xorSplitStates) -- direct connections
+
+    -- NOTE: states visited before the XOR split
+    visitedStatesBeforeXOR <- gets (M.keysSet . bsReachabilityGraph)
+
     xorSplitResult <- forM xorSplitStates $ \lclSt -> do
+      {- NOTE: states visited before + states visited by other XOR branches
+         This changes every time we finish a XOR branch.
+      -}
+      visitedStatesAfterXOR <- gets (M.keysSet . bsReachabilityGraph)
+      let visitedByOtherXORBranches = S.difference visitedStatesAfterXOR visitedStatesBeforeXOR
+      -- traceM $ ("SAVBOXB: " <> show (setOf . S.toList $ statesAlreadyVisitedByOtherXORBranches) :: Text)
+
       let andSplitLocalStates = splitState lclSt
-      -- NOTE: keep locally visited when following a straight path,
-      --       reset locally visited when branching
-      let buildBranch = if isSingleton andSplitLocalStates then
+      {- NOTE: keep locally visited when following a straight path,
+         reset locally visited when branching
+         traceM $ ("AND split: " <> show (setOf andSplitLocalStates, isSingleton andSplitLocalStates) :: Text)
+      -}
+      let isSimplePath = isSingleton andSplitLocalStates
+          buildBranch = if isSimplePath then
                           continueBuildingLocally curr
                         else
                           startBuildingLocally curr
@@ -283,39 +309,62 @@ buildGraph curr = do
       -- Inner lists represent possible XOR splits inside a branch.
       -- Here, the results are stored as DIFFERENT workflow states.
       (individualResults :: [[WorkflowState]]) <- mapM buildBranch andSplitLocalStates
+      {- NOTE: AND branches that loop back a locally visited state
+        return an empty list (and only these). These branches will never
+        get joined together with the other branches, or they loop back to
+        the splitting point. In both cases, they result in an error.
+      -}
+      when (not isSimplePath) $ do
+        let branches = zip individualResults andSplitLocalStates
+            loops    = filter (null . fst) branches
+        forM_ loops $ \(_, splitHead) -> do
+          yell (LoopingANDBranch lclSt splitHead)
       -- Here the different wf states of the AND branches get merged.
       -- Even if there were no XOR branches inside the AND branches,
       -- the different wf states get merged into a single one.
       (mergedResult :: [WorkflowState]) <- foldlM (cartesianWithM checkedWfUnionM) [mempty] individualResults
 
-      unvisited <- unvisitedM lclSt
-      when unvisited $
-        modifyGraph $ M.insert lclSt (S.fromList mergedResult)
+      -- NOTE: Only keep those states that hasn't been visited already.
+      let mergedResult' = filter (`S.notMember` visitedByOtherXORBranches) mergedResult
 
-      -- they are equal iff there is a single AND branch
-      let isNewMergedState = not $ isSingleton andSplitLocalStates --concat individualResults /= mergedResult
-      pure (mergedResult, isNewMergedState)
+      -- traceM $ ("results: " <> show (ppr lclSt, (listOf . map setOf $ individualResults)) :: Text)
+      -- traceM $ ("merging: " <> show (ppr lclSt, setOf mergedResult, setOf mergedResult') :: Text)
+      unvisited <- unvisitedM lclSt
+      when unvisited $ do
+        modifyGraph $ M.insert lclSt (S.fromList mergedResult')
+
+      {- NOTE: They are equal iff there is a single AND branch.
+         If it was a simple path, we already visited all the nodes on it.
+         However, it there was an AND split whose merge resulted in a new state,
+         we must continue exploring from that new merged state.
+      -}
+      let isNewMergedState = not isSimplePath
+      pure (mergedResult', isNewMergedState)
 
 
     let noApplicableTranstions = null xorSplitStates
-    if noApplicableTranstions then
+    if noApplicableTranstions then do
     -- NOTE: the current branch got stuck
       pure [curr]
     else do
       -- NOTE: Only continue those XOR branches where the AND branches yielded a new merged state
       let continueIfNew (rs,True)  = concatMapM buildGraph rs
-          continueIfNew (rs,False) = pure rs
+          continueIfNew (rs,False) = {- trace ("return (not new merged state): " ++ show (setOf rs) :: [Char]) -} (pure rs)
       concatMapM continueIfNew xorSplitResult
 
   else do
-    locals <- gets bsLocallyVisted
-    if curr `S.member` locals then
-      -- NOTE: Locally visited nodes add no new information to the context.
-      -- This is when a node inside a branch refers back to another node inside the same branch.
+    locals <- getLocalContext
+    if curr `S.member` locals then do
+      {- NOTE: Locally visited nodes add no new information to the context.
+         This is when a node inside a branch refers back to another node inside the same branch.
+         traceM $ ("return nothing (locally visited): " <> show curr :: Text)
+      -}
       pure []
-    else
-      -- NOTE: Globally visited nodes can have impact on other exectuion paths.
-      -- This is when a node inside a branch refers to another node outside of the current branch.
+    else do
+      {- NOTE: Globally visited nodes can have impact on other exectuion paths.
+         This is when a node inside a branch refers to another node outside of the current branch.
+         traceM $ ("return (globally visited): " <> show (setOf [curr]) :: Text)
+      -}
       pure [curr]
 
 
@@ -436,7 +485,7 @@ type LocallyVisited = Set WorkflowState
 data BuilderState
   = BuilderState
   { bsReachabilityGraph :: ReachabilityGraph
-  , bsLocallyVisted    :: LocallyVisited
+  , bsLocallyVisted     :: [LocallyVisited]
   } deriving (Eq, Ord, Show)
 
 modifyGraph :: (ReachabilityGraph -> ReachabilityGraph) -> GraphBuilderM ()
@@ -444,16 +493,16 @@ modifyGraph f = do
   BuilderState rg lv <- get
   put $ BuilderState (f rg) lv
 
-modifyLocallyVisited :: (LocallyVisited -> LocallyVisited) -> GraphBuilderM ()
-modifyLocallyVisited f = do
-  BuilderState rg lv <- get
-  put $ BuilderState rg (f lv)
+-- modifyLocallyVisited :: (LocallyVisited -> LocallyVisited) -> GraphBuilderM ()
+-- modifyLocallyVisited f = do
+--   BuilderState rg lv <- get
+--   put $ BuilderState rg (f lv)
 
-addLocalWfState :: WorkflowState -> GraphBuilderM ()
-addLocalWfState s = modifyLocallyVisited (S.insert s)
+-- addLocalWfState :: WorkflowState -> GraphBuilderM ()
+-- addLocalWfState s = modifyLocallyVisited (S.insert s)
 
-clearLocalWfStates :: GraphBuilderM ()
-clearLocalWfStates = modifyLocallyVisited (const mempty)
+-- clearLocalWfStates :: GraphBuilderM ()
+-- clearLocalWfStates = modifyLocallyVisited (const mempty)
 
 locally :: MonadState s m => s -> m a -> m (a,s)
 locally s m = do
@@ -464,19 +513,60 @@ locally s m = do
   put origState
   pure (res, newState)
 
+modifyLocalContext :: (LocallyVisited -> LocallyVisited) -> GraphBuilderM ()
+modifyLocalContext f = do
+  BuilderState rg lv <- get
+  case lv of
+    x:xs -> put $ BuilderState rg (f x : xs)
+    -- TODO: might have to reconsider this case
+    []   -> pure ()
+
+pushEmptyLocalContext :: GraphBuilderM ()
+pushEmptyLocalContext = do
+  -- traceM "!!! Pushing empty context"
+  BuilderState rg lv <- get
+  put $ BuilderState rg (mempty:lv)
+
+pushLocalState :: WorkflowState -> GraphBuilderM ()
+pushLocalState wfSt = modifyLocalContext (S.insert wfSt)
+
+popLocalContext :: GraphBuilderM ()
+popLocalContext = do
+  BuilderState rg lv <- get
+  case lv of
+    _:xs -> put $ BuilderState rg xs
+    []   -> panic $ "Reachability: can't pop from empty context stack"
+
+getLocalContext :: GraphBuilderM LocallyVisited
+getLocalContext = do
+  BuilderState rg lv <- get
+  case lv of
+    x:_ -> pure x
+    []  -> panic $ "Reachability: can't get locally visited states from empty context stack"
+
 -- Forget locally visited places, and start new local context.
 startBuildingLocally :: WorkflowState -> WorkflowState -> GraphBuilderM [WorkflowState]
 startBuildingLocally prev wfSt = do
   BuilderState rg lv <- get
-  (r,s) <- locally (BuilderState rg mempty) $ do
-    buildGraph wfSt
-  modifyGraph (<> bsReachabilityGraph s)
+  -- NOTE: have to add it to the previous context as well
+  pushLocalState prev
+  pushEmptyLocalContext
+  -- NOTE: adding it to the currect context
+  pushLocalState prev
+  r <- buildGraph wfSt
+  popLocalContext
   pure r
+
+  -- BuilderState rg lv <- get
+  -- (r,s) <- locally (BuilderState rg mempty) $ do
+  --   buildGraph wfSt
+  -- modifyGraph (<> bsReachabilityGraph s)
+  -- pure r
 
 -- Continue with the current local context.
 continueBuildingLocally :: WorkflowState -> WorkflowState -> GraphBuilderM [WorkflowState]
 continueBuildingLocally prev wfSt = do
-  addLocalWfState prev
+  pushLocalState prev
   buildGraph wfSt
 
 gatherReachableStatesFrom :: WorkflowState -> ReachabilityGraph -> Set WorkflowState
