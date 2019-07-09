@@ -1,9 +1,9 @@
-type T { C(int f1, bool f2) }
+type t { C(int f1, bool f2) }
 
-bool b;
+global bool b;
 
 @initial
-f(T t) {
+f(t t) {
   b = case t { C(x,x) -> x };
   terminate()
 }

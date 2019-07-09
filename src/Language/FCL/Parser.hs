@@ -377,8 +377,8 @@ setType = do
 def :: Parser Def
 def = do
     _ <- try (reserved Token.global <|> reserved Token.local)
-    precs <- preconditions <|> pure (mempty @Preconditions)
     typ <- type_
+    precs <- preconditions <|> pure (mempty @Preconditions)
     Located loc id <- locName
     let
       initDef = do

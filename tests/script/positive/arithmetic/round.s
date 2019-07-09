@@ -1,7 +1,7 @@
-decimal<2> m1;
-decimal<2> m2;
-decimal<2> m3;
-decimal<3> n = 0.125;
+global decimal<2> m1;
+global decimal<2> m2;
+global decimal<2> m3;
+global decimal<3> n = 0.125;
 
 @initial
 init() {

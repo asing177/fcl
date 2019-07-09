@@ -1,4 +1,4 @@
-int undef;
+global int undef;
 
 transition initial -> terminal;
 

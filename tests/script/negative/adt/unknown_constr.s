@@ -1,7 +1,7 @@
-type T { C }
+type t { C }
 
 @initial
-run(T arg) {
+run(t arg) {
   someInt = case(arg) {
     A -> 10;
     B -> 20;

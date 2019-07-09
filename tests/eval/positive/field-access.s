@@ -1,8 +1,8 @@
-type Address { Addr(text street, int houseNumber, text city) }
-type Person { Pers(text name, Address address) }
+type addr { Addr(text street, int houseNumber, text city) }
+type person { Person(text name, addr address) }
 
-Person bob = Pers("bob", Addr("main st", 42, "springfield"));
-int n;
+global person bob = Person("bob", Addr("main st", 42, "springfield"));
+global int n;
 
 @initial
 go() {

@@ -4,7 +4,7 @@
 
 * Extend `enum` declarations to full variant record declarations with typesafe
   record access and assignment. Below is an example which shows the
-  declaration of a type `Color` with constructors `HSB` and `Monochrome`. The
+  declaration of a type `color` with constructors `HSB` and `Monochrome`. The
   constructors are parameterised by fields with a type and a parameter name.
   When a field is declared for all constructors, then it can be used for field
   access using the dot (`.`) operator.
@@ -12,13 +12,13 @@
   ~~~
   // Colors are either monochrome or defined by hue-saturation-brightness. All
   // int values should be in the range 0-255.
-  type Color {
+  type color {
     Monochrome(int brightness);
     HSB(int hue, int saturation, int brightness);
   }
 
   // Calculate the average brightness of two colors.
-  averageBrightness(Color c1, Color c2) {
+  averageBrightness(color c1, color c2) {
     (c1.brightness + c2.brightness) / 2
   }
   ~~~

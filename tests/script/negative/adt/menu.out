@@ -4,11 +4,11 @@ Error at Line 12, Column 22:
 
 Error at Line 12, Column 22:
    Reference to undefined type:
-      Bogus1
+      bogus1
 
 Error at Line 13, Column 15:
    Reference to undefined type:
-      Bogus2
+      bogus2
 
 Type error at Line 18, Column 25:
    Expected: 'bool' inferred from type of field 'sprinkles' of constructor 'Milkshake' on Line 18, Column 25
@@ -18,11 +18,11 @@ Error at Line 19, Column 26:
    Constructor 'Milkshake' is applied to too many arguments ('1')
 
 Error at Line 20, Column 7:
-   Constructor 'Chips' is not applied to enough arguments; expecting an argument of type 'Size' for field 'size'
+   Constructor 'Chips' is not applied to enough arguments; expecting an argument of type 'size' for field 'size'
 
-Error at Line 25, Column 20:
+Error at Line 25, Column 21:
    Reference to undefined type:
-      Bogus
+      bogus3
 
 Error at Line 27, Column 5:
    Constructor 'Milkshake' is not applied to enough arguments; expecting an argument of type 'bool' for field 'sprinkles'

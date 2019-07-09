@@ -1,0 +1,5 @@
+type int { Int }
+--------^
+"<stdin>" (line 1, column 9):
+unexpected reserved word "int"
+expecting name

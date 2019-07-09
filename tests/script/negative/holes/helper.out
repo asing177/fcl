@@ -1,9 +1,26 @@
-global map<account,fixed2> m = ();
+Hole at Line 5, Column 21:
+   Expecting something of type 'map<account, decimal<2>>'.
+      Suggestions:
+         global variable m
 
--------------------^
+Hole at Line 5, Column 24:
+   Expecting something of type 'account'.
+      Suggestions:
+         method argument a
 
-@initial
+Hole at Line 5, Column 27:
+   Expecting something of type 'decimal<2>'.
+      Suggestions:
+         method argument v
 
-"<stdin>" (line 1, column 20):
-unexpected "f"
-expecting type
+Hole at Line 16, Column 13:
+   Expecting an expression or statement here.
+
+Hole at Line 16, Column 16:
+   Expecting something of type 'decimal<2>'.
+      Suggestions:
+         method argument v
+         temporary variable v1
+
+Hole at Line 16, Column 19:
+   Expecting something of type 'map<c, decimal<2>>'.

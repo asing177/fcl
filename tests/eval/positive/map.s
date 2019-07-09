@@ -1,4 +1,4 @@
-type Investor {
+type investor {
   BigInvestor;
   MedInvestor;
   SmallInvestor;
@@ -8,7 +8,7 @@ global map<account, int> shares = ();
 global map<account, int> runoff = ();
 
 @initial
-insertInvestor (account a, Investor x)  {
+insertInvestor (account a, investor x)  {
   shares = case(x) {
     BigInvestor -> mapInsert(a, 100, shares);
     SmallInvestor -> mapInsert(a, 10, shares);

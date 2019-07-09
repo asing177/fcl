@@ -8,11 +8,11 @@ contract, or _novate_ the contract, during which the joining workflow is opened
 up again, and new accounts can join as alice or bob.
 
 ------------------------------------------------------------------------------*/
-account alice;
-account bob;
+global account alice;
+global account bob;
 
-int aliceVal;
-int bobVal;
+global int aliceVal;
+global int bobVal;
 
 transition initial -> {aliceJoining, bobJoining};
 transition aliceJoining -> aliceJoined;

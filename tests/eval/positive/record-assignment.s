@@ -1,7 +1,7 @@
-type Address { Addr(text street, text city) }
-type Person { Pers(text name, Address address) }
+type addr { Addr(text street, text city) }
+type person { Pers(text name, addr address) }
 
-Person bob = Pers("bob", Addr("main st", "springfield"));
+global person bob = Pers("bob", Addr("main st", "springfield"));
 
 @initial
 updateName(text newName) {

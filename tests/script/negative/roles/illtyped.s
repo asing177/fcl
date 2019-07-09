@@ -1,4 +1,4 @@
-int [roles: {"not valid", "also not valid"}] x;
+global int [roles: {"not valid", "also not valid"}] x;
 
 transition initial -> terminal;
 

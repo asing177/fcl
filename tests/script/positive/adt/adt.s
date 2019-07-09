@@ -1,9 +1,9 @@
-type T { A; B }
+type t { A; B }
 
-global T t = A;
+global t t = A;
 
 @initial
-run(T val) {
+run(t val) {
   foo = case(val) {
     A -> 1;
     B -> 2;

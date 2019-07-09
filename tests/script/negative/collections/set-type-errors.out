@@ -7,12 +7,12 @@ Type error at Line 18, Column 23:
    But got:  'set<account>' inferred from expression 'lookup(x, investors)' on Line 15, Column 13
 
 Type error at Line 22, Column 15:
-   Expected: 'map<Investor, set<account>>' inferred from the assignment to variable 'investors' on Line 22, Column 15
-   But got:  'map<Investor, set<decimal<2>>>' inferred from the return type of the function 'mapInsert' on Line 22, Column 15
+   Expected: 'map<investor, set<account>>' inferred from the assignment to variable 'investors' on Line 22, Column 15
+   But got:  'map<investor, set<decimal<2>>>' inferred from the return type of the function 'mapInsert' on Line 22, Column 15
 
 Type error at Line 22, Column 36:
-   Expected: 'map<Investor, set<decimal<2>>>' inferred from the type signature of argument 3 of function 'mapInsert' on Line 22, Column 36
-   But got:  'map<Investor, set<account>>' inferred by top level definition for variable 'investors' on Line 8, Column 3
+   Expected: 'map<investor, set<decimal<2>>>' inferred from the type signature of argument 3 of function 'mapInsert' on Line 22, Column 36
+   But got:  'map<investor, set<account>>' inferred by top level definition for variable 'investors' on Line 8, Column 3
 
 Error at Line 29, Column 3:
    Expected a statement but got something of type 'map<f, g>'
@@ -26,5 +26,5 @@ Type error at Line 31, Column 20:
    But got:  'set<account>' inferred from expression 'lookup(x, investors)' on Line 28, Column 13
 
 Type error at Line 35, Column 24:
-   Expected: 'map<Investor, set<asset<decimal<2>>>>' inferred from the type signature of argument 3 of function 'mapInsert' on Line 35, Column 24
-   But got:  'map<Investor, set<account>>' inferred by top level definition for variable 'investors' on Line 8, Column 3
+   Expected: 'map<investor, set<asset<decimal<2>>>>' inferred from the type signature of argument 3 of function 'mapInsert' on Line 35, Column 24
+   But got:  'map<investor, set<account>>' inferred by top level definition for variable 'investors' on Line 8, Column 3

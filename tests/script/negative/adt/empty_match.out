@@ -1,4 +1,4 @@
-run(T arg) {
+run(t arg) {
   case(arg) { }
 --------------^
 }
