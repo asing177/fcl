@@ -107,6 +107,7 @@ import Protolude hiding (put, get, (<>), show, Show, putByteString, Type)
 import Prelude (show, Show(..))
 import Test.QuickCheck hiding (listOf)
 import qualified Test.QuickCheck as Q
+import Test.QuickCheck.Instances.Text ()
 import Control.Monad (fail)
 
 import Numeric.Lossless.Number
@@ -131,8 +132,6 @@ import Data.Serialize.Text()
 
 import Language.FCL.Address
 import Language.FCL.Utils (duplicates)
-import Language.FCL.SafeString
-import Language.FCL.SafeInteger
 import Language.FCL.Orphans ()
 
 -------------------------------------------------------------------------------
@@ -333,8 +332,8 @@ data Lit
   | LAccount   (Address AAccount)
   | LAsset     (Address AAsset)
   | LContract  (Address AContract)
-  | LText       SafeString
-  | LSig       (SafeInteger, SafeInteger)
+  | LText      Text
+  | LSig       (Integer, Integer)
   | LDateTime  DateTime
   | LTimeDelta TimeDelta
   -- | LConstr    Name
@@ -353,8 +352,8 @@ data Value
   | VAccount (Address AAccount)    -- ^ Account Address
   | VAsset (Address AAsset)        -- ^ Asset Address
   | VContract (Address AContract)  -- ^ Contract Address
-  | VText SafeString                -- ^ Msgs (ASCII)
-  | VSig (SafeInteger, SafeInteger) -- ^ ESDSA Sig
+  | VText Text                     -- ^ Msgs (ASCII)
+  | VSig (Integer, Integer)        -- ^ ESDSA Sig
   | VVoid                          -- ^ Void
   | VDateTime DateTime             -- ^ A datetime with a timezone
   | VTimeDelta TimeDelta           -- ^ A difference in time

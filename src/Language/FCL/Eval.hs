@@ -46,7 +46,6 @@ import Control.Monad.Fail
 
 import Numeric.Lossless.Number
 import Language.FCL.AST
-import Language.FCL.SafeString as SS
 import Language.FCL.Time (Timestamp, posixMicroSecsToDatetime)
 import Language.FCL.Storage
 import Language.FCL.Error as Error
@@ -62,7 +61,6 @@ import qualified Language.FCL.Key as Key
 import Language.FCL.World as World
 import Language.FCL.Pretty as Pretty
 import qualified Language.FCL.Prim as Prim
-import Language.FCL.SafeInteger as SI
 
 import Language.FCL.Utils (traverseWithKey')
 
@@ -666,19 +664,14 @@ evalPrim loc ex args = case ex of
     let [msgExpr] = args
     (VText msg) <- evalLExpr msgExpr
     privKey <- currentPrivKey <$> ask -- XXX               V gen Random value?
-    sig <- Key.getSignatureRS <$> Key.sign privKey (SS.toBytes msg)
-    case bimap toSafeInteger toSafeInteger sig of
-      (Right safeR, Right safeS) -> return $ VSig (safeR,safeS)
-      otherwise -> throwError $
-        HugeInteger "Signature values (r,s) too large."
+    sig <- Key.getSignatureRS <$> Key.sign privKey (toS msg)
+    pure $ VSig sig
 
   Sha256         -> do
     let [anyExpr] = args
     x <- evalLExpr anyExpr
     v <- hashValue x
-    case SS.fromBytes (Hash.sha256Raw v) of
-      Left err -> throwError $ HugeString $ show err
-      Right msg -> return $ VText msg
+    pure $ VText (toS $ Hash.sha256Raw v)
 
   AccountExists  -> do
     let [varExpr] = args
@@ -700,20 +693,17 @@ evalPrim loc ex args = case ex of
 
   Verify         -> do
     let [accExpr,sigExpr,msgExpr] = args
-    (VSig safeSig) <- evalLExpr sigExpr
+    (VSig sig) <- evalLExpr sigExpr
     (VText msg) <- evalLExpr sigExpr
     ledgerState <- gets worldState
 
     acc <- getAccount accExpr
-    let sig = bimap fromSafeInteger fromSafeInteger safeSig
     return $ VBool $
-      Key.verify (World.publicKey @world acc) (Key.mkSignatureRS sig) $ SS.toBytes msg
+      Key.verify (World.publicKey @world acc) (Key.mkSignatureRS sig) (toS msg)
 
   TxHash -> do
     txHash <- currentTxHash loc
-    case SS.fromBytes (Hash.getRawHash txHash) of
-      Left err -> throwError $ HugeString $ show err
-      Right msg -> pure $ VText msg
+    pure $ VText (toS $ Hash.getRawHash txHash)
 
   ContractValue -> do
     let [contractExpr, msgExpr] = args
@@ -722,11 +712,10 @@ evalPrim loc ex args = case ex of
     case World.lookupContract contractAddr world of
       Left err -> throwError $ ContractIntegrity $ show err
       Right contract -> do
-        (VText varSS) <- evalLExpr msgExpr
-        let var = toS $ SS.toBytes varSS
-        case Contract.lookupVarGlobalStorage var contract of
+        (VText var) <- evalLExpr msgExpr
+        case Contract.lookupVarGlobalStorage (toS var) contract of
           Nothing -> throwError $ ContractIntegrity $
-            "Contract does not define a variable named '" <> var <> "'"
+            "Contract does not define a variable named '" <> (toS var) <> "'"
           Just val -> pure val
 
   ContractValueExists -> do
@@ -1246,7 +1235,7 @@ evalCallableMethods contract =
 {-# INLINE hashValue #-}
 hashValue :: Value -> (EvalM world) ByteString
 hashValue = \case
-  VText msg      -> pure $ SS.toBytes msg
+  VText msg      -> pure (toS msg)
   VNum n         -> pure (show n)
   VBool n        -> pure (show n)
   VState n       -> pure (show n)

@@ -84,7 +84,6 @@ import Language.FCL.Address
 import Language.FCL.Lexer as Lexer
 import Language.FCL.Pretty hiding (parens)
 import Language.FCL.Prim (lookupPrim, PrimOp)
-import Language.FCL.SafeString (fromBytes')
 import qualified Language.FCL.Token as Token
 import qualified Datetime.Types as DT
 
@@ -266,7 +265,7 @@ timedeltaLit :: Parser Lit
 timedeltaLit = LTimeDelta <$> timedeltaParser
 
 textLit :: Parser Lit
-textLit = LText . fromBytes' . BS8.pack <$> rawTextLit
+textLit = LText . toS . BS8.pack <$> rawTextLit
  <?> "text"
 
 stateLit :: Parser Lit

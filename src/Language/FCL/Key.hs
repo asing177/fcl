@@ -171,7 +171,6 @@ import Crypto.Cipher.Types (Cipher(..), BlockCipher(..), IV, makeIV, blockSize)
 import System.Directory (doesFileExist)
 import System.Posix.Files (setFileMode, ownerReadMode)
 
-import qualified Language.FCL.SafeString as SS
 import qualified Language.FCL.Hash as Hash
 
 -------------------------------------------------------------------------------
@@ -653,20 +652,18 @@ decodeKey = S.decode
 
 putSignature :: S.Putter ECDSA.Signature
 putSignature (ECDSA.Signature r s) = do
-    S.put $ safeEncInteger r
+    S.put $ encInteger r
     S.put ':'
-    S.put $ safeEncInteger s
+    S.put $ encInteger s
   where
-    safeEncInteger :: Integer -> SS.SafeString
-    safeEncInteger = SS.fromBytes' . show
+    encInteger :: Integer -> ByteString
+    encInteger = show
 
 getSignature :: S.Get ECDSA.Signature
 getSignature = do
-  rSS <- S.get
+  rBS <- S.get
   _ <- S.get :: S.Get Char
-  sSS <- S.get
-  let rBS = SS.toBytes rSS
-  let sBS = SS.toBytes sSS
+  sBS <- S.get
   let read' = head . reads . BSC.unpack
   let mRS = do
         r' <- read' rBS

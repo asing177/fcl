@@ -42,7 +42,6 @@ import qualified Language.FCL.Compile as Compile
 import qualified Language.FCL.Init as Init
 import qualified Language.FCL.Prim as Prim
 import qualified Language.FCL.Hash as Hash
-import qualified Language.FCL.SafeString as SS
 
 import qualified Reference as Ref
 
