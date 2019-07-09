@@ -19,5 +19,5 @@ isSound = null
 
 soundnessConfirmation :: TestTree
 soundnessConfirmation = testGroup ("Test the soundness checking algorithm on safely constructed workflows")
-  [ testProperty "is sound" isSound
+  [ testProperty "is sound" (withMaxSuccess 1000 isSound)
   ]

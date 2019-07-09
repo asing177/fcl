@@ -12,6 +12,7 @@ import qualified TestUndefinedness
 import qualified TestNumber
 import qualified TestJson
 import qualified TestStorage
+import qualified TestSoundness
 
 import qualified TestWorkflow
 
@@ -53,6 +54,9 @@ suite
 
     -- Non-lossy arithmetic tests
     , TestNumber.numberTests
+
+    -- confirming the soundness checking algorithm's correctness on safely constructed workflows
+    , TestSoundness.soundnessConfirmation
     ]
 
 -------------------------------------------------------------------------------
