@@ -152,6 +152,7 @@ library:
     - Language.FCL.Utils
     - Language.FCL.Time
     - Language.FCL.WorkflowGen
+    - Language.FCL.WorkflowGenExamples
     - Language.FCL.World
     - Language.FCL.Warning
     - Numeric.Lossless.Decimal
