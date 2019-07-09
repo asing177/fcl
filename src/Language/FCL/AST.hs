@@ -1197,7 +1197,7 @@ instance Arbitrary Arg where
 
 instance Arbitrary Preconditions where
   arbitrary = do
-    exprs <- infiniteListOf (Located NoLoc <$> (arbNonSeqExpr =<< choose (0, 1)))
+    exprs <- infiniteListOf (Located NoLoc <$> arbNonSeqExpr 0)
     precs <- infiniteListOf arbitrary
     n <- choose (0, 3)
     pure . Preconditions . take n $ zip precs exprs
