@@ -1,3 +1,6 @@
 Workflow soundness errors:
-• One-boundedness violation. Applying transition 'transition eitherSet -> terminal' to state '{eitherSet, terminal}' would result in an illegal state where the following place occurs more than once: 'terminal'.
-• Improper completion at merge-site. When merging the results of two AND branches, more specifically terminal and eitherSet , the resulting state contained the terminal place while containing other places as well.
+• One-boundedness violation. Applying transition 'transition {eitherSet} -> {terminal}' to state '{eitherSet
+                                                                                                  ,terminal}' would result in an illegal state where the following place occurs more than once: 'terminal'.
+• Improper completion at merge-site.
+  When merging the results of two AND branches, more specifically '{terminal}' and '{eitherSet}',
+  the resulting state contained the terminal place while containing other places as well.

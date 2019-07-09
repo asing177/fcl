@@ -1,3 +1,3 @@
 Workflow soundness errors:
 • The workflow does not represent a free choice net:
-  transition p6 -> p5 and transition {p6, p7} -> terminal share some input places: {p6}
+  'transition {p6} -> {p5}' and 'transition {p6,p7} -> {terminal}' share some input places:   '{p6}'

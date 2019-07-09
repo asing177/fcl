@@ -1,2 +1,4 @@
 Workflow soundness errors:
-• One-boundedness violation at merge-site. When merging the results of two AND branches, more specifically terminal and terminal , the resulting state contained some places more than once: {terminal}
+• One-boundedness violation at merge-site.
+  When merging the results of two AND branches, more specifically '{terminal}' and '{terminal}',
+  the resulting state contained some places more than once: '{terminal}'

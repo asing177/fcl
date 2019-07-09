@@ -24,7 +24,10 @@ import qualified Data.Set as S
 import qualified Data.Aeson as A
 
 import Language.FCL.AST (unsafeWorkflowState, Place(..), Transition(..), WorkflowState, (\\), endState, isSubWorkflow, places, startState, wfIntersection, wfUnion)
-import Language.FCL.Pretty (Doc, Pretty(..), (<+>), listOf, squotes, text, vcat, setOf, (<$$>), indent)
+-- TODO: sort these out
+import Language.FCL.Pretty (Doc, Pretty(..), (<+>), listOf, squotes, text, vcat, setOf, (<$$>), indent, bracketList, token)
+import qualified Language.FCL.Token as Token
+import Text.PrettyPrint.Leijen.Text ((</>), comma)
 
 -- | A reason why the workflow is unsound. (Refer to 'Pretty' instance for
 -- explanations.
@@ -39,6 +42,20 @@ data WFError
   | ImproperCompletionMerge WorkflowState WorkflowState
   | LoopingANDBranch WorkflowState WorkflowState
   deriving (Eq, Ord, Show, Generic, A.FromJSON, A.ToJSON)
+
+-- TODO: move these to Language.FCL.Pretty
+newtype Debug a = Debug a
+  deriving (Eq, Ord)
+
+instance Pretty (Debug WorkflowState) where
+  ppr (Debug wfs) = setOf . S.toList . places $ wfs
+
+instance Pretty (Debug Transition) where
+  ppr (Debug (Arrow from to)) =
+    token Token.transition <+> ppr (Debug from) <+> token Token.rarrow <+> ppr (Debug to)
+
+instance Pretty (Debug Place) where
+  ppr (Debug p) = ppr p
 
 instance Pretty WFError where
   ppr = \case
@@ -62,24 +79,32 @@ instance Pretty WFError where
         -> "Unreachable:" <+> qp t <> "."
       FreeChoiceViolation t1 t2 shared ->
         "The workflow does not represent a free choice net:"
-        <$$>> ppr t1 <+> "and" <+> ppr t2 <+> "share some input places:" <+> setOf shared
+        <$$+> qp t1 <+> "and" <+> qp t2 <+> "share some input places:" </+> qSetOf shared
       NotOneBoundedMerge r1 r2 shared ->
-        "One-boundedness violation at merge-site." <+> "When merging the results of two AND branches, more specifically" <+>
-        ppr r1 <+> "and" <+> ppr r2 <+> ", the resulting state contained some places more than once:" <+> setOf shared
-      ImproperCompletionMerge r1 r2->
-        "Improper completion at merge-site." <+> "When merging the results of two AND branches, more specifically" <+>
-        ppr r1 <+> "and" <+> ppr r2 <+>
-        ", the resulting state contained the terminal place while containing other places as well."
+        "One-boundedness violation at merge-site." </+> "When merging the results of two AND branches, more specifically" <+>
+        qp r1 <+> "and" <+> qp r2 <> comma </+>
+        "the resulting state contained some places more than once:" <+> qSetOf shared
+      ImproperCompletionMerge r1 r2 ->
+        "Improper completion at merge-site." </+> "When merging the results of two AND branches, more specifically" <+>
+        qp r1 <+> "and" <+> qp r2 <> comma </+>
+        "the resulting state contained the terminal place while containing other places as well."
       LoopingANDBranch splittingPoint splitHead ->
-        "Erroneous looping AND branch." <+> "When AND-splitting from" <+> qp splittingPoint <> "," <+>
+        "Erroneous looping AND branch." <+> "When AND-splitting from" <+> qp splittingPoint <> comma </+>
         "the result branch of" <+> qp splitHead <+> "loops indefinetely locally, or loops back to the splitting point."
 
     where
-      qp :: Pretty a => a -> Doc
-      qp = squotes . ppr
+      qp :: Pretty (Debug a) => a -> Doc
+      qp = squotes . ppr . Debug
 
-      (<$$>>) :: Doc -> Doc -> Doc
-      (<$$>>) lhs rhs = lhs <$$> (indent 2 rhs)
+      qSetOf :: (Ord a, Pretty (Debug a)) => Set a -> Doc
+      qSetOf = squotes . setOf . S.map Debug
+
+      -- different from Language.FCL.Pretty (only indents by 2)
+      (<$$+>) :: Doc -> Doc -> Doc
+      (<$$+>) lhs rhs = lhs <$$> (indent 2 rhs)
+
+      (</+>) :: Doc -> Doc -> Doc
+      (</+>) lhs rhs = lhs </> indent 2 rhs
 
 instance Pretty [WFError] where
   ppr [] = "The workflow is sound."
@@ -98,7 +123,7 @@ pprReachabilityGraph :: ReachabilityGraph -> Doc
 pprReachabilityGraph
   = vcat
   . (text "Reachability Graph:" :)
-  . map (\(k, vs) -> ppr k <+> text "->" <+> (listOf . map ppr . S.toList) vs)
+  . map (\(k, vs) -> ppr (Debug k) <+> text "->" <+> (bracketList . map (ppr . Debug) . S.toList) vs)
   . M.toList
 
 -- | Look up outgoing transitions from a place. E.g. for `{a, b} -> c` we would

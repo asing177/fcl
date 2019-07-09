@@ -1,4 +1,3 @@
 Workflow soundness errors:
-• Improper completion. Applying 'transition a -> {a, b}' to state '{a, terminal}' would result in the new state '{a, b, terminal}' where the terminal place is reached while other places are still active.
-• Improper completion at merge-site. When merging the results of two AND branches, more specifically {} and {a, terminal} , the resulting state contained the terminal place while containing other places as well.
-• Improper completion at merge-site. When merging the results of two AND branches, more specifically a and terminal , the resulting state contained the terminal place while containing other places as well.
+• Erroneous looping AND branch. When AND-splitting from '{a,b}',
+  the result branch of '{a}' loops indefinetely locally, or loops back to the splitting point.

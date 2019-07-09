@@ -1,5 +1,5 @@
 Workflow soundness errors:
 • The workflow does not represent a free choice net:
-  transition {a, b} -> terminal and transition {b, c} -> {a, b} share some input places: {a,b}
+  'transition {a,b} -> {terminal}' and 'transition {b,c} -> {a,b}' share some input places:   '{a,b}'
 • The workflow does not represent a free choice net:
-  transition {a, b} -> terminal and transition {b, c} -> terminal share some input places: {a,b}
+  'transition {a,b} -> {terminal}' and 'transition {b,c} -> {terminal}' share some input places:   '{a,b}'
