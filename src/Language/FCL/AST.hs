@@ -306,7 +306,7 @@ data BinOp
   | Lesser  -- ^ Lesser
   | Greater -- ^ Greater
   | RecordAccess -- ^ Record access, e.g. @expr.field@
-  deriving (Eq, Ord, Show, Generic, Hash.Hashable)
+  deriving (Eq, Ord, Show, Generic, Hash.Hashable, Bounded, Enum)
 
 instance ToJSON BinOp where
   toJSON = genericToJSON (defaultOptions { sumEncoding = ObjectWithSingleField })
@@ -316,7 +316,7 @@ instance FromJSON BinOp where
 
 -- | Unary operators
 data UnOp = Not -- ^ Logical negation
-  deriving (Eq, Ord, Show, Generic, Hash.Hashable)
+  deriving (Eq, Ord, Show, Generic, Hash.Hashable, Bounded, Enum)
 
 instance ToJSON UnOp where
   toJSON _ = "Not"
@@ -1150,23 +1150,10 @@ addLoc :: Gen a -> Gen (Located a)
 addLoc g = Located <$> arbitrary <*> g
 
 instance Arbitrary BinOp where
-  arbitrary = elements
-    [ Add
-    , Sub
-    , Mul
-    , Div
-    , And
-    , Or
-    , Equal
-    , NEqual
-    , LEqual
-    , GEqual
-    , Lesser
-    , Greater
-    ]
+  arbitrary = arbitraryBoundedEnum
 
 instance Arbitrary UnOp where
-  arbitrary = pure Not
+  arbitrary = arbitraryBoundedEnum
 
 instance Arbitrary Lit where
   -- Missing literals:
@@ -1209,10 +1196,14 @@ instance Arbitrary Arg where
   arbitrary = Arg <$> arbitrary <*> arbitrary
 
 instance Arbitrary Preconditions where
-  arbitrary = Preconditions <$> arbSmallList
+  arbitrary = do
+    exprs <- infiniteListOf (Located NoLoc <$> (arbNonSeqExpr =<< choose (0, 1)))
+    precs <- infiniteListOf arbitrary
+    n <- choose (0, 3)
+    pure . Preconditions . take n $ zip precs exprs
 
 instance Arbitrary Precondition where
-  arbitrary = oneof [ pure PrecAfter, pure PrecBefore, pure PrecRoles ]
+  arbitrary = elements [ PrecAfter, PrecBefore, PrecRoles ]
 
 instance Arbitrary Method where
   arbitrary = Method <$> arbitrary <*> arbitrary <*> arbitrary <*> arbSmallList <*> sized arbLExpr
@@ -1239,6 +1230,8 @@ instance Arbitrary Script where
       <*> arbSmallList
       <*> arbSmallList
       <*> arbSmallList
+
+  shrink = genericShrink
 
 instance Arbitrary Expr where
   arbitrary = do
