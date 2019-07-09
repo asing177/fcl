@@ -361,7 +361,7 @@ buildGraph curr = do
       -}
       pure [curr]
 
-
+-- | Checks whether a workflow state is globally unvisited.
 unvisitedM :: WorkflowState -> GraphBuilderM Bool
 unvisitedM s = do
   graph <- gets bsReachabilityGraph
@@ -389,6 +389,7 @@ yell :: WFError -> GraphBuilderM ()
 yell err = tell (S.singleton err, mempty)
 {-# INLINE yell #-}
 
+-- | Unions two workflow states and gathers all errors that may arise.
 checkedWfUnion :: WorkflowState -> WorkflowState -> Either WFError WorkflowState
 checkedWfUnion lhs rhs
   | not $ null sharedPlaces = Left (NotOneBoundedMerge lhs rhs sharedPlaces)
@@ -400,6 +401,7 @@ checkedWfUnion lhs rhs
         lhsPlaces = places lhs
         rhsPlaces = places rhs
 
+-- | Unions two workflow states and reports all errors that may arise in a monadic context.
 checkedWfUnionM :: WorkflowState -> WorkflowState -> GraphBuilderM WorkflowState
 checkedWfUnionM lhs rhs = case checkedWfUnion lhs rhs of
   Right wfSt -> pure wfSt
@@ -430,9 +432,11 @@ applyTransition curr t@(Arrow src dst)
 
 {-# INLINE applyTransition #-} -- very important for performance!!
 
+-- | Checks whether a given foldable structures is not empty.
 isNonEmpty :: Foldable f => f a -> Bool
 isNonEmpty = not . null
 
+-- | Checks whether a given list contains a single element.
 isSingleton :: [a] -> Bool
 isSingleton [x] = True
 isSingleton _   = False
@@ -474,39 +478,23 @@ splitState = map unsafeWorkflowState
            . S.toList
            . places
 
+-- | Locally visited nodes inside an AND branch.
 type LocallyVisited = Set WorkflowState
 
+-- | State for constructing a reachability graph.
 data BuilderState
   = BuilderState
-  { bsReachabilityGraph :: ReachabilityGraph
-  , bsLocallyVisted     :: [LocallyVisited]
+  { bsReachabilityGraph :: ReachabilityGraph  -- ^ The reachability graph itself-
+  , bsLocallyVisted     :: [LocallyVisited]   -- ^ Stack of local contexts for AND-split branches.
   } deriving (Eq, Ord, Show)
 
+-- | General modifying function for the reachability graph.
 modifyGraph :: (ReachabilityGraph -> ReachabilityGraph) -> GraphBuilderM ()
 modifyGraph f = do
   BuilderState rg lv <- get
   put $ BuilderState (f rg) lv
 
--- modifyLocallyVisited :: (LocallyVisited -> LocallyVisited) -> GraphBuilderM ()
--- modifyLocallyVisited f = do
---   BuilderState rg lv <- get
---   put $ BuilderState rg (f lv)
-
--- addLocalWfState :: WorkflowState -> GraphBuilderM ()
--- addLocalWfState s = modifyLocallyVisited (S.insert s)
-
--- clearLocalWfStates :: GraphBuilderM ()
--- clearLocalWfStates = modifyLocallyVisited (const mempty)
-
-locally :: MonadState s m => s -> m a -> m (a,s)
-locally s m = do
-  origState <- get
-  put s
-  res <- m
-  newState <- get
-  put origState
-  pure (res, newState)
-
+-- | General modifying function for the current local context.
 modifyLocalContext :: (LocallyVisited -> LocallyVisited) -> GraphBuilderM ()
 modifyLocalContext f = do
   BuilderState rg lv <- get
@@ -515,14 +503,17 @@ modifyLocalContext f = do
     -- TODO: might have to reconsider this case
     []   -> pure ()
 
+-- | Creates a new empty local context (for an AND branch).
 pushEmptyLocalContext :: GraphBuilderM ()
 pushEmptyLocalContext = do
   BuilderState rg lv <- get
   put $ BuilderState rg (mempty:lv)
 
+-- | Adds a given state to the current local context.
 pushLocalState :: WorkflowState -> GraphBuilderM ()
 pushLocalState wfSt = modifyLocalContext (S.insert wfSt)
 
+-- | Removes the current local context.
 popLocalContext :: GraphBuilderM ()
 popLocalContext = do
   BuilderState rg lv <- get
@@ -530,6 +521,7 @@ popLocalContext = do
     _:xs -> put $ BuilderState rg xs
     []   -> panic $ "Reachability: can't pop from empty context stack"
 
+-- | Acquires the current local context.
 getLocalContext :: GraphBuilderM LocallyVisited
 getLocalContext = do
   BuilderState rg lv <- get
@@ -537,7 +529,8 @@ getLocalContext = do
     x:_ -> pure x
     []  -> panic $ "Reachability: can't get locally visited states from empty context stack"
 
--- Forget locally visited places, and start new local context.
+-- | Start analyzing and AND branch by creating a new local context for it.
+-- Add the splitting state to the previous context as well to the current one.
 startBuildingLocally :: WorkflowState -> WorkflowState -> GraphBuilderM [WorkflowState]
 startBuildingLocally prev wfSt = do
   BuilderState rg lv <- get
@@ -550,28 +543,24 @@ startBuildingLocally prev wfSt = do
   popLocalContext
   pure r
 
-  -- BuilderState rg lv <- get
-  -- (r,s) <- locally (BuilderState rg mempty) $ do
-  --   buildGraph wfSt
-  -- modifyGraph (<> bsReachabilityGraph s)
-  -- pure r
-
--- Continue with the current local context.
+-- | Continue with the current local context.
+-- Add the previously visited state to the current local context.
 continueBuildingLocally :: WorkflowState -> WorkflowState -> GraphBuilderM [WorkflowState]
 continueBuildingLocally prev wfSt = do
   pushLocalState prev
   buildGraph wfSt
 
+-- | Gather all the reachable state from a given state using the reachability graph.
 gatherReachableStatesFrom :: WorkflowState -> ReachabilityGraph -> Set WorkflowState
 gatherReachableStatesFrom start graph =
-  execState (gatherReachableStatesFromM start graph) mempty
+  execState (gatherReachableStatesFromM start graph) mempty where
 
-gatherReachableStatesFromM :: WorkflowState -> ReachabilityGraph -> State (Set WorkflowState) ()
-gatherReachableStatesFromM wfSt graph = do
-  s <- get
-  when (wfSt `S.notMember` s) $ do
-    modify $ S.insert wfSt
-    case M.lookup wfSt graph of
-      Nothing    -> pure ()
-      Just nexts ->
-        mapM_ (flip gatherReachableStatesFromM graph) nexts
+  gatherReachableStatesFromM :: WorkflowState -> ReachabilityGraph -> State (Set WorkflowState) ()
+  gatherReachableStatesFromM wfSt graph = do
+    s <- get
+    when (wfSt `S.notMember` s) $ do
+      modify $ S.insert wfSt
+      case M.lookup wfSt graph of
+        Nothing    -> pure ()
+        Just nexts ->
+          mapM_ (flip gatherReachableStatesFromM graph) nexts
