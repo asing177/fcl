@@ -1051,12 +1051,8 @@ isSubWorkflow (WorkflowState w1) (WorkflowState w2) = w1 `Set.isSubsetOf` w2
     liftWF op (WorkflowState w1) (WorkflowState w2) = WorkflowState $ w1 `op` w2
 
 
-makeWorkflowState :: [Name] -> Either Doc WorkflowState
-makeWorkflowState names
-  | null dups = Right . WorkflowState . Set.fromList $ map makePlace names
-  | otherwise = Left $ "Duplicate places:" <+> (hcat . map ppr) dups
-  where
-    dups = duplicates names
+makeWorkflowState :: [Name] -> WorkflowState
+makeWorkflowState = WorkflowState . Set.fromList . map makePlace
 
 -- | Doesn't check if workflow state is valid
 unsafeWorkflowState :: Set Place -> WorkflowState
