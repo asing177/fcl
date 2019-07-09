@@ -17,7 +17,6 @@ import Data.HashMap.Strict.InsOrd
 
 import Language.FCL.AST as AST hiding (at)
 import Language.FCL.Prim
-import Language.FCL.Unsafe
 import Language.FCL.Address
 import Language.FCL.Parser as Parser
 import Language.FCL.Typecheck as Typecheck
@@ -146,8 +145,6 @@ instance ToSchema Name where
 
 instance ToSchema TVar
 
--- TODO: property "LNum" is found in JSON value, but it is not mentioned in Swagger schema
-
 instance ToSchema Lit
 instance ToSchema Script
 instance ToSchema Helper
@@ -160,12 +157,8 @@ instance ToSchema Place where
   declareNamedSchema = genericDeclareNamedSchemaUnrestricted defaultSchemaOptions
 instance ToSchema Method
 instance ToSchema Arg
-instance ToSchema SafeString where
-  declareNamedSchema proxy =
-    pure $ NamedSchema Nothing $ mempty
 
 instance ToSchema Decimal
-instance ToSchema SafeInteger
 instance ToSchema DateTime
 instance ToSchema TimeDelta
 instance ToSchema NameUpper
