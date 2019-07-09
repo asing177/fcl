@@ -269,11 +269,6 @@ buildGraph :: WorkflowState -> GraphBuilderM [WorkflowState]
 buildGraph curr = do
   unvisited <- unvisitedM curr
 
-  -- locals <- getLocalContext
-  -- localsStack <- gets bsLocallyVisted
-  -- traceM ("current: " <> show (ppr curr) :: Text)
-  -- traceM ("locals stack: " <> show (listOf . map (setOf . S.toList) $ localsStack) :: Text)
-
   if unvisited then do
     outgoing <- ask
     xorSplitStates <- catMaybes <$>
@@ -286,7 +281,6 @@ buildGraph curr = do
       . places                           -- Get the places in the current state
       ) curr
 
-    -- traceM $ ("XOR split: " <> show (ppr curr, setOf xorSplitStates) :: Text)
     modifyGraph $ M.insert curr (S.fromList xorSplitStates) -- direct connections
 
     -- NOTE: states visited before the XOR split
@@ -298,12 +292,10 @@ buildGraph curr = do
       -}
       visitedStatesAfterXOR <- gets (M.keysSet . bsReachabilityGraph)
       let visitedByOtherXORBranches = S.difference visitedStatesAfterXOR visitedStatesBeforeXOR
-      -- traceM $ ("SAVBOXB: " <> show (setOf . S.toList $ statesAlreadyVisitedByOtherXORBranches) :: Text)
 
       let andSplitLocalStates = splitState lclSt
       {- NOTE: keep locally visited when following a straight path,
          reset locally visited when branching
-         traceM $ ("AND split: " <> show (setOf andSplitLocalStates, isSingleton andSplitLocalStates) :: Text)
       -}
       let isSimplePath = isSingleton andSplitLocalStates
           buildBranch = if isSimplePath then
@@ -333,8 +325,6 @@ buildGraph curr = do
       -- NOTE: Only keep those states that hasn't been visited already.
       let mergedResult' = filter (`S.notMember` visitedByOtherXORBranches) mergedResult
 
-      -- traceM $ ("results: " <> show (ppr lclSt, (listOf . map setOf $ individualResults)) :: Text)
-      -- traceM $ ("merging: " <> show (ppr lclSt, setOf mergedResult, setOf mergedResult') :: Text)
       unvisited <- unvisitedM lclSt
       when unvisited $ do
         modifyGraph $ M.insert lclSt (S.fromList mergedResult')
@@ -355,7 +345,7 @@ buildGraph curr = do
     else do
       -- NOTE: Only continue those XOR branches where the AND branches yielded a new merged state
       let continueIfNew (rs,True)  = concatMapM buildGraph rs
-          continueIfNew (rs,False) = {- trace ("return (not new merged state): " ++ show (setOf rs) :: [Char]) -} (pure rs)
+          continueIfNew (rs,False) = pure rs
       concatMapM continueIfNew xorSplitResult
 
   else do
@@ -363,13 +353,11 @@ buildGraph curr = do
     if curr `S.member` locals then do
       {- NOTE: Locally visited nodes add no new information to the context.
          This is when a node inside a branch refers back to another node inside the same branch.
-         traceM $ ("return nothing (locally visited): " <> show curr :: Text)
       -}
       pure []
     else do
       {- NOTE: Globally visited nodes can have impact on other exectuion paths.
          This is when a node inside a branch refers to another node outside of the current branch.
-         traceM $ ("return (globally visited): " <> show (setOf [curr]) :: Text)
       -}
       pure [curr]
 
@@ -529,7 +517,6 @@ modifyLocalContext f = do
 
 pushEmptyLocalContext :: GraphBuilderM ()
 pushEmptyLocalContext = do
-  -- traceM "!!! Pushing empty context"
   BuilderState rg lv <- get
   put $ BuilderState rg (mempty:lv)
 
