@@ -159,7 +159,10 @@ instance ToSchema Method
 instance ToSchema Arg
 
 instance ToSchema Decimal
-instance ToSchema DateTime
+instance ToSchema DateTime where
+  declareNamedSchema _ = do
+    pure $ NamedSchema (Just "DateTime")
+      $ mempty { _schemaParamSchema = mempty { _paramSchemaType = SwaggerString } }
 instance ToSchema TimeDelta
 instance ToSchema NameUpper
 instance ToSchema Datetime where
@@ -167,12 +170,21 @@ instance ToSchema Datetime where
 
 instance ToSchema Datetime.Types.Delta
 instance ToSchema Period where
-  declareNamedSchema _ =
-    pure $ NamedSchema Nothing $ mempty
-
+  declareNamedSchema _ = do
+    i <- declareSchemaRef (Proxy :: Proxy Int)
+    pure $ NamedSchema (Just "Period")
+      $ mempty { _schemaParamSchema = mempty { _paramSchemaType = SwaggerObject }
+               , _schemaProperties = fromList [("periodDays", i), ("periodYears", i), ("periodMonths", i)]
+               , _schemaRequired = [ "periodDays", "periodYears", "periodMonths" ]
+               }
 instance ToSchema Duration where
-  declareNamedSchema _ =
-    pure $ NamedSchema Nothing $ mempty
+  declareNamedSchema _ = do
+    i <- declareSchemaRef (Proxy :: Proxy Int)
+    pure $ NamedSchema (Just "Duration")
+      $ mempty { _schemaParamSchema = mempty { _paramSchemaType = SwaggerObject }
+               , _schemaProperties = fromList [("durationHours", i), ("durationNs", i), ("durationSeconds", i), ("durationMinutes", i)]
+               , _schemaRequired = [ "durationHours", "durationNs", "durationSeconds", "durationMinutes" ]
+               }
 instance ToSchema (Address a) where
   declareNamedSchema proxy =
     pure $ NamedSchema Nothing $ mempty
