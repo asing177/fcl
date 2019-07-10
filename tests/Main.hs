@@ -56,7 +56,7 @@ suite
     , TestNumber.numberTests
 
     -- confirming the soundness checking algorithm's correctness on safely constructed workflows
-    , TestSoundness.soundnessConfirmation
+    , TestSoundness.soundnessTests
     ]
 
 -------------------------------------------------------------------------------

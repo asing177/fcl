@@ -12,11 +12,7 @@ import Language.FCL.ReachabilityGraph
 import WorkflowGenExamples
 
 isSafeWorkflowSound :: SafeWorkflowNet -> Bool
-isSafeWorkflowSound = null
-                    . fst
-                    . reachabilityGraph
-                    . S.fromList
-                    . constructTransitions
+isSafeWorkflowSound = null . soundnessCheck
 
 soundnessCheck :: SafeWorkflowNet -> [WFError]
 soundnessCheck = S.toList
