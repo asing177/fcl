@@ -8,7 +8,7 @@ import Test.Tasty
 import Test.Tasty.QuickCheck
 
 import Language.FCL.ReachabilityGraph
-import Language.FCL.WorkflowGen
+import WorkflowGen
 
 isSound :: SafeWorkflowNet -> Bool
 isSound = null
@@ -19,5 +19,5 @@ isSound = null
 
 soundnessConfirmation :: TestTree
 soundnessConfirmation = testGroup ("Test the soundness checking algorithm on safely constructed workflows")
-  [ testProperty "is sound" (withMaxSuccess 1000 isSound)
+  [ testProperty "No errors while constructing the reachability graph" (withMaxSuccess 1000 isSound)
   ]

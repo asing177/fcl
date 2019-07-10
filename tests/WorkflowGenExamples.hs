@@ -1,14 +1,14 @@
 {-# LANGUAGE PatternSynonyms #-}
-module Language.FCL.WorkflowGenExamples
-  ( module Language.FCL.WorkflowGenExamples
-  , module Language.FCL.WorkflowGen
+module WorkflowGenExamples
+  ( module WorkflowGenExamples
+  , module WorkflowGen
   ) where
 
 import Protolude
 
 import Data.List.NonEmpty (NonEmpty(..))
 
-import Language.FCL.WorkflowGen
+import WorkflowGen
 
 -------------------------------------------------
 -- Basic building blocks of safe workflow nets --

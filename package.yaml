@@ -67,7 +67,6 @@ library:
     # Control Structures
   - mtl
   - transformers
-  - monad-gen
 
   # Text
   - text
@@ -152,8 +151,6 @@ library:
     - Language.FCL.Unsafe
     - Language.FCL.Utils
     - Language.FCL.Time
-    - Language.FCL.WorkflowGen
-    - Language.FCL.WorkflowGenExamples
     - Language.FCL.World
     - Language.FCL.Warning
     - Numeric.Lossless.Decimal
@@ -204,3 +201,5 @@ tests:
     - tasty-quickcheck
     - QuickCheck
     - aeson-pretty
+    - mtl
+    - monad-gen

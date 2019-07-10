@@ -1,8 +1,8 @@
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE TypeApplications #-}
-module Language.FCL.WorkflowGen
-  ( module Language.FCL.WorkflowGen
+module WorkflowGen
+  ( module WorkflowGen
   ) where
 
 import Protolude

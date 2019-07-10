@@ -1,5 +1,5 @@
-module Language.FCL.WorkflowGenTests
-  ( module Language.FCL.WorkflowGenTests
+module WorkflowGenTests
+  ( module WorkflowGenTests
   ) where
 
 import Protolude
@@ -8,7 +8,8 @@ import qualified Data.Set as S
 
 import Language.FCL.Pretty
 import Language.FCL.ReachabilityGraph
-import Language.FCL.WorkflowGenExamples
+
+import WorkflowGenExamples
 
 isSafeWorkflowSound :: SafeWorkflowNet -> Bool
 isSafeWorkflowSound = null
