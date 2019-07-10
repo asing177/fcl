@@ -7,7 +7,7 @@ module WorkflowGen
 
 import Protolude
 
-import Data.Maybe
+import Data.Maybe (fromJust)
 import Data.Set (Set(..))
 import Data.List.NonEmpty (NonEmpty(..))
 import qualified Data.Set as S
@@ -70,12 +70,8 @@ pattern SimpleLoop loop   exit         = GenLoop Nothing       exit loop
 pattern Loop       loopIn exit loopOut = GenLoop (Just loopIn) exit loopOut
 
 -- | Make a workflow state from a `Name`.
-mkWfState :: Name -> WorkflowState
-mkWfState = fromPlace . makePlace
-
--- | Make a workflow state from a `Place`.
-fromPlace :: Place -> WorkflowState
-fromPlace = unsafeWorkflowState . S.singleton
+singletonWfState :: Name -> WorkflowState
+singletonWfState = unsafeWorkflowState . S.singleton . makePlace
 
 -- | Generate a unique name.
 genName :: (MonadGen e m, Show e) => m Name
@@ -83,7 +79,7 @@ genName = Name . show <$> gen
 
 -- | Generate a uniq workflow state.
 genWfState :: (MonadGen e m, Show e) => m WorkflowState
-genWfState = mkWfState <$> genName
+genWfState = singletonWfState <$> genName
 
 -- | Construct the list of transitions from a given `SafeWorkflowNet`.
 constructTransitions :: SafeWorkflowNet -> [Transition]
