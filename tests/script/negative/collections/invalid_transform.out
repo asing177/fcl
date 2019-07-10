@@ -2,5 +2,5 @@ The declared and actual transitions do not match up:
 • Undeclared: 'transition initial -> initial', implemented by method 'applyInterest2'.
 
 Inferred Transitions:
-transition initial -> initial;
 transition initial -> terminal;
+transition initial -> initial;

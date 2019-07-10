@@ -44,7 +44,7 @@ module Language.FCL.Hash (
 import Protolude hiding (show, Hashable, hash)
 import Prelude (Show(..), Read(..))
 import Test.QuickCheck
-import Test.QuickCheck.Instances.ByteString
+import Test.QuickCheck.Instances.ByteString ()
 import Unsafe (unsafeFromJust)
 
 import GHC.Generics ((:+:)(..), (:*:)(..))

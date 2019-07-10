@@ -28,7 +28,7 @@ import System.FilePath (replaceExtension)
 import System.Process.Text (readProcessWithExitCode)
 
 import Language.FCL.AST
-import Language.FCL.Analysis (actualTransitions)
+import Language.FCL.Analysis (inferMethodsTransitions)
 import Language.FCL.Parser (parseFile)
 import Language.FCL.Pretty (hsep, prettyPrint, ppr, panicppr)
 import Language.FCL.Utils ((?))
@@ -166,7 +166,7 @@ instance DisplayableWorkflow Methods where
   annotatedTransitions (Methods ms) = zipWith annotateTransition methodsWithTransitions [1..]
     where
       methodsWithTransitions :: [(Method, Transition)]
-      methodsWithTransitions = actualTransitions ms
+      methodsWithTransitions = inferMethodsTransitions ms
 
       annotateTransition :: (Method, Transition) -> Int -> AnnotatedTransition Methods
       annotateTransition (meth, tr) n = MTr meth tr (show n)

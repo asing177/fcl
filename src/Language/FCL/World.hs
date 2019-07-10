@@ -4,14 +4,13 @@ Ledger state interface.
 
 -}
 
-{-# LANGUAGE AllowAmbiguousTypes #-}
+{-# LANGUAGE TypeFamilyDependencies #-}
 {-# LANGUAGE ImplicitParams #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE DataKinds #-}
-{-# LANGUAGE ImpredicativeTypes #-}
 
 module Language.FCL.World (
   World(..),
@@ -30,8 +29,8 @@ data ContractError
   deriving (Show, Eq, Generic, Serialize)
 
 class World w where
-  type Account' w
-  type Asset' w
+  type Account' w = r | r -> w
+  type Asset' w = r | r -> w
   type AssetError' w
   type AccountError'  w
 

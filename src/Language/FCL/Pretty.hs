@@ -214,7 +214,6 @@ print = render . ppr
 printList :: Pretty a => [a] -> LText
 printList xs = render (vcat (fmap ppr xs))
 
-
 -- | Pretty print to stdout. Declare @default (Text)@ in the file if you get
 -- an "ambiguous type variable" error.
 putppr :: Pretty a => a -> IO ()

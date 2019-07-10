@@ -5,7 +5,7 @@ module Main (
 import Protolude
 
 import Test.Tasty
-
+import Test.Tasty.Hspec
 import qualified KeyTests
 import qualified TestScript
 import qualified TestUndefinedness
@@ -15,6 +15,7 @@ import qualified TestStorage
 import qualified TestSoundness
 
 import qualified TestWorkflow
+import qualified TestSwagger
 
 -------------------------------------------------------------------------------
 -- test Suite
@@ -26,7 +27,7 @@ suite
   workflowTests <- TestWorkflow.workflowTests
   compilerTests <- TestScript.compilerTests
   evalTests <- TestScript.evalTests
-  pure $ testGroup "Test Suite" [
+  pure $ testGroup "FCL tests" [
 
     -- Evaluator tests
     evalTests
@@ -65,5 +66,8 @@ suite
 
 main :: IO ()
 main = do
-  tests <- suite
-  defaultMain tests
+  swaggerTests <- testSpec "Swagger test" $ TestSwagger.swaggerTest
+  fclTests <- suite
+  defaultMain $ testGroup "All tests" [
+    swaggerTests,
+    fclTests]
