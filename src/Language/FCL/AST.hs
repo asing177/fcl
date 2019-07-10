@@ -1210,6 +1210,8 @@ instance Arbitrary Lit where
     , LAccount  <$> arbitrary
     , LAsset    <$> arbitrary
     , LContract <$> arbitrary
+    , LDateTime <$> arbitrary
+    -- , LTimeDelta <$> arbitrary
     ]
 
 instance Arbitrary Type where
