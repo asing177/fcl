@@ -20,6 +20,7 @@ import Test.QuickCheck hiding (Gen)
 import qualified Test.QuickCheck as QC
 
 import Language.FCL.AST
+import Language.FCL.Orphans()
 
 -- NOTE: can't return back to different places from a loop (eg.: novation.s)
 -- NOTE: syncronisation points are always singleton states (places) (eg.: novation.s)
@@ -125,20 +126,6 @@ constructTransitionsM start end GenXOR{..} = do
     constructTransitionsM rhsP lhsP (fromJust gXorMToLhs)
 constructTransitionsM start end Atom = do
   tell [Arrow start end]
-
-instance Arbitrary a => Arbitrary (NonEmpty a) where
-  arbitrary = do
-    xs <- getNonEmpty <$> arbitrary @(QC.NonEmptyList a)
-    case xs of
-      (x:xs) -> return (x :| xs)
-      _      -> panic "QuickCheck generated an empty list for a NonEmptyList"
-
-  shrink (x :| xs)
-    | yss <- shrink (QC.NonEmpty (x:xs))
-    = (flip map) yss $ \ys ->
-        case getNonEmpty ys of
-          (z:zs) -> (z :| zs)
-          _      -> panic "QuickCheck shrank a NonEmptyList into an empty list"
 
 instance Arbitrary SafeWorkflowNet where
   arbitrary = sized genSWFNet where
