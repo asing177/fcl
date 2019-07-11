@@ -12,7 +12,6 @@ import qualified Language.FCL.Pretty            as Pretty
 import qualified Language.FCL.Utils as Utils
 import qualified System.Exit
 
--- TODO: remove this
 import qualified Data.Set as S
 
 data ScriptCommand
