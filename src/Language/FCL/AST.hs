@@ -129,6 +129,7 @@ import qualified Data.Set as Set
 import Data.String (IsString(..))
 import Data.Serialize (Serialize(..), putInt8, getInt8)
 import Data.Serialize.Text()
+import Data.Function (on)
 
 import Language.FCL.Address
 import Language.FCL.Utils (duplicates)
@@ -1010,6 +1011,12 @@ endState = WorkflowState $ Set.singleton PlaceEnd
 
 newtype WorkflowState = WorkflowState { places :: Set Place }
   deriving (Eq, Ord, Show, Generic, Serialize, Hash.Hashable)
+
+instance Semigroup WorkflowState where
+  (<>) (WorkflowState xs) (WorkflowState ys) = WorkflowState (xs <> ys)
+
+instance Monoid WorkflowState where
+  mempty = WorkflowState mempty
 
 instance Pretty WorkflowState where
   ppr (Set.toList . places -> [p]) = ppr p

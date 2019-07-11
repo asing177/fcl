@@ -1,2 +1,2 @@
 Workflow soundness errors:
-• Unreachable: 'transition b -> terminal'.
+• Unreachable: 'transition {b} -> {terminal}'.

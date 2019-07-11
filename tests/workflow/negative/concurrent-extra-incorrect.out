@@ -1,0 +1,5 @@
+Workflow soundness errors:
+• Dead-end state: '{doneBob,terminal}'.
+• Improper completion at merge-site.
+  When merging the results of two AND branches, more specifically '{terminal}' and '{doneBob}',
+  the resulting state contained the terminal place while containing other places as well.

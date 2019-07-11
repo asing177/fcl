@@ -3,6 +3,7 @@ module Main where
 import qualified Data.Aeson.Encode.Pretty as A
 import Options.Applicative
 import Protolude
+import qualified Language.FCL.ReachabilityGraph as RG
 import qualified Language.FCL.Analysis as Analysis (inferTransitions)
 import qualified Language.FCL.Compile as Compile
 import qualified Language.FCL.Graphviz as Graphviz
@@ -11,12 +12,16 @@ import qualified Language.FCL.Pretty            as Pretty
 import qualified Language.FCL.Utils as Utils
 import qualified System.Exit
 
+-- TODO: remove this
+import qualified Data.Set as S
+
 data ScriptCommand
   = CompileScript { file :: FilePath }
   | Lint { file :: FilePath }
   | Format { file :: FilePath }
   | Graph { file :: FilePath }
   | Transitions { file :: FilePath }
+  | ReachabilityGraph { file :: FilePath }
   deriving (Eq, Ord, Show)
 
 -------------------------------------------------------------------------------
@@ -30,6 +35,7 @@ scriptParser =
   <|> scriptLint
   <|> scriptGraph
   <|> scriptTransitions
+  <|> scriptReachabilityGraph
 
 scriptFormat :: Parser ScriptCommand
 scriptFormat = subparser $ command "format"
@@ -79,6 +85,14 @@ scriptTransitions = subparser $ command "transitions"
     scriptParser' :: Parser ScriptCommand
     scriptParser' = Transitions <$> fileParser
 
+scriptReachabilityGraph :: Parser ScriptCommand
+scriptReachabilityGraph = subparser $ command "reachability"
+    (info (helper <*> scriptParser')
+    (progDesc "Calculate the reachabality graph"))
+  where
+    scriptParser' :: Parser ScriptCommand
+    scriptParser' = ReachabilityGraph <$> fileParser
+
 --------------------------------------------
 -- Parser Utils
 --------------------------------------------
@@ -126,6 +140,19 @@ driverScript cmd
       putText "The following transitions were inferred:"
       putText ""
       putText $ Pretty.prettyPrint transitions
+      putText ""
+      case errs of
+        [] -> Utils.putGreen $ Pretty.prettyPrint errs
+        (_:_) -> Utils.putRed $ Pretty.prettyPrint errs -- don't fail
+
+    ReachabilityGraph scriptFile -> do
+      ast <- Parser.parseFile scriptFile
+      let transitions = S.fromList $ Analysis.inferTransitions ast
+          (errSet, rGraph) = RG.reachabilityGraph transitions
+          errs = S.toList errSet
+      putText "Reachability graph of the workflow net:"
+      putText ""
+      putText $ show $ RG.pprReachabilityGraph rGraph
       putText ""
       case errs of
         [] -> Utils.putGreen $ Pretty.prettyPrint errs

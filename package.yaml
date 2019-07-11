@@ -134,6 +134,7 @@ library:
     - Language.FCL.Delta
     - Language.FCL.Init
     - Language.FCL.Storage
+    - Language.FCL.Debug
     - Language.FCL.Pretty
     - Language.FCL.Error
     - Language.FCL.Eval
@@ -219,3 +220,5 @@ tests:
     - warp
     - quickcheck-instances
     - aeson-pretty
+    - mtl
+    - monad-gen

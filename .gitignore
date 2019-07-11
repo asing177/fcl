@@ -1,3 +1,4 @@
+*.svg
 *.sw[ponm]
 .stack-work/
 fcl.cabal

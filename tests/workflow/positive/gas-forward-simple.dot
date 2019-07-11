@@ -1,0 +1,40 @@
+digraph workflow {
+edge [color="#000000"]
+graph [bgcolor=transparent]
+
+
+initial [shape=point; width=0.3; style=filled; color="#0e64ce"; label=""]
+nomination [shape=ellipse; fontname="Arial"; fontsize=16; style=filled; color=black; fillcolor=white;]
+ppaPeriod [shape=ellipse; fontname="Arial"; fontsize=16; style=filled; color=black; fillcolor=white;]
+preVolActualisation [shape=ellipse; fontname="Arial"; fontsize=16; style=filled; color=black; fillcolor=white;]
+priceActualisation [shape=ellipse; fontname="Arial"; fontsize=16; style=filled; color=black; fillcolor=white;]
+priceActualisationDone [shape=ellipse; fontname="Arial"; fontsize=16; style=filled; color=black; fillcolor=white;]
+volActualisation [shape=ellipse; fontname="Arial"; fontsize=16; style=filled; color=black; fillcolor=white;]
+volActualisationDone [shape=ellipse; fontname="Arial"; fontsize=16; style=filled; color=black; fillcolor=white;]
+terminal [shape=point; width=0.3; peripheries=2; style=filled; color="#d11010"; label=""]
+
+1[label=<<FONT POINT-SIZE="16">start</FONT><FONT POINT-SIZE="10" COLOR="blue"> </FONT>>shape=box; fontname="Arial"; style=filled; color=black; fillcolor=gray75;]
+2[label=<<FONT POINT-SIZE="16">nominate</FONT><FONT POINT-SIZE="10" COLOR="blue"> </FONT>>shape=box; fontname="Arial"; style=filled; color=black; fillcolor=gray75;]
+3[label=<<FONT POINT-SIZE="16">nominate</FONT><FONT POINT-SIZE="10" COLOR="blue"> </FONT>>shape=box; fontname="Arial"; style=filled; color=black; fillcolor=gray75;]
+4[label=<<FONT POINT-SIZE="16">preTransition</FONT><FONT POINT-SIZE="10" COLOR="blue"> </FONT>>shape=box; fontname="Arial"; style=filled; color=black; fillcolor=gray75;]
+5[label=<<FONT POINT-SIZE="16">actualisevolume</FONT><FONT POINT-SIZE="10" COLOR="blue"> </FONT>>shape=box; fontname="Arial"; style=filled; color=black; fillcolor=gray75;]
+6[label=<<FONT POINT-SIZE="16">actualisevolume</FONT><FONT POINT-SIZE="10" COLOR="blue"> </FONT>>shape=box; fontname="Arial"; style=filled; color=black; fillcolor=gray75;]
+7[label=<<FONT POINT-SIZE="16">actualiseprice</FONT><FONT POINT-SIZE="10" COLOR="blue"> </FONT>>shape=box; fontname="Arial"; style=filled; color=black; fillcolor=gray75;]
+8[label=<<FONT POINT-SIZE="16">settle</FONT><FONT POINT-SIZE="10" COLOR="blue"> </FONT>>shape=box; fontname="Arial"; style=filled; color=black; fillcolor=gray75;]
+9[label=<<FONT POINT-SIZE="16">final</FONT><FONT POINT-SIZE="10" COLOR="blue"> </FONT>>shape=box; fontname="Arial"; style=filled; color=black; fillcolor=gray75;]
+
+initial -> 1 ; 1 -> nomination
+nomination -> 2 ; 2 -> nomination
+nomination -> 3 ; 3 -> {preVolActualisation, priceActualisation}
+preVolActualisation -> 4 ; 4 -> volActualisation
+volActualisation -> 5 ; 5 -> preVolActualisation
+volActualisation -> 6 ; 6 -> volActualisationDone
+priceActualisation -> 7 ; 7 -> priceActualisationDone
+{priceActualisationDone, volActualisationDone} -> 8 ; 8 -> ppaPeriod
+ppaPeriod -> 9 ; 9 -> terminal
+
+{rank=same preVolActualisation priceActualisation}
+{rank=same priceActualisationDone volActualisationDone}
+
+
+}

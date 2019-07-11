@@ -1,7 +1,5 @@
 Workflow soundness errors:
-• One-boundedness violation. Applying transition 'transition initial -> {p1, p2}' to state '{initial, p1}' would result in an illegal state where the following place occurs more than once: 'p1'.
-• One-boundedness violation. Applying transition 'transition p1 -> initial' to state '{initial, p1}' would result in an illegal state where the following place occurs more than once: 'initial'.
-• One-boundedness violation. Applying transition 'transition initial -> {p1, p2}' to state '{initial, p2}' would result in an illegal state where the following place occurs more than once: 'p2'.
-• One-boundedness violation. Applying transition 'transition p2 -> initial' to state '{initial, p2}' would result in an illegal state where the following place occurs more than once: 'initial'.
-• Dead-end state: '{initial, p1}'.
-• Dead-end state: '{initial, p2}'.
+• The workflow does not represent a free choice net:
+  'transition {p1} -> {initial}' and 'transition {p1,p2} -> {terminal}' share some input places:   '{p1}'
+• The workflow does not represent a free choice net:
+  'transition {p1,p2} -> {terminal}' and 'transition {p2} -> {initial}' share some input places:   '{p1,p2}'

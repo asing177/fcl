@@ -82,7 +82,7 @@ import Numeric.Lossless.Number
 import Language.FCL.AST hiding (mapType)
 import Language.FCL.Address
 import Language.FCL.Lexer as Lexer
-import Language.FCL.Pretty hiding (parens)
+import Language.FCL.Pretty hiding (parens, comma)
 import Language.FCL.Prim (lookupPrim, PrimOp)
 import qualified Language.FCL.Token as Token
 import qualified Datetime.Types as DT
