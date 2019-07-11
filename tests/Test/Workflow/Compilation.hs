@@ -1,6 +1,6 @@
 {-# LANGUAGE FlexibleContexts #-}
 
-module TestWorkflow (workflowTests) where
+module Test.Workflow.Compilation (compilationTests) where
 
 import Protolude
 
@@ -8,14 +8,15 @@ import Control.Monad ((>=>))
 import qualified Data.Text as Text (unpack, pack)
 import System.FilePath (replaceExtension)
 
-import Golden
 import Language.FCL.Compile (compileFile)
 import Language.FCL.Graphviz (callDot, fileToGraphviz)
 
+import Test.Golden
+
 -- To run only these tests and accept changes (use git diff to see what changed):
--- $ stack test --test-arguments='--pattern "Workflow" --accept' --fast
-workflowTests :: IO TestTree
-workflowTests = do
+-- $ stack test --test-arguments='--pattern "Compilation" --accept' --fast
+compilationTests :: IO TestTree
+compilationTests = do
   positive <- discoverGoldenTestsFCL
     "tests/workflow/positive"
     (expectSuccess compileFile)
@@ -31,4 +32,4 @@ workflowTests = do
       )
     "tests/workflow"
     (fileToGraphviz >=> pure . Text.unpack)
-  pure $ testGroup "Workflow" [positive, negative, graphviz]
+  pure $ testGroup "Compilation" [positive, negative, graphviz]

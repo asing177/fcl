@@ -1,4 +1,4 @@
-module TestSwagger where
+module Test.Swagger where
 
 import Protolude
 

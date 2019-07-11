@@ -2,7 +2,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TypeApplications #-}
 
-module TestStorage (
+module Test.Storage (
   storageTests,
 ) where
 
@@ -13,7 +13,7 @@ import Test.Tasty
 import qualified Test.Tasty.HUnit as HUnit
 import qualified Language.FCL.Time as Time
 import Language.FCL.Address
-import qualified Reference as Ref
+import qualified Test.Reference as Ref
 import qualified Language.FCL.Compile as Compile
 
 storageTests :: TestTree

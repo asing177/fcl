@@ -2,7 +2,7 @@
 {-# LANGUAGE NoImplicitPrelude #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
-module KeyTests (
+module Test.Key (
   keyTests,
 ) where
 
@@ -18,7 +18,7 @@ import Language.FCL.Key
 import qualified Language.FCL.Address as Address
 import qualified Language.FCL.Encoding as Encoding
 
-import Reference
+import Test.Reference as Reference
 
 instance Arbitrary PubKey where
   arbitrary = arbitrary >>= \(Positive d) ->

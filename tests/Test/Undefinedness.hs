@@ -1,7 +1,7 @@
 {-# LANGUAGE NoImplicitPrelude #-}
 {-# LANGUAGE TypeApplications #-}
 
-module TestUndefinedness where
+module Test.Undefinedness where
 
 import Protolude
 

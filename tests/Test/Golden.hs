@@ -1,6 +1,6 @@
 {-# LANGUAGE FlexibleContexts #-}
 
-module Golden
+module Test.Golden
   ( FileExtension
   , discoverGoldenTests
   , discoverGoldenTestsFCL

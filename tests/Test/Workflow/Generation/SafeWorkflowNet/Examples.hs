@@ -1,14 +1,18 @@
 {-# LANGUAGE PatternSynonyms #-}
-module WorkflowGenExamples
-  ( module WorkflowGenExamples
-  , module WorkflowGen
+module Test.Workflow.Generation.SafeWorkflowNet.Examples
+  ( basicNets
+  , exampleNets
+  , arbitraryNets
+  , namedBasicNets
+  , namedExampleNets
+  , namedArbitraryNets
   ) where
 
 import Protolude
 
 import Data.List.NonEmpty (NonEmpty(..))
 
-import WorkflowGen
+import Test.Workflow.Generation.SafeWorkflowNet
 
 -------------------------------------------------
 -- Basic building blocks of safe workflow nets --
