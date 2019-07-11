@@ -9,6 +9,7 @@ import qualified Data.Set as S
 import Language.FCL.Pretty
 import Language.FCL.ReachabilityGraph
 
+import WorkflowGen
 import WorkflowGenExamples
 
 isSafeWorkflowSound :: SafeWorkflowNet -> Bool

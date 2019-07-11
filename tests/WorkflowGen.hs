@@ -2,7 +2,12 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE TypeApplications #-}
 module WorkflowGen
-  ( module WorkflowGen
+  ( SafeWorkflowNet(..)
+  , pattern XOR3
+  , pattern AND2
+  , pattern SimpleLoop
+  , pattern Loop
+  , constructTransitions
   ) where
 
 import Protolude
