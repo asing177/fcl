@@ -1,7 +1,7 @@
-type T = A | B;
+type t { A; B }
 
 @initial
-run(T arg) {
+run(t arg) {
   case(arg) {
     A -> terminate();
     B -> terminate();

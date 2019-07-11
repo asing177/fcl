@@ -30,6 +30,7 @@ text     = "text"
 datetime = "datetime"
 timedelta = "timedelta"
 type_    = "type"
+enum     = "enum"
 map      = "map"
 set      = "set"
 if_      = "if"
@@ -59,6 +60,7 @@ lequal   = "<="
 greater  = ">"
 lesser   = "<"
 not      = "!"
+dot      = "."
 
 semi     = ";"
 colon    = ":"
@@ -96,6 +98,7 @@ keywords =
   , datetime
   , timedelta
   , type_
+  , enum
   , map
   , set
   , if_
@@ -126,4 +129,5 @@ operators = [
   , greater
   , lesser
   , not
+  , dot
   ]

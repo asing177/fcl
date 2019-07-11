@@ -124,8 +124,8 @@ instance Pretty.Pretty ReqDef where
 
 data ReqADTDef
   = ReqADTDef
-  { adtName :: AST.NameUpper
-  , adtConstr :: [AST.ADTConstr]
+  { adtName :: AST.Name
+  , adtConstr :: NonEmpty AST.ADTConstr
   } deriving (Eq, Ord, Show, Generic)
 
 instance ToJSON ReqADTDef where
@@ -307,7 +307,7 @@ toLSP cErr = case cErr of
           -> fullErrLSP (AST.located lname) (Text.length (AST.unName (AST.locVal lname))) dupErr
         Dupl.DuplicateConstructor (AST.ADTConstr (AST.Located loc (AST.MkNameUpper nm)) _)
           -> fullErrLSP loc (Text.length nm) dupErr
-        Dupl.DuplicateADTDef (AST.Located loc (AST.MkNameUpper nm))
+        Dupl.DuplicateADTDef (AST.Located loc (AST.Name nm))
           -> fullErrLSP loc (Text.length nm) dupErr
         Dupl.DuplicateVariable varA varB lname
           -> fullErrLSP (AST.located lname) (Text.length (AST.unName (AST.locVal lname))) dupErr

@@ -1,6 +1,6 @@
-int x;
-int y;
-int z;
+global int x;
+global int y;
+global int z;
 
 @initial
 f() {

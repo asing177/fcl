@@ -1,8 +1,7 @@
-transition initial -> a;
-transition a -> {a, a}; // should fail duplication check
-----------------------^
-transition a -> end;
+The declared and actual transitions do not match up:
+• Unused: 'transition initial -> a', which is declared but not implemented by any method.
+• Unused: 'transition a -> a', which is declared but not implemented by any method.
+• Unused: 'transition a -> end', which is declared but not implemented by any method.
 
-"<stdin>" (line 2, column 23):
-unexpected ";"
-Duplicate places: a
+Inferred Transitions:
+/* No transitions */

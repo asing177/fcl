@@ -8,19 +8,19 @@ cost bond to an investor, usually at a steep discount compared to its face value
 
 /*  *  *  *  *  *  *  *  *  *  *  Variables  *  *  *  *  *  *  *  *  *  *  *  */
 
-account bond_issuer; // The issuer of the bond
-account investor; // The investor who is buying the bond
+global account bond_issuer; // The issuer of the bond
+global account investor; // The investor who is buying the bond
 
-asset<decimal<2>> the_asset; // USD/GBP/EUR etc.
-decimal<2> face_value; // The face value
-decimal<2> issue_price; // The issue price of the bond
+global asset<decimal<2>> the_asset; // USD/GBP/EUR etc.
+global decimal<2> face_value; // The face value
+global decimal<2> issue_price; // The issue price of the bond
 
-datetime offer_made; // The date at which the offer was made
-datetime offer_expiry; // The date when the deployer can retract the offer
+global datetime offer_made; // The date at which the offer was made
+global datetime offer_expiry; // The date when the deployer can retract the offer
 
-datetime bond_issued; // The date at which the offer was accepted
-timedelta time_until_maturity; // The length of the period between issuing and maturity;
-datetime maturity; // The date of maturity
+global datetime bond_issued; // The date at which the offer was accepted
+global timedelta time_until_maturity; // The length of the period between issuing and maturity;
+global datetime maturity; // The date of maturity
 
 /*  *  *  *  *  *  *  *  *  *  Transitions   *  *  *  *  *  *  *  *  *  *  *  */
 

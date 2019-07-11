@@ -1,14 +1,17 @@
+type investor {
+  BigInvestor;
+  MedInvestor;
+  SmallInvestor;
+}
 
-type Investor = BigInvestor | MedInvestor | SmallInvestor;
-
-global map<Investor,set<account>> investors =
+global map<investor,set<account>> investors =
   ( BigInvestor : {}
   , MedInvestor : {}
   , SmallInvestor : {}
   );
 
 @initial
-insertInvestor(account a, Investor x) {
+insertInvestor(account a, investor x) {
   currSet = lookup(x, investors);
   newSet =
     if (!element(a, currSet)) {
@@ -21,7 +24,7 @@ insertInvestor(account a, Investor x) {
 }
 
 @initial
-deleteInvestor(asset<decimal<2>> a, Investor x) {
+deleteInvestor(asset<decimal<2>> a, investor x) {
   currSet = lookup(x, investors);
   newSet =
     if (element(a, currSet)) {

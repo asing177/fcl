@@ -2,9 +2,9 @@
 // precision variable; this is analogous to adding with a higher
 // precision 0, as we do in the case of n2 below.
 
-decimal<1> m = 0.1;
-decimal<2> n1;
-decimal<2> n2;
+global decimal<1> m = 0.1;
+global decimal<2> n1;
+global decimal<2> n2;
 
 @initial
 init() {

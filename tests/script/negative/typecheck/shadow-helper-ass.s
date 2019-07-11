@@ -1,4 +1,4 @@
-int x;
+global int x;
 
 @initial
 go() {

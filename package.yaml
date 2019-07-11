@@ -32,6 +32,7 @@ dependencies:
 
   # Data Structures
   - containers
+  - ilist
   - insert-ordered-containers
 
   # Serialization
@@ -160,6 +161,7 @@ library:
     - Language.FCL.Time
     - Language.FCL.World
     - Language.FCL.Warning
+    - Language.FCL.Orphans
 
     - Numeric.Lossless.Decimal
     - Numeric.Lossless.Number

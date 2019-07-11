@@ -1,0 +1,39 @@
+*** Deltas ***
+[ ModifyGlobal
+    Name { unName = "bob" }
+    (VConstr
+       (MkNameUpper "Pers")
+       [ VText "robert"
+       , VConstr
+           (MkNameUpper "Addr") [ VText "main st" , VText "springfield" ]
+       ])
+, ModifyGlobal
+    Name { unName = "bob" }
+    (VConstr
+       (MkNameUpper "Pers")
+       [ VText "robert"
+       , VConstr
+           (MkNameUpper "Addr") [ VText "posh st" , VText "springfield" ]
+       ])
+]
+
+*** Globals ***
+fromList
+  [ ( Key { unKey = "bob" }
+    , VConstr
+        (MkNameUpper "Pers")
+        [ VText "robert"
+        , VConstr
+            (MkNameUpper "Addr") [ VText "posh st" , VText "springfield" ]
+        ]
+    )
+  , ( Key { unKey = "testAddr" }
+    , VAccount (Address "fwBVDsVh8SYQy98CzYpNPcbyTRczVUZ96HszhNRB8Ve")
+    )
+  , ( Key { unKey = "testAddr2" }
+    , VAccount (Address "Fw68hsis6JPW4ed3ER1VC959TTf9DqberLxrq5uECKxh")
+    )
+  , ( Key { unKey = "testAddr3" }
+    , VAccount (Address "4Stv5gWGt78D3p919HFcKEschSmyGKGrAX2G35xJgdhw")
+    )
+  ]

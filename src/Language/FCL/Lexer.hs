@@ -33,6 +33,9 @@ module Language.FCL.Lexer (
   -- ** Position
   location,
   mkLocated,
+
+  -- ** Utils
+  nonEmptyUnsafe,
 ) where
 
 import Protolude hiding ((<|>), bool, many, try, optional, sourceLine, sourceColumn)
@@ -43,6 +46,7 @@ import qualified Text.Parsec.Token as Tok
 import qualified Text.Parsec.Language as Lang
 
 import Data.Functor.Identity (Identity)
+import qualified Data.List.NonEmpty as NonEmpty
 import qualified Data.Text as T
 
 import Language.FCL.AST
@@ -109,6 +113,7 @@ opToken o = case o of
   LEqual  -> Token.lequal
   Lesser  -> Token.lesser
   Greater -> Token.greater
+  RecordAccess -> Token.dot
 
 whiteSpace :: Parser ()
 whiteSpace = Tok.whiteSpace lexer
@@ -174,3 +179,8 @@ location = do
 
 mkLocated :: Parser a -> Parser (Located a)
 mkLocated p = Located <$> location <*> p
+
+-- | Only use with parsers that gurantee a non-empty result, such as 'many1',
+-- 'sepBy1', etc.
+nonEmptyUnsafe :: Parser [a] -> Parser (NonEmpty a)
+nonEmptyUnsafe p = NonEmpty.fromList <$> p

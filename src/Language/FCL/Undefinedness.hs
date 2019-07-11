@@ -106,7 +106,7 @@ initialEnv script = handleErrors (fmap ($ mempty) buildEnv)
       -> Either Text (UndefinednessEnv -> UndefinednessEnv)
     addDef mkEnv (GlobalDef _ precs n lexpr) = do
       mkEnv <- checkPreconditions precs mkEnv
-      checkAssignment (located lexpr) mkEnv n lexpr
+      checkAssignment (located lexpr) mkEnv (pure n) lexpr
     addDef mkEnv (GlobalDefNull _ precs ln) = do
       mkEnv <- checkPreconditions precs mkEnv
       pure $ Map.insert (locVal ln) Uninitialized . mkEnv
@@ -437,21 +437,22 @@ checkStatement (Located loc EHole) _
 checkAssignment
   :: Loc
   -> (UndefinednessEnv -> UndefinednessEnv)
-  -> Name
+  -> NonEmpty Name
   -> LExpr
   -> Either Text (UndefinednessEnv -> UndefinednessEnv)
-checkAssignment loc g var rhs = do
-    f <- checkExpression rhs g
+checkAssignment loc g vars rhs = do
+    f1 <- checkExpression rhs g
     varsRhs <- expressionVars rhs
     -- traceM (show $ minsertVar varsRhs (f mempty))
-    pure (minsertVar varsRhs . f)
+    let f2 = foldr (\name -> ((minsertVar varsRhs name) .)) identity vars
+    pure (f2 . f1)
   where
     replaceError (Error _) = Error $ Set.singleton loc
     replaceError x = x
 
     -- if the rhs env is empty, assume all are initialized (args & tmp vars)
-    minsertVar :: (Set Name) -> UndefinednessEnv -> UndefinednessEnv
-    minsertVar varNms env = initializeInEnv var varVal env
+    minsertVar :: (Set Name) -> Name -> UndefinednessEnv -> UndefinednessEnv
+    minsertVar varNms v env = initializeInEnv v varVal env
       where
         varVal | Map.null rhsVarsEnv = Initialized
                | otherwise = replaceError (meets (Map.elems rhsVarsEnv))

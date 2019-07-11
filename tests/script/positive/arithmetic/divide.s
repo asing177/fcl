@@ -1,6 +1,6 @@
-decimal<1> m = 0.1;
-decimal<2> n = 0.12;
-num      x;
+global decimal<1> m = 0.1;
+global decimal<2> n = 0.12;
+global num        x;
 
 @initial
 init() {

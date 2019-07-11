@@ -1,7 +1,7 @@
 Error at Line 6, Column 7:
    Implicit loss of numeric precision
       'decimal<1>' inferred from the assignment to variable 'n' on Line 6, Column 7
-      'decimal<2>' inferred by top level definition for variable 'm' on Line 1, Column 16
+      'decimal<2>' inferred by top level definition for variable 'm' on Line 1, Column 23
    Possible fixes:
       • round the higher precision expression to match the lower precision
       • use types with more (e.g. arbitrary) precision

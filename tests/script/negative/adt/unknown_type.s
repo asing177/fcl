@@ -1,4 +1,4 @@
 @initial
-run(T arg) {
+run(t arg) {
   terminate();
 }

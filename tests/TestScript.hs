@@ -19,6 +19,7 @@ import Test.Tasty.QuickCheck
 
 import Control.Arrow ((&&&))
 import Control.Monad (fail)
+import qualified Data.List.NonEmpty as NonEmpty
 
 import qualified Data.Map as Map
 import qualified Data.Text as T
@@ -135,7 +136,7 @@ evalTests = testGroup "eval" <$> sequence
       case contractE of
         Left err -> panic err
         Right contract -> do
-          evalCtx <- initTestEvalCtx (scriptHelpers script)
+          evalCtx <- initTestEvalCtx script
           calls <- parseCalls <$> readFile (replaceExtension file ".calls")
           let evalState = Eval.initEvalState contract world
           foldM (evalMethod' evalCtx) (Right (contract, evalState)) calls
@@ -218,8 +219,8 @@ evalTests = testGroup "eval" <$> sequence
             , ("testAddr3", LAccount Ref.testAddr3)
             ]
 
-    initTestEvalCtx :: [Helper] -> IO Eval.EvalCtx
-    initTestEvalCtx helpers = do
+    initTestEvalCtx :: Script -> IO Eval.EvalCtx
+    initTestEvalCtx script = do
       -- Use a deterministic timestamp
       let now = 1562574113981591
       pure Eval.EvalCtx
@@ -234,5 +235,6 @@ evalTests = testGroup "eval" <$> sequence
         , Eval.currentDeployer = Ref.testAddr
         , Eval.currentAddress = Ref.testAddr
         , Eval.currentPrivKey = Ref.testPriv
-        , Eval.currentHelpers = helpers
+        , Eval.currentHelpers = scriptHelpers script
+        , Eval.currentConstructorFields = Eval.scriptConstructors script
         }

@@ -41,7 +41,7 @@ data DuplicateError
   | DuplicateFunction LName
   | DuplicateConstructor ADTConstr
   | DuplicateField LName
-  | DuplicateADTDef LNameUpper
+  | DuplicateADTDef LName
   | DuplicateVariable VarSrc VarSrc LName
   | DuplicateTransition Transition
   | DuplicatePrecondition (Precondition, LExpr)
@@ -122,14 +122,15 @@ duplicateCheck scr@(Script adts defns transitions methods helpers)
       adtConstrErrs
         = map DuplicateConstructor
           . duplicatesOn adtConstrId
-          . concatMap adtConstrs
+          . concatMap (toList . adtConstrs)
+          . toList
           $ adts
 
       adtFieldErrs
         = map DuplicateField
           . concat
-          . (concatMap (map (duplicatesOn locVal)))
-          . map (map (map snd . adtConstrParams))
+          . (concatMap (toList . map (duplicatesOn locVal)))
+          . map (map (map fst . adtConstrParams))
           . map adtConstrs
           $ adts
 

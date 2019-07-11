@@ -1,4 +1,4 @@
-type Direction = Left | Right;
+type direction { Left; Right }
 
 @initial
 start() {
@@ -6,7 +6,7 @@ start() {
 }
 
 @a
-leftOrRight(Direction dir) {
+leftOrRight(direction dir) {
   case(dir) {
     Left -> transitionTo(:b);
     Right -> transitionTo(:c);
@@ -19,7 +19,7 @@ fromBtoD() {
 }
 
 @c
-fromCtoD(Direction dir) {
+fromCtoD(direction dir) {
   case (dir) {
     Left -> transitionTo(:d);
     Right -> transitionTo(:d);

@@ -1,9 +1,17 @@
-@initial
-lookupTest(msg m) {
------------^
-  v = lookup(m,shares);
-  terminate();
+Error at Line 8, Column 3:
+   Expected a statement but got something of type 'map<a, b>'
 
-"<stdin>" (line 21, column 12):
-unexpected "m"
-expecting comma seperated list or ")"
+Type error at Line 8, Column 19:
+   Expected: 'map<datetime, int>' inferred from the type signature of argument 3 of function 'mapInsert' on Line 8, Column 19
+   But got:  'map<account, int>' inferred by top level definition for variable 'shares' on Line 2, Column 35
+
+Error at Line 16, Column 3:
+   Expected a statement but got something of type 'map<a, b>'
+
+Type error at Line 16, Column 16:
+   Expected: 'map<asset<decimal<5>>, b>' inferred from the type signature of argument 2 of function 'mapDelete' on Line 16, Column 16
+   But got:  'map<account, int>' inferred by top level definition for variable 'shares' on Line 2, Column 35
+
+Type error at Line 22, Column 16:
+   Expected: 'map<text, b>' inferred from the type signature of argument 2 of function 'lookup' on Line 22, Column 16
+   But got:  'map<account, int>' inferred by top level definition for variable 'shares' on Line 2, Column 35

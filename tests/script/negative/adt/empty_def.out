@@ -1,5 +1,0 @@
-type T = ;
----------^
-"<stdin>" (line 1, column 10):
-unexpected ";"
-expecting uppercase letter

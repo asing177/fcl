@@ -1,4 +1,4 @@
-int [roles: "Alice"] x;
+global int [roles: "Alice"] x;
 
 @initial
 go() { transitionTo(@terminal) }

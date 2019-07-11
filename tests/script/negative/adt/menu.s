@@ -1,9 +1,16 @@
-type Size = Big | Small;
+type size {
+  Big;
+  Small;
+}
 
-type Item = Chips(Size size) | Milkshake(int millilitres, bool sprinkles) | Salad;
+type item {
+  Chips(size size);
+  Milkshake(int millilitres, bool sprinkles);
+  Salad;
+}
 
-Bogus1 bog1 = Nope; // undefined constructor + undefined type
-Bogus2 bog2;        // undefined type
+global bogus1 bog1 = Nope; // undefined constructor + undefined type
+global bogus2 bog2;        // undefined type
 
 @initial
 foo(int volume) {
@@ -15,7 +22,7 @@ foo(int volume) {
 }
 
 @initial
-bar(Item it, Bogus b) {           // undefined type
+bar(item it, bogus3 b) {          // undefined type
   x = case it {
     Milkshake(p) -> p;            // bad arity
     Milkshake(p1,p2) -> p2;       // branch body of wrong type

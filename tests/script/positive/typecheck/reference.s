@@ -1,12 +1,12 @@
 global num x = 0.0;
 global decimal<3> f3 = 1.234;
 global decimal<2> q;
-local int y = 7;
-local num v;
-asset<decimal<5>> z = a'H1tbrEKWGpbPjSeG856kz2DjViCwMU3qTw3i1PqCLz65';
-contract c = c'H1tbrEKWGpbPjSeG856kz2DjViCwMU3qTw3i1PqCLz65';
-account a = u'H1tbrEKWGpbPjSeG856kz2DjViCwMU3qTw3i1PqCLz65';
-datetime dt;
+global int y = 7;
+global num v;
+global asset<decimal<5>> z = a'H1tbrEKWGpbPjSeG856kz2DjViCwMU3qTw3i1PqCLz65';
+global contract c = c'H1tbrEKWGpbPjSeG856kz2DjViCwMU3qTw3i1PqCLz65';
+global account a = u'H1tbrEKWGpbPjSeG856kz2DjViCwMU3qTw3i1PqCLz65';
+global datetime dt;
 
 @initial
 setDate() {

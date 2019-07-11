@@ -85,7 +85,6 @@ module Language.FCL.AST (
 
   -- ** Helpers
   ADTInfo(..),
-  createADTInfo,
 
   eseq,
   flattenExprs,
@@ -127,13 +126,13 @@ import qualified Data.Binary as B
 import Data.Char (isUpper)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
-import qualified Data.List.NonEmpty as NE
 import Data.String (IsString(..))
 import Data.Serialize (Serialize(..), putInt8, getInt8)
 import Data.Serialize.Text()
 
 import Language.FCL.Address
 import Language.FCL.Utils (duplicates)
+import Language.FCL.Orphans ()
 
 -------------------------------------------------------------------------------
 -- Core Language
@@ -184,7 +183,7 @@ type LPattern = Located Pattern
 
 -- | ADT constructor as given in a type definition.
 data ADTConstr = ADTConstr
-  { adtConstrId :: LNameUpper, adtConstrParams :: [(Type, LName)] }
+  { adtConstrId :: LNameUpper, adtConstrParams :: [(LName, Type)] }
   deriving (Eq, Show, Ord, Generic, Hash.Hashable, Serialize)
 
 instance ToJSON ADTConstr where
@@ -237,6 +236,7 @@ data Pattern
   | PatLit LLit                    -- ^ Literal pattern
   | PatVar LName                   -- ^ Variable pattern
   | PatWildCard                    -- ^ Wildcard ("don't care") pattern
+  -- TODO: PatOr Pattern Pattern
   deriving (Eq, Ord, Show, Generic, Hash.Hashable)
 
 instance ToJSON Pattern where
@@ -276,13 +276,13 @@ data Expr
   | EBefore  LExpr LExpr           -- ^ Time guard
   | EAfter   LExpr LExpr           -- ^ Time guard
   | EBetween LExpr LExpr LExpr     -- ^ Time guard
-  | ECase    LExpr [CaseBranch]         -- ^ Case statement
-  | EAssign  Name  LExpr           -- ^ Variable update
+  | ECase    LExpr [CaseBranch]    -- ^ Case statement
+  | EAssign  (NonEmpty Name)  LExpr -- ^ Variable update
   | ECall    (Either PrimOp LName) [LExpr] -- ^ Function call
   | ENoOp                          -- ^ Empty method body
   | EMap     (Map LExpr LExpr)     -- ^ Map k v
   | ESet     (Set LExpr)           -- ^ Set v
-  | EConstr NameUpper [LExpr]           -- ^ Constructor
+  | EConstr NameUpper [LExpr]      -- ^ Record constructor
   deriving (Eq, Ord, Show, Generic, Hash.Hashable)
 
 instance ToJSON Expr where
@@ -305,7 +305,8 @@ data BinOp
   | GEqual  -- ^ Greater equal
   | Lesser  -- ^ Lesser
   | Greater -- ^ Greater
-  deriving (Eq, Ord, Show, Generic, Hash.Hashable)
+  | RecordAccess -- ^ Record access, e.g. @expr.field@
+  deriving (Eq, Ord, Show, Generic, Hash.Hashable, Bounded, Enum)
 
 instance ToJSON BinOp where
   toJSON = genericToJSON (defaultOptions { sumEncoding = ObjectWithSingleField })
@@ -315,7 +316,7 @@ instance FromJSON BinOp where
 
 -- | Unary operators
 data UnOp = Not -- ^ Logical negation
-  deriving (Eq, Ord, Show, Generic, Hash.Hashable)
+  deriving (Eq, Ord, Show, Generic, Hash.Hashable, Bounded, Enum)
 
 instance ToJSON UnOp where
   toJSON _ = "Not"
@@ -432,7 +433,7 @@ data Type
   | TDateTime       -- ^ DateTime with Timezone
   | TTimeDelta      -- ^ Type of difference in time
   | TState          -- ^ Contract state
-  | TADT NameUpper -- ^ ADTeration type
+  | TADT Name       -- ^ User-declared algebraic data type
   | TFun [Type] Type -- ^ Type signature of helper functions--argument types and return type
   | TColl TCollection -- ^ Type of collection values
   | TTransition     -- ^ Transition type
@@ -527,8 +528,8 @@ instance FromJSON Helper where
 
 -- | ADT
 data ADTDef = ADTDef
-  { adtName :: LNameUpper
-  , adtConstrs :: [ADTConstr]
+  { adtName :: LName
+  , adtConstrs :: NonEmpty ADTConstr
   } deriving (Eq, Ord, Show, Generic, Hash.Hashable)
 
 instance ToJSON ADTDef where
@@ -670,41 +671,13 @@ mapType einfo   (VSet vset)   =
 
 -- | Associations between type- and value-constructors
 data ADTInfo = ADTInfo
-  { constructorToType :: Map NameUpper (LNameUpper, [(Type, LName)])
-  , adtToConstrs :: Map NameUpper [ADTConstr]
+  { constructorToType :: Map NameUpper (LName, [(LName, Type)])
+  , adtToConstrsAndFields :: Map Name (NonEmpty ADTConstr, [(Name, Type)])
   }
-
--- | Create the dictionaries for the constructor/adt type membership
--- relations from the original list of definitionSet. Assumes that there
--- are no duplicates in the input.
-createADTInfo :: [ADTDef] -> ADTInfo
-createADTInfo adts = ADTInfo m1 m2
-  where
-    m1 :: Map NameUpper (LNameUpper, [(Type, LName)])
-    m1
-      = Map.fromList
-      . concatMap
-        (\(ADTDef lname lconstrs) ->
-          map
-            (\(ADTConstr id types) ->
-              (locVal id, (lname, types)))
-            lconstrs)
-      $ adts
-
-    m2 :: Map NameUpper [ADTConstr]
-    m2
-      = Map.fromList
-      . map (\(ADTDef lname constrsAndTypes)
-               -> (locVal lname, constrsAndTypes))
-      $ adts
 
 -------------------------------------------------------------------------------
 -- Serialization
 -------------------------------------------------------------------------------
-
-instance Serialize (NonEmpty LExpr) where
-  put = put . NE.toList
-  get = NE.fromList <$> get
 
 instance IsString Name where
   fromString "" = panic "empty name"
@@ -777,7 +750,7 @@ instance Pretty ADTConstr where
   ppr (ADTConstr id []) = ppr id
   ppr (ADTConstr id namedTyParams)
     = ppr id
-      <> tupleOf (map (\(ty, nm) -> ppr ty <+> ppr nm) namedTyParams)
+      <> tupleOf (map (\(nm, ty) -> ppr ty <+> ppr nm) namedTyParams)
 
 instance Pretty Expr where
   ppr = \case
@@ -791,8 +764,10 @@ instance Pretty Expr where
     EHole            -> token Token.hole
     ELit lit         -> ppr lit
     EVar nm          -> ppr nm
-    EAssign nm e     -> ppr nm <+> token Token.assign <+> ppr e
+    EAssign nms e    -> (mconcat . intersperse "." . map ppr . toList) nms <+> token Token.assign <+> ppr e
     EUnOp nm e       -> parens $ ppr nm <> ppr e
+    EBinOp (Located _ RecordAccess) e1 e2
+      -> ppr e1 <> token Token.dot <> ppr e2
     EBinOp nm e e'   -> parens $ ppr e <+> ppr nm <+> ppr e'
     ECall nm es      -> hcat [ppr nm, tupleOf (map ppr es)]
     EBefore dt e     -> token Token.before <+> parens (ppr dt) <+> lbrace
@@ -936,6 +911,7 @@ instance Pretty BinOp where
     GEqual  -> token Token.gequal
     Lesser  -> token Token.lesser
     Greater -> token Token.greater
+    RecordAccess -> token Token.dot
 
 instance Pretty UnOp where
   ppr Not = token Token.not
@@ -963,9 +939,9 @@ instance Pretty Helper where
 
 instance Pretty ADTDef where
   ppr (ADTDef lname lconstrsAndTypes)
-    = token Token.type_ <+> ppr (locVal lname) <+> token Token.assign
-      <+> (hsep . punctuate " |" . map ppr $ lconstrsAndTypes)
-      <> token Token.semi
+    = token Token.type_ <+> ppr (locVal lname) <+> lbrace
+      <$$> indent 2 (semify . hsep . punctuate "; " . map ppr $ toList lconstrsAndTypes)
+      <$$> rbrace
 
 instance Pretty Def where
   ppr = \case
@@ -1075,12 +1051,8 @@ isSubWorkflow (WorkflowState w1) (WorkflowState w2) = w1 `Set.isSubsetOf` w2
     liftWF op (WorkflowState w1) (WorkflowState w2) = WorkflowState $ w1 `op` w2
 
 
-makeWorkflowState :: [Name] -> Either Doc WorkflowState
-makeWorkflowState names
-  | null dups = Right . WorkflowState . Set.fromList $ map makePlace names
-  | otherwise = Left $ "Duplicate places:" <+> (hcat . map ppr) dups
-  where
-    dups = duplicates names
+makeWorkflowState :: [Name] -> WorkflowState
+makeWorkflowState = WorkflowState . Set.fromList . map makePlace
 
 -- | Doesn't check if workflow state is valid
 unsafeWorkflowState :: Set Place -> WorkflowState
@@ -1178,23 +1150,10 @@ addLoc :: Gen a -> Gen (Located a)
 addLoc g = Located <$> arbitrary <*> g
 
 instance Arbitrary BinOp where
-  arbitrary = elements
-    [ Add
-    , Sub
-    , Mul
-    , Div
-    , And
-    , Or
-    , Equal
-    , NEqual
-    , LEqual
-    , GEqual
-    , Lesser
-    , Greater
-    ]
+  arbitrary = arbitraryBoundedEnum
 
 instance Arbitrary UnOp where
-  arbitrary = pure Not
+  arbitrary = arbitraryBoundedEnum
 
 instance Arbitrary Lit where
   -- Missing literals:
@@ -1239,10 +1198,14 @@ instance Arbitrary Arg where
   arbitrary = Arg <$> arbitrary <*> arbitrary
 
 instance Arbitrary Preconditions where
-  arbitrary = Preconditions <$> arbSmallList
+  arbitrary = do
+    exprs <- infiniteListOf (Located NoLoc <$> arbNonSeqExpr 0)
+    precs <- infiniteListOf arbitrary
+    n <- choose (0, 3)
+    pure . Preconditions . take n $ zip precs exprs
 
 instance Arbitrary Precondition where
-  arbitrary = oneof [ pure PrecAfter, pure PrecBefore, pure PrecRoles ]
+  arbitrary = elements [ PrecAfter, PrecBefore, PrecRoles ]
 
 instance Arbitrary Method where
   arbitrary = Method <$> arbitrary <*> arbitrary <*> arbitrary <*> arbSmallList <*> sized arbLExpr
@@ -1269,6 +1232,8 @@ instance Arbitrary Script where
       <*> arbSmallList
       <*> arbSmallList
       <*> arbSmallList
+
+  shrink = genericShrink
 
 instance Arbitrary Expr where
   arbitrary = do

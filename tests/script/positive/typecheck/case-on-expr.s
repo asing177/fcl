@@ -1,4 +1,4 @@
-text x;
+global text x;
 
 @initial
 foo(int m, int n) {

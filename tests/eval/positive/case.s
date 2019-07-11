@@ -1,12 +1,12 @@
-type T = A | B;
-type S = C(int f1, bool f2) | D(T f1);
+type t { A; B }
+type s { C(int f1, bool f2); D(t f3) }
 
-int i;
-bool b;
-T t;
+global int i;
+global bool b;
+global t t;
 
 @initial
-f(S s) {
+f(s s) {
   case s {
     D(t1) -> t = t1;
     C(0, b1) -> b = b1;

@@ -1,21 +1,24 @@
-type Bit = O | I;
+type bit {
+  O; // zero
+  I; // one
+}
 
-global Bit b;
+global bit b;
 
 @initial
-go(Bit bit) {
+go(bit bit) {
   b = flip(bit);
   terminate();
 }
 
-flip (Bit bit) {
+flip (bit bit) {
   case(bit) {
     O -> flop(I);
     I -> O;
   };
 }
 
-flop (Bit bit) {
+flop (bit bit) {
   case(bit) {
     O -> I;
     I -> flip(I);
