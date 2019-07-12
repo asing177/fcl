@@ -1,5 +1,5 @@
 {-# LANGUAGE PatternSynonyms #-}
-module Test.Workflow.Generation.SafeWorkflowNet.Examples
+module Test.Workflow.Generation.SafeWorkflow.Examples
   ( basicNets
   , exampleNets
   , arbitraryNets
@@ -12,13 +12,13 @@ import Protolude
 
 import Data.List.NonEmpty (NonEmpty(..))
 
-import Test.Workflow.Generation.SafeWorkflowNet
+import Test.Workflow.Generation.SafeWorkflow
 
 -------------------------------------------------
 -- Basic building blocks of safe workflow nets --
 -------------------------------------------------
 
-namedBasicNets :: [(SafeWorkflowNet, [Char])]
+namedBasicNets :: [(SafeWorkflow, [Char])]
 namedBasicNets = zip basicNets [ "atom"
                                , "XOR"
                                , "AND"
@@ -31,7 +31,7 @@ namedBasicNets = zip basicNets [ "atom"
                                , "simpleGenXOR"
                                ]
 
-basicNets :: [SafeWorkflowNet]
+basicNets :: [SafeWorkflow]
 basicNets = [ basicAtom
             , basicXOR
             , basicAND
@@ -44,41 +44,41 @@ basicNets = [ basicAtom
             , simpleGenXOR
             ]
 
-basicAtom :: SafeWorkflowNet
+basicAtom :: SafeWorkflow
 basicAtom = Atom
 
-basicXOR :: SafeWorkflowNet
+basicXOR :: SafeWorkflow
 basicXOR = XOR Atom (XOR Atom Atom)
 
-basicAND :: SafeWorkflowNet
+basicAND :: SafeWorkflow
 basicAND = AND (Atom :| [Atom, Atom])
 
-basicSeq :: SafeWorkflowNet
+basicSeq :: SafeWorkflow
 basicSeq = Seq Atom Atom
 
-basicSimpleLoop :: SafeWorkflowNet
+basicSimpleLoop :: SafeWorkflow
 basicSimpleLoop = SimpleLoop Atom Atom
 
-basicLoop :: SafeWorkflowNet
+basicLoop :: SafeWorkflow
 basicLoop = Loop Atom Atom Atom
 
-compeleteGenXOR :: SafeWorkflowNet
+compeleteGenXOR :: SafeWorkflow
 compeleteGenXOR = GenXOR Atom Atom Atom Atom (Just Atom) (Just Atom)
 
-toRightGenXOR :: SafeWorkflowNet
+toRightGenXOR :: SafeWorkflow
 toRightGenXOR = GenXOR Atom Atom Atom Atom (Just Atom) Nothing
 
-toLeftGenXOR :: SafeWorkflowNet
+toLeftGenXOR :: SafeWorkflow
 toLeftGenXOR = GenXOR Atom Atom Atom Atom Nothing (Just Atom)
 
-simpleGenXOR :: SafeWorkflowNet
+simpleGenXOR :: SafeWorkflow
 simpleGenXOR = GenXOR Atom Atom Atom Atom Nothing Nothing
 
 -------------------------------------------------------------------
 -- Already existing examples reproduced using safe workflow nets --
 -------------------------------------------------------------------
 
-namedExampleNets :: [(SafeWorkflowNet, [Char])]
+namedExampleNets :: [(SafeWorkflow, [Char])]
 namedExampleNets = zip exampleNets [ "swap"
                                    , "concurrent"
                                    , "amendment"
@@ -91,7 +91,7 @@ namedExampleNets = zip exampleNets [ "swap"
                                    , "gas-forward"
                                    ]
 
-exampleNets :: [SafeWorkflowNet]
+exampleNets :: [SafeWorkflow]
 exampleNets = [ swapNet
               , concurrentNet
               , amendmentNet
@@ -104,48 +104,48 @@ exampleNets = [ swapNet
               , gasForwardNet
               ]
 
-swapNet :: SafeWorkflowNet
+swapNet :: SafeWorkflow
 swapNet = XOR Atom (Loop Atom Atom (XOR Atom Atom))
 
-concurrentNet :: SafeWorkflowNet
+concurrentNet :: SafeWorkflow
 concurrentNet = AND (Atom :| [Atom])
 
-amendmentNet :: SafeWorkflowNet
+amendmentNet :: SafeWorkflow
 amendmentNet = Seq (AND (Atom :| [Atom])) (SimpleLoop (XOR (Seq Atom Atom) Atom) Atom)
 
-graphNet :: SafeWorkflowNet
+graphNet :: SafeWorkflow
 graphNet = Seq (XOR (Seq Atom Atom) (Seq Atom Atom)) Atom
 
 -- not 1:1, but kind of "isomorphic"
-novationNet :: SafeWorkflowNet
+novationNet :: SafeWorkflow
 novationNet = Seq (AND2 Atom Atom) (Loop (AND2 Atom Atom) Atom (AND2 Atom Atom))
 
-loanContractNet :: SafeWorkflowNet
+loanContractNet :: SafeWorkflow
 loanContractNet = Seq Atom (Loop Atom (XOR (Seq Atom (SimpleLoop Atom Atom)) Atom) Atom)
 
-zcbNet :: SafeWorkflowNet
+zcbNet :: SafeWorkflow
 zcbNet = XOR Atom (Loop Atom (Seq Atom Atom) (XOR Atom Atom))
 
-gasForwardSimpleNet :: SafeWorkflowNet
+gasForwardSimpleNet :: SafeWorkflow
 gasForwardSimpleNet = Seq Atom (XOR (GenXOR Atom (SimpleLoop Atom Atom) Atom Atom (Just Atom) Nothing) Atom)
 
-gasForwardNet :: SafeWorkflowNet
+gasForwardNet :: SafeWorkflow
 gasForwardNet = Seq Atom (XOR (GenXOR Atom (SimpleLoop Atom Atom) Atom gasForwardNominationSubNet (Just Atom) Nothing) Atom) where
 
-  gasForwardNominationSubNet :: SafeWorkflowNet
+  gasForwardNominationSubNet :: SafeWorkflow
   gasForwardNominationSubNet = SimpleLoop Atom (Seq (AND2 Atom (SimpleLoop Atom Atom)) (SimpleLoop Atom Atom))
 
-productNet :: SafeWorkflowNet
+productNet :: SafeWorkflow
 productNet = Seq Atom (XOR (Seq Atom (SimpleLoop (XOR3 Atom Atom Atom) (XOR (Seq Atom (XOR3 (Seq Atom Atom) (Seq Atom Atom) (Seq Atom Atom))) (Loop Atom (Seq Atom Atom) (XOR Atom (Seq Atom Atom)))))) Atom)
 
 ---------------------------------------------------
 -- Some arbitrarily generated safe workflow nets --
 ---------------------------------------------------
 
-namedArbitraryNets :: [(SafeWorkflowNet, [Char])]
+namedArbitraryNets :: [(SafeWorkflow, [Char])]
 namedArbitraryNets = zipWith (\net id -> (net, "arbitrary-" <> show id)) arbitraryNets [0..]
 
-arbitraryNets :: [SafeWorkflowNet]
+arbitraryNets :: [SafeWorkflow]
 arbitraryNets =
   [ Atom
   , XOR {xorLhs = AND {andBranches = Atom :| [Atom]}, xorRhs = XOR {xorLhs = Atom, xorRhs = Atom}}
