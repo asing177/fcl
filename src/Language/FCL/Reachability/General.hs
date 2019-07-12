@@ -24,11 +24,8 @@ import Language.FCL.Reachability.Definitions
 import Language.FCL.Reachability.Utils
 
 
--- | Reachability graph builder monad
-type GraphBuilderM = RWS
-  OutgoingTransitions -- R: outgoing transitions for each place in the workflow
-  (Set WFError, Set Transition) -- W: errors and used transitions
-  ReachabilityGraph -- S: the graph we are currently building
+-- | Reachability graph builder monad for general workflows
+type GeneralGBM = GraphBuilderM ReachabilityGraph
 
 -- | Given a set of transitions, check whether they describe a sound general workflow.
 checkTransitions :: Set Transition -> Either [WFError] ReachabilityGraph
@@ -108,7 +105,7 @@ completeReachabilityGraph declaredTransitions = (allErrs, graph)
 
                 allCounreachable, coreachable, reachable :: Set WorkflowState
                 allCounreachable = reachable S.\\ coreachable
-                coreachable = M.keysSet (cocompleteReachabilityGraph graph)
+                coreachable = M.keysSet (coCompleteReachabilityGraph graph)
                 reachable = M.keysSet graph
 
 
@@ -121,7 +118,7 @@ completeReachabilityGraph declaredTransitions = (allErrs, graph)
         inLHS k = S.filter (\(Arrow src _) -> k `S.member` places src) declaredTransitions
 
     -- Do a depth-first search of the possible states
-    buildGraph :: WorkflowState -> GraphBuilderM ()
+    buildGraph :: WorkflowState -> GeneralGBM ()
     buildGraph curr = do
         graph <- get
         unless (curr `M.member` graph) $ do
@@ -142,7 +139,7 @@ completeReachabilityGraph declaredTransitions = (allErrs, graph)
         applyTransitionM
           :: WorkflowState
           -> Transition
-          -> GraphBuilderM (Maybe WorkflowState)
+          -> GeneralGBM (Maybe WorkflowState)
         applyTransitionM st t = case applyTransition st t of
             Nothing -> pure Nothing
             Just (Right st) -> do
@@ -157,15 +154,11 @@ completeReachabilityGraph declaredTransitions = (allErrs, graph)
               pure Nothing
         {-# INLINE applyTransitionM #-}
 
-        yell :: WFError -> GraphBuilderM ()
-        yell err = tell (S.singleton err, mempty)
-        {-# INLINE yell #-}
-
 -- Given a reachability graph, make a coreachability graph:
 -- 1. reverse all the arrows in the reachability graph
 -- 2. traverse the graph from the end state and collect all reachable states
-cocompleteReachabilityGraph :: ReachabilityGraph -> ReachabilityGraph
-cocompleteReachabilityGraph rGraph = go endState mempty
+coCompleteReachabilityGraph :: ReachabilityGraph -> ReachabilityGraph
+coCompleteReachabilityGraph rGraph = go endState mempty
   where
     go :: WorkflowState -> ReachabilityGraph -> ReachabilityGraph
     go st acc
@@ -179,27 +172,3 @@ cocompleteReachabilityGraph rGraph = go endState mempty
             | (src, dsts) <- M.toList rGraph
             , dst <- S.toList dsts
             ]
-
--- | Given a current global workflow state, apply a (local) transition.
--- Returns:
---   - @Nothing@ if the transition is not satisfied.
---   - @Left err@ if the transition is satisfied but would lead to an invalid state.
---   - @Right newWorklowState@ otherwise.
--- applyTransition
---   :: WorkflowState
---   -> Transition
---   -> Maybe (Either WFError WorkflowState)
--- applyTransition curr t@(Arrow src dst)
---     | not (src `isSubWorkflow` curr) = Nothing -- can't fire transition
---     | src == endState = Just . Left $ TransFromEnd t
---     | isNonEmpty badGuys = Just . Left $ NotOneBounded curr t badGuys
---     | PlaceEnd `elem` places newState && newState /= endState
---       = Just . Left $ ImproperCompletion curr t newState
---     | otherwise = Just $ Right newState
---   where
---     badGuys :: Set Place
---     badGuys = places $ (curr \\ src) `wfIntersection` dst
-
---     newState :: WorkflowState
---     newState = (curr \\ src) `wfUnion` dst
--- {-# INLINE applyTransition #-} -- very important for performance!!

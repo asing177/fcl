@@ -4,7 +4,10 @@ module Language.FCL.Reachability.Utils where
 
 import Protolude
 
+import Control.Monad.Writer
+
 import Data.Set (Set)
+import qualified Data.Set as S
 
 import Language.FCL.AST (Place(..), Transition(..), WorkflowState(..), (\\), endState, isSubWorkflow, places, wfIntersection, wfUnion)
 import Language.FCL.Reachability.Definitions
@@ -45,3 +48,7 @@ isNonEmpty = not . null
 isSingleton :: [a] -> Bool
 isSingleton [x] = True
 isSingleton _   = False
+
+yell :: WFError -> GraphBuilderM s ()
+yell err = tell (S.singleton err, mempty)
+{-# INLINE yell #-}

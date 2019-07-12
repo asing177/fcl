@@ -5,6 +5,8 @@ module Language.FCL.Reachability.Definitions where
 
 import Protolude
 
+import Control.Monad.RWS.Strict (RWS)
+
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as M
 import Data.Set (Set)
@@ -103,3 +105,9 @@ pprReachabilityGraph
   . (text "Reachability Graph:" :)
   . map (\(k, vs) -> ppr (Debug k) <+> text "->" <+> (bracketList . map (ppr . Debug) . S.toList) vs)
   . M.toList
+
+-- | Reachability graph builder monad with parameterizable state
+type GraphBuilderM s = RWS
+  OutgoingTransitions           -- R: outgoing transitions for each place in the workflow
+  (Set WFError, Set Transition) -- W: errors and used transitions
+  s                             -- S: the state for building the reachability graph
