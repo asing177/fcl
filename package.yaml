@@ -150,6 +150,7 @@ library:
     - Language.FCL.Effect
     - Language.FCL.WorkflowNet
     - Language.FCL.ReachabilityGraph
+    - Language.FCL.ReachabilityGraphOLD
     - Language.FCL.Analysis
     - Language.FCL.Graphviz
     - Language.FCL.Hash

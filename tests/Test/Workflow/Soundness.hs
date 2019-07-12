@@ -20,6 +20,7 @@ soundnessTests = testGroup ("Test the soundness checking algorithm on safely con
     , testGroup "Example nets" exampleNetTests
     ]
   , testGroup "QuickCheck tests"
-    [ testProperty "No errors while constructing the reachability graph" (withMaxSuccess 1000 isSafeWorkflowSound)
+    [ testProperty "Free choice Petri net based algorithm" (mapSize (const 100) . withMaxSuccess 1000 $ isSafeWorkflowSound)
+    , testProperty "General Petri net based algorithm"     (mapSize (const 25)  . withMaxSuccess 100  $ isSafeWorkflowGenerallySound)
     ]
   ]
