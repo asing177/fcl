@@ -67,9 +67,11 @@ scriptPropTests
   = testGroup "Parser and Pretty Printer Tests"
     [ localOption (QuickCheckMaxSize 8) $
       parserRoundtripTest "lit == parse (ppr lit)" Parser.parseLit
-    , localOption (QuickCheckMaxSize 8) $
+    , localOption (QuickCheckTests  10000) $
+      localOption (QuickCheckMaxSize 8) $
       parserRoundtripTest "expr == parse (ppr expr)" Parser.parseExpr
-    , localOption (QuickCheckMaxSize 4) $
+    , localOption (QuickCheckTests 10000) $
+      localOption (QuickCheckMaxSize 4) $
       parserRoundtripTest "script == parse (ppr script)" Parser.parseScript
     , testProperty "decimal == parse (ppr decimal)" $ \lit ->
         (case lit of LNum _ -> True; _ -> False) ==>
