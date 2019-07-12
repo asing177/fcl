@@ -28,7 +28,7 @@ import System.FilePath (replaceExtension)
 import System.Process.Text (readProcessWithExitCode)
 
 import Language.FCL.AST
-import Language.FCL.Analysis (inferMethodsTransitions)
+import Language.FCL.Analysis (inferMethodsTransitions, inferStaticWorkflowStates)
 import Language.FCL.Parser (parseFile)
 import Language.FCL.Pretty (hsep, prettyPrint, ppr, panicppr)
 import Language.FCL.Utils ((?))
@@ -172,7 +172,8 @@ instance DisplayableWorkflow Methods where
       annotateTransition (meth, tr) n = MTr meth tr (show n)
 
   staticWorkflowStates :: Methods -> Set WorkflowState
-  staticWorkflowStates ms = foldMap (transitionStates . mtrTransition)
+  staticWorkflowStates ms = inferStaticWorkflowStates
+                          . map mtrTransition
                           . annotatedTransitions
                           $ ms
 
@@ -216,7 +217,8 @@ instance DisplayableWorkflow Transitions where
       annotateTransition tr n = NTr tr (show n)
 
   staticWorkflowStates :: Transitions -> Set WorkflowState
-  staticWorkflowStates trs = foldMap (transitionStates . ntrTransition)
+  staticWorkflowStates trs = inferStaticWorkflowStates
+                           . map ntrTransition
                            . annotatedTransitions
                            $ trs
 
@@ -257,7 +259,3 @@ options = unlines
   [ True  ? "graph [bgcolor=transparent]" -- transparent background
   , False ? "rankdir=LR;" -- lay out horizontally
   ]
-
-transitionStates :: Transition -> Set WorkflowState
-transitionStates (Arrow lhs rhs) = Set.fromList [lhs, rhs]
-
