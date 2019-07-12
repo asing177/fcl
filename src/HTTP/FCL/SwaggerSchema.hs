@@ -25,7 +25,7 @@ import Language.FCL.Warning as Warning
 import Language.FCL.Effect as Effect
 import Language.FCL.Analysis as Analysis
 import Language.FCL.Undefinedness as Undefinedness
-import Language.FCL.ReachabilityGraph as Reachability
+import Language.FCL.Reachability.Definitions as Reachability
 import qualified Language.FCL.Duplicate as Dupl
 import Numeric.Lossless.Decimal
 import qualified Language.FCL.LanguageServerProtocol as LSP

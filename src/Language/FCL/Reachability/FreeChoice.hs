@@ -1,121 +1,26 @@
 {-# LANGUAGE ViewPatterns #-}
-{-# LANGUAGE DeriveGeneric #-}
-{-# LANGUAGE DeriveAnyClass #-}
 
-module Language.FCL.ReachabilityGraph
-  ( ReachabilityGraph
-  , WFError(..)
-  , allPlaces
-  , applyTransition
+module Language.FCL.Reachability.FreeChoice
+  ( module Language.FCL.Reachability.Definitions
   , checkTransitions
-  , pprReachabilityGraph
   , reachabilityGraph
   ) where
 
 import Protolude
 
 import Control.Monad.RWS.Strict
-import Data.Map.Strict (Map)
-import qualified Data.Map.Strict as M
-import Data.Sequence (Seq(..))
-import qualified Data.Sequence as Sq
+
 import Data.Set (Set)
+import Data.Sequence (Seq(..))
+
+import qualified Data.Map.Strict as M
 import qualified Data.Set as S
-import Data.Aeson as A
+import qualified Data.Sequence as Sq
 
-import Language.FCL.AST (unsafeWorkflowState, Place(..), Transition(..), WorkflowState, (\\), endState, isSubWorkflow, places, startState, wfIntersection, wfUnion)
-import Language.FCL.Pretty (Doc, Pretty(..), (<+>), (</+>), listOf, squotes, text, vcat, setOf, (<$$>), indent, bracketList, comma)
-import Language.FCL.Debug
+import Language.FCL.AST (unsafeWorkflowState, Place(..), Transition(..), WorkflowState, endState, places, startState)
+import Language.FCL.Reachability.Definitions
+import Language.FCL.Reachability.Utils
 
--- | A reason why the workflow is unsound. (Refer to 'Pretty' instance for
--- explanations.
-data WFError
-  = NotOneBounded WorkflowState Transition (Set Place)
-  | ImproperCompletion WorkflowState Transition WorkflowState
-  | TransFromEnd Transition
-  | Counreachable WorkflowState
-  | UnreachableTransition Transition
-  | FreeChoiceViolation Transition Transition (Set Place)
-  | NotOneBoundedMerge WorkflowState WorkflowState (Set Place)
-  | ImproperCompletionMerge WorkflowState WorkflowState
-  | LoopingANDBranch WorkflowState WorkflowState
-  deriving (Eq, Ord, Show, Generic)
-
-instance ToJSON WFError where
-  toJSON = genericToJSON (defaultOptions { sumEncoding = ObjectWithSingleField })
-
-instance FromJSON WFError where
-  parseJSON = genericParseJSON (defaultOptions { sumEncoding = ObjectWithSingleField })
-
-instance Pretty WFError where
-  ppr = \case
-      NotOneBounded curr t badGuys
-        -> "One-boundedness violation. Applying transition" <+> qp t <+> "to state" <+> qp curr
-        <+> "would result in an illegal state where the following"
-        <+> case S.toList badGuys of
-          [badGuy] -> "place occurs more than once:" <+> qp badGuy <> "."
-          badGuys@(_:_) -> "places occur more than once:" <+> (squotes . listOf) badGuys <> "."
-          [] -> panic "Error created in error."
-      ImproperCompletion curr t newState
-        -> "Improper completion. Applying" <+> qp t <+> "to state" <+> qp curr
-        <+> "would result in the new state" <+> qp newState
-        <+> "where the" <+> ppr PlaceEnd
-        <+> "place is reached while other places are still active."
-      TransFromEnd t
-        -> "Transition from end:" <+> qp t <> "."
-      Counreachable st
-        -> "Dead-end state:" <+> qp st <> "."
-      UnreachableTransition t
-        -> "Unreachable:" <+> qp t <> "."
-      FreeChoiceViolation t1 t2 shared ->
-        "The workflow does not represent a free choice net:"
-        <$$+> qp t1 <+> "and" <+> qp t2 <+> "share some input places:" </+> qSetOf shared
-      NotOneBoundedMerge r1 r2 shared ->
-        "One-boundedness violation at merge-site." </+> "When merging the results of two AND branches, more specifically" <+>
-        qp r1 <+> "and" <+> qp r2 <> comma </+>
-        "the resulting state contained some places more than once:" <+> qSetOf shared
-      ImproperCompletionMerge r1 r2 ->
-        "Improper completion at merge-site." </+> "When merging the results of two AND branches, more specifically" <+>
-        qp r1 <+> "and" <+> qp r2 <> comma </+>
-        "the resulting state contained the terminal place while containing other places as well."
-      LoopingANDBranch splittingPoint splitHead ->
-        "Erroneous looping AND branch." <+> "When AND-splitting from" <+> qp splittingPoint <> comma </+>
-        "the result branch of" <+> qp splitHead <+> "loops indefinetely locally, or loops back to the splitting point."
-
-    where
-      qp :: Pretty (Debug a) => a -> Doc
-      qp = squotes . ppr . Debug
-
-      qSetOf :: (Ord a, Pretty (Debug a)) => Set a -> Doc
-      qSetOf = squotes . setOf . S.map Debug
-
-      -- different from Language.FCL.Pretty (only indents by 2)
-      (<$$+>) :: Doc -> Doc -> Doc
-      (<$$+>) lhs rhs = lhs <$$> (indent 2 rhs)
-
-instance Pretty [WFError] where
-  ppr [] = "The workflow is sound."
-  ppr errs@(_:_)
-    = vcat . ("Workflow soundness errors:" :) $ map (("•" <+>) . ppr) errs
-
-instance Pretty (Set WFError) where
-  ppr = ppr . S.toList
-
-
--- | A Workflow reachability graph: maps a state to its immediate neighbours.
-type ReachabilityGraph = Map WorkflowState (Set WorkflowState)
-
--- | Pretty-print a reachability graph.
-pprReachabilityGraph :: ReachabilityGraph -> Doc
-pprReachabilityGraph
-  = vcat
-  . (text "Reachability Graph:" :)
-  . map (\(k, vs) -> ppr (Debug k) <+> text "->" <+> (bracketList . map (ppr . Debug) . S.toList) vs)
-  . M.toList
-
--- | Look up outgoing transitions from a place. E.g. for `{a, b} -> c` we would
--- map `a` and `b` to `{a, b} -> c`.
-type OutgoingTransitions = Map Place (Set Transition)
 
 -- | Reachability graph builder monad
 type GraphBuilderM = RWS
@@ -123,15 +28,12 @@ type GraphBuilderM = RWS
   (Set WFError, Set Transition) -- W: errors and used transitions
   BuilderState -- S: the graph we are currently building
 
--- | Given a set of transitions, check whether they describe a sound workflow.
+-- | Given a set of transitions, check whether they describe a sound free choice workflow.
 checkTransitions :: Set Transition -> Either [WFError] ReachabilityGraph
 checkTransitions ts = case first S.toList $ reachabilityGraph ts of
     ([], graph) -> Right graph
     (errs@(_:_), _) -> Left errs
 
--- | Return all places that are mentioned in a set of transitions.
-allPlaces :: Set Transition -> Set Place
-allPlaces = foldMap (\(Arrow (places -> src) (places -> dst)) -> src <> dst)
 
 -- | Build a (partial) reachability graph. When the set of errors is empty,
 -- then the graph is complete and the workflow is sound.
@@ -412,40 +314,6 @@ checkedWfUnionM :: WorkflowState -> WorkflowState -> GraphBuilderM WorkflowState
 checkedWfUnionM lhs rhs = case checkedWfUnion lhs rhs of
   Right wfSt -> pure wfSt
   Left  err  -> yell err >> pure (lhs <> rhs)
-
--- NOTE: AND-split handled here
--- | Given a current global workflow state, apply a (local) transition.
--- Returns:
---   - @Nothing@ if the transition is not satisfied.
---   - @Left err@ if the transition is satisfied but would lead to an invalid state.
---   - @Right newWorklowState@ otherwise.
-applyTransition :: WorkflowState ->
-                   Transition ->
-                   Maybe (Either WFError WorkflowState)  -- global, local state
-applyTransition curr t@(Arrow src dst)
-  | not (src `isSubWorkflow` curr) = Nothing -- can't fire transition
-  | src == endState                = Just . Left $ TransFromEnd t
-  | isNonEmpty sharedPlaces        = Just . Left $ NotOneBounded curr t sharedPlaces
-  | PlaceEnd `elem` places newState && newState /= endState
-    = Just . Left $ ImproperCompletion curr t newState
-  | otherwise = Just $ Right newState
-  where
-    sharedPlaces :: Set Place
-    sharedPlaces = places $ (curr \\ src) `wfIntersection` dst
-
-    newState :: WorkflowState
-    newState = (curr \\ src) `wfUnion` dst
-
-{-# INLINE applyTransition #-} -- very important for performance!!
-
--- | Checks whether a given foldable structures is not empty.
-isNonEmpty :: Foldable f => f a -> Bool
-isNonEmpty = not . null
-
--- | Checks whether a given list contains a single element.
-isSingleton :: [a] -> Bool
-isSingleton [x] = True
-isSingleton _   = False
 
 -- | Determines whether a set of transitions representing a workflow
 -- satisfy the free choice property.

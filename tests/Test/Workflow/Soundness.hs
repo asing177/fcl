@@ -9,7 +9,6 @@ import Test.Tasty.HUnit
 import Test.Tasty.QuickCheck
 
 import Language.FCL.Pretty
-import Language.FCL.ReachabilityGraph
 
 import Test.Workflow.Generation.SafeWorkflowNet.Tests
 

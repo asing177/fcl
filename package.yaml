@@ -149,8 +149,9 @@ library:
     - Language.FCL.Undefinedness
     - Language.FCL.Effect
     - Language.FCL.WorkflowNet
-    - Language.FCL.ReachabilityGraph
-    - Language.FCL.ReachabilityGraphOLD
+    - Language.FCL.Reachability.Definitions
+    - Language.FCL.Reachability.FreeChoice
+    - Language.FCL.Reachability.General
     - Language.FCL.Analysis
     - Language.FCL.Graphviz
     - Language.FCL.Hash

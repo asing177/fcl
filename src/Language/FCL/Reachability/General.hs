@@ -2,32 +2,27 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE DeriveAnyClass #-}
 
-module Language.FCL.ReachabilityGraphOLD
-  ( ReachabilityGraph
-  , WFError(..)
-  , allPlaces
-  , applyTransition
-  , checkTransitions
-  , pprReachabilityGraph
-  , completeReachabilityGraph
-  ) where
+module Language.FCL.Reachability.General
+( module Language.FCL.Reachability.Definitions
+, checkTransitions
+, completeReachabilityGraph
+) where
 
 import Protolude
 
 import Control.Monad.RWS.Strict
-import Data.Map.Strict (Map)
-import qualified Data.Map.Strict as M
+
 import Data.Sequence (Seq(..))
-import qualified Data.Sequence as Sq
 import Data.Set (Set)
+
+import qualified Data.Map.Strict as M
+import qualified Data.Sequence as Sq
 import qualified Data.Set as S
 
-import Language.FCL.AST (Place(..), Transition(..), WorkflowState, (\\), endState, isSubWorkflow, places, startState, wfIntersection, wfUnion)
-import Language.FCL.ReachabilityGraph (ReachabilityGraph, WFError(..), pprReachabilityGraph, allPlaces)
+import Language.FCL.AST (Place(..), Transition(..), WorkflowState, endState, places, startState)
+import Language.FCL.Reachability.Definitions
+import Language.FCL.Reachability.Utils
 
--- | Look up outgoing transitions from a place. E.g. for `{a, b} -> c` we would
--- map `a` and `b` to `{a, b} -> c`.
-type OutgoingTransitions = Map Place (Set Transition)
 
 -- | Reachability graph builder monad
 type GraphBuilderM = RWS
@@ -35,7 +30,7 @@ type GraphBuilderM = RWS
   (Set WFError, Set Transition) -- W: errors and used transitions
   ReachabilityGraph -- S: the graph we are currently building
 
--- | Given a set of transitions, check whether they describe a sound workflow.
+-- | Given a set of transitions, check whether they describe a sound general workflow.
 checkTransitions :: Set Transition -> Either [WFError] ReachabilityGraph
 checkTransitions ts = case first S.toList $ completeReachabilityGraph ts of
     ([], graph) -> Right graph
@@ -190,29 +185,21 @@ cocompleteReachabilityGraph rGraph = go endState mempty
 --   - @Nothing@ if the transition is not satisfied.
 --   - @Left err@ if the transition is satisfied but would lead to an invalid state.
 --   - @Right newWorklowState@ otherwise.
-applyTransition
-  :: WorkflowState
-  -> Transition
-  -> Maybe (Either WFError WorkflowState)
-applyTransition curr t@(Arrow src dst)
-    | not (src `isSubWorkflow` curr) = Nothing -- can't fire transition
-    | src == endState = Just . Left $ TransFromEnd t
-    | isNonEmpty badGuys = Just . Left $ NotOneBounded curr t badGuys
-    | PlaceEnd `elem` places newState && newState /= endState
-      = Just . Left $ ImproperCompletion curr t newState
-    | otherwise = Just $ Right newState
-  where
-    badGuys :: Set Place
-    badGuys = places $ (curr \\ src) `wfIntersection` dst
+-- applyTransition
+--   :: WorkflowState
+--   -> Transition
+--   -> Maybe (Either WFError WorkflowState)
+-- applyTransition curr t@(Arrow src dst)
+--     | not (src `isSubWorkflow` curr) = Nothing -- can't fire transition
+--     | src == endState = Just . Left $ TransFromEnd t
+--     | isNonEmpty badGuys = Just . Left $ NotOneBounded curr t badGuys
+--     | PlaceEnd `elem` places newState && newState /= endState
+--       = Just . Left $ ImproperCompletion curr t newState
+--     | otherwise = Just $ Right newState
+--   where
+--     badGuys :: Set Place
+--     badGuys = places $ (curr \\ src) `wfIntersection` dst
 
-    newState :: WorkflowState
-    newState = (curr \\ src) `wfUnion` dst
-{-# INLINE applyTransition #-} -- very important for performance!!
-
-
---------------------------------------------------------------------------------
--- Convenience functions, these are not exported.
---------------------------------------------------------------------------------
-
-isNonEmpty :: Foldable f => f a -> Bool
-isNonEmpty = not . null
+--     newState :: WorkflowState
+--     newState = (curr \\ src) `wfUnion` dst
+-- {-# INLINE applyTransition #-} -- very important for performance!!

@@ -14,8 +14,9 @@ import Test.Tasty.HUnit
 
 import Language.FCL.AST (Transition)
 import Language.FCL.Pretty (Pretty(..), vsep)
-import Language.FCL.ReachabilityGraph (WFError, ReachabilityGraph, reachabilityGraph)
-import Language.FCL.ReachabilityGraphOLD (completeReachabilityGraph)
+import Language.FCL.Reachability.General (completeReachabilityGraph)
+import Language.FCL.Reachability.FreeChoice (reachabilityGraph)
+import Language.FCL.Reachability.Definitions (WFError, ReachabilityGraph)
 
 import Test.Workflow.Generation.SafeWorkflowNet
 import Test.Workflow.Generation.SafeWorkflowNet.Examples
