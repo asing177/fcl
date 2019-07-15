@@ -15,8 +15,11 @@ module Language.FCL.Graphviz (
   fileWriteSVG,
   fileToGraphviz,
   DisplayableWorkflow(..),
+  Methods(..),
+  Transitions(..),
   methodsToGraphviz,
-  transitionsToGraphviz
+  transitionsToGraphviz,
+  workflowWriteSVG
   ) where
 
 import Protolude
@@ -58,6 +61,9 @@ fileWriteGraphviz path = fileToGraphviz path >>= writeFile (replaceExtension pat
 
 fileWriteSVG :: FilePath -> IO ()
 fileWriteSVG path = fileToSVG path >>= writeFile (replaceExtension path ".svg")
+
+workflowWriteSVG :: DisplayableWorkflow wf => FilePath -> wf -> IO ()
+workflowWriteSVG path = (callDot . renderToGraphviz) >=> writeFile (replaceExtension path ".svg")
 
 methodsToGraphviz :: [Method] -> Graphviz
 methodsToGraphviz = renderToGraphviz . Methods
@@ -178,6 +184,8 @@ instance DisplayableWorkflow Methods where
                           $ ms
 
 -- | Workflow represented as a list of transitions.
+-- Transitions will be named in their order of appearance
+-- in the input list.
 newtype Transitions = Transitions [Transition]
   deriving (Eq, Ord, Show)
 
@@ -214,7 +222,7 @@ instance DisplayableWorkflow Transitions where
   annotatedTransitions (Transitions trs) = zipWith annotateTransition trs [1..]
     where
       annotateTransition :: Transition -> Int -> AnnotatedTransition Transitions
-      annotateTransition tr n = NTr tr (show n)
+      annotateTransition tr n = NTr tr ("T" <> show n)
 
   staticWorkflowStates :: Transitions -> Set WorkflowState
   staticWorkflowStates trs = inferStaticWorkflowStates
