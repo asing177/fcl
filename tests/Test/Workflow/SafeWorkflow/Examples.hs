@@ -1,5 +1,5 @@
 {-# LANGUAGE PatternSynonyms #-}
-module Test.Workflow.Generation.SafeWorkflow.Examples
+module Test.Workflow.SafeWorkflow.Examples
   ( basicNets
   , exampleNets
   , arbitraryNets
@@ -12,7 +12,7 @@ import Protolude
 
 import Data.List.NonEmpty (NonEmpty(..))
 
-import Test.Workflow.Generation.SafeWorkflow
+import Test.Workflow.SafeWorkflow
 
 -------------------------------------------------
 -- Basic building blocks of safe workflow nets --

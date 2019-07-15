@@ -10,7 +10,7 @@ import Test.Tasty.QuickCheck
 
 import Language.FCL.Pretty
 
-import Test.Workflow.Generation.SafeWorkflow.Tests
+import Test.Workflow.SafeWorkflow.Tests
 
 soundnessTests :: TestTree
 soundnessTests = testGroup ("Test the soundness checking algorithm on safely constructed workflows")

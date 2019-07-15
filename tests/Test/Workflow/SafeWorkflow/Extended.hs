@@ -1,7 +1,7 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE DeriveGeneric #-}
-module Test.Workflow.Generation.SafeWorkflow.Extended where
+module Test.Workflow.SafeWorkflow.Extended where
 
 import Protolude
 
@@ -15,7 +15,7 @@ import Language.FCL.Analysis (inferStaticWorkflowStates)
 
 import Test.QuickCheck
 
-import Test.Workflow.Generation.SafeWorkflow (SafeWorkflow(..), constructTransitions)
+import Test.Workflow.SafeWorkflow (SafeWorkflow(..), constructTransitions)
 
 -- | Safe workflow extended with some additional places, states and transitions.
 data ExtendedSW
@@ -42,15 +42,6 @@ instance Arbitrary ExtendedSW where
     let origTrans  = constructTransitions swf                       :: [Transition]
         origStates = S.toList  $inferStaticWorkflowStates origTrans :: [WorkflowState]
         origPlaces = S.toList $ foldMap places origStates           :: [Place]
-
-        -- | Generates exactly `n` number of entities, then returns only the unique ones.
-        severalUnique :: Ord a => Gen a -> Int -> Gen (Set a)
-        severalUnique g n = S.fromList <$> vectorOf n g
-
-        -- | Tries to generate `n` number of entities, but might not be able to.
-        -- Then returns only the unique ones.
-        someUnique :: Ord a => Gen (Maybe a) -> Int -> Gen (Set a)
-        someUnique g n = (S.fromList . catMaybes) <$> vectorOf n g
 
         -- (frequency out of 100, number of new places to be generated)
         baseDistribution :: Distribution
@@ -114,3 +105,17 @@ type Distribution = [(Int, Int)]
 -- The TODO: finish
 withDistribution :: (Int -> Gen (Set a)) -> Distribution -> Gen (Set a)
 withDistribution genSome = frequency . map (fmap genSome)
+
+
+-------------------------
+-- Directed generation --
+-------------------------
+
+-- | Generates exactly `n` number of entities, then returns only the unique ones.
+severalUnique :: Ord a => Gen a -> Int -> Gen (Set a)
+severalUnique g n = S.fromList <$> vectorOf n g
+
+-- | Tries to generate `n` number of entities, but might not be able to.
+-- Then returns only the unique ones.
+someUnique :: Ord a => Gen (Maybe a) -> Int -> Gen (Set a)
+someUnique g n = (S.fromList . catMaybes) <$> vectorOf n g

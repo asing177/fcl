@@ -1,4 +1,4 @@
-module Test.Workflow.Generation.SafeWorkflow.Tests
+module Test.Workflow.SafeWorkflow.Tests
   ( isSafeWorkflowSound_FreeChoice
   , isSafeWorkflowSound_General
   , basicNetTests
@@ -19,9 +19,9 @@ import Language.FCL.Reachability.General (completeReachabilityGraph)
 import Language.FCL.Reachability.FreeChoice (reachabilityGraph)
 import Language.FCL.Reachability.Definitions (WFError(..), ReachabilityGraph)
 
-import Test.Workflow.Generation.SafeWorkflow
-import Test.Workflow.Generation.SafeWorkflow.Extended
-import Test.Workflow.Generation.SafeWorkflow.Examples
+import Test.Workflow.SafeWorkflow
+import Test.Workflow.SafeWorkflow.Extended
+import Test.Workflow.SafeWorkflow.Examples
 
 -- TODO: probably should separate extended safe workflow test realted stuff from safe workflow related stuff
 -- even more nested modules then? ...SafeWrokflow.Extended.Tests ?

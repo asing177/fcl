@@ -1,7 +1,7 @@
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE TypeApplications #-}
-module Test.Workflow.Generation.SafeWorkflow
+module Test.Workflow.SafeWorkflow
   ( SafeWorkflow(..)
   , pattern XOR3
   , pattern AND2
