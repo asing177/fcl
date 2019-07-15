@@ -8,6 +8,7 @@ import Protolude
 import Data.List (nub)
 import Data.Set (Set)
 import qualified Data.Set as S
+import Data.Maybe (catMaybes)
 
 import Language.FCL.AST (Transition(..), WorkflowState(..), Place(..), unsafeWorkflowState)
 import Language.FCL.Analysis (inferStaticWorkflowStates)
@@ -42,8 +43,14 @@ instance Arbitrary ExtendedSW where
         origStates = S.toList  $inferStaticWorkflowStates origTrans :: [WorkflowState]
         origPlaces = S.toList $ foldMap places origStates           :: [Place]
 
+        -- | Generates exactly `n` number of entities, then returns only the unique ones.
         severalUnique :: Ord a => Gen a -> Int -> Gen (Set a)
         severalUnique g n = S.fromList <$> vectorOf n g
+
+        -- | Tries to generate `n` number of entities, but might not be able to.
+        -- Then returns only the unique ones.
+        someUnique :: Ord a => Gen (Maybe a) -> Int -> Gen (Set a)
+        someUnique g n = (S.fromList . catMaybes) <$> vectorOf n g
 
         -- (frequency out of 100, number of new places to be generated)
         baseDistribution :: Distribution
@@ -67,29 +74,29 @@ instance Arbitrary ExtendedSW where
     let allPlaces = origPlaces ++ (S.toList extraPlaces)
 
         -- | Generate a new workflow state that has less than 3 places.
-        arbNewState :: Gen WorkflowState
-        arbNewState = do
+        mArbNewState :: Gen (Maybe WorkflowState)
+        mArbNewState = do
           let origStatePlaces = map places origStates
-          newPlaceSet <- sublistOf allPlaces `suchThat` \ps ->
+          mNewPlaceSet <- sublistOf allPlaces `suchThatMaybe` \ps ->
             length ps <= 3 && (S.fromList ps) `notElem` origStatePlaces
-          pure . unsafeWorkflowState . S.fromList $ newPlaceSet
+          pure $ (unsafeWorkflowState . S.fromList) <$> mNewPlaceSet
 
         newStateDist :: Distribution
         newStateDist = map (fmap (+1)) baseDistribution
 
-    extraStates <- severalUnique arbNewState `withDistribution` newStateDist
+    extraStates <- someUnique mArbNewState `withDistribution` newStateDist
 
     -- TODO: way too general, has to introduce more specific transition generators
     let allStates = origStates ++ (S.toList extraStates)
 
         -- | Generate a new transition.
-        arbNewTrans :: Gen Transition
-        arbNewTrans = (Arrow <$> elements allStates <*> elements allStates) `suchThat` (`notElem` origTrans)
+        mArbNewTrans :: Gen (Maybe Transition)
+        mArbNewTrans = (Arrow <$> elements allStates <*> elements allStates) `suchThatMaybe` (`notElem` origTrans)
 
         newTransDist :: Distribution
         newTransDist = map (fmap (+1)) baseDistribution
 
-    extraTransitions <- severalUnique arbNewTrans `withDistribution` newTransDist
+    extraTransitions <- someUnique mArbNewTrans `withDistribution` newTransDist
 
     pure $ ExtendedSW swf extraPlaces extraStates extraTransitions
 
