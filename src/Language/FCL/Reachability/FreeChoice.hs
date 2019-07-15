@@ -4,6 +4,7 @@ module Language.FCL.Reachability.FreeChoice
   ( module Language.FCL.Reachability.Definitions
   , checkTransitions
   , reachabilityGraph
+  , freeChoicePropertyViolations
   ) where
 
 import Protolude

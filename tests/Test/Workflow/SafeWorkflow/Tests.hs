@@ -4,6 +4,8 @@ module Test.Workflow.SafeWorkflow.Tests
   , basicNetTests
   , exampleNetTests
   , bothYieldSameDecision
+  , bothYieldSameDecisionFC
+  , isReallyFreeChoice
   ) where
 
 import Protolude
@@ -16,7 +18,7 @@ import Test.Tasty.HUnit
 import Language.FCL.AST (Transition)
 import Language.FCL.Pretty (Pretty(..), vsep)
 import Language.FCL.Reachability.General (completeReachabilityGraph)
-import Language.FCL.Reachability.FreeChoice (reachabilityGraph)
+import Language.FCL.Reachability.FreeChoice (reachabilityGraph, freeChoicePropertyViolations)
 import Language.FCL.Reachability.Definitions (WFError(..), ReachabilityGraph)
 
 import Test.Workflow.SafeWorkflow
@@ -59,6 +61,7 @@ exampleNetTests = map (uncurry mkFCSoundnessTest) namedExampleNets
 -- Extended safe workflows --
 -----------------------------
 
+-- TODO: --quickcheck-replay=88585
 -- | Checks whether both analyses yield the same decision
 -- for a given extended safe workflow net.
 -- If the extra transitions introduced for the net violate
@@ -68,10 +71,10 @@ bothYieldSameDecision esw
   | (freeChoiceErrs, generalErrs) <- checkWithBoth esw
   , fcDecision  <- null freeChoiceErrs
   , genDecision <- null generalErrs
-  = containsNotFCErr freeChoiceErrs || fcDecision == genDecision
+  = containsFCErr freeChoiceErrs || fcDecision == genDecision
 
-containsNotFCErr :: [WFError] -> Bool
-containsNotFCErr errs = not . null $ [ fcErr | fcErr@(FreeChoiceViolation _ _ _) <- errs ]
+containsFCErr :: [WFError] -> Bool
+containsFCErr errs = not . null $ [ fcErr | fcErr@(FreeChoiceViolation _ _ _) <- errs ]
 
 checkWithBoth :: ExtendedSW -> ([WFError], [WFError])
 checkWithBoth ExtendedSW{..} = ( getErrors . reachabilityGraph         $ eswTransitions
@@ -85,3 +88,20 @@ checkWithBoth ExtendedSW{..} = ( getErrors . reachabilityGraph         $ eswTran
 
   swTransitions :: Set Transition
   swTransitions  = S.fromList $ constructTransitions eswSafeWorkflow
+
+-----------
+
+bothYieldSameDecisionFC :: ExtendedFCSW -> Bool
+bothYieldSameDecisionFC efcsw
+  | esw <- fcGetESW efcsw
+  , (freeChoiceErrs, generalErrs) <- checkWithBoth esw
+  , fcDecision  <- null freeChoiceErrs
+  , genDecision <- null generalErrs
+  = fcDecision == genDecision
+
+isReallyFreeChoice :: ExtendedFCSW -> Bool
+isReallyFreeChoice = null
+                   . freeChoicePropertyViolations
+                   . S.fromList
+                   . extendedWorkflowTransitions
+                   . fcGetESW
