@@ -21,5 +21,6 @@ soundnessTests = testGroup ("Test the soundness checking algorithm on safely con
   , testGroup "QuickCheck tests"
     [ testProperty "Free choice Petri net based algorithm" (mapSize (const 100) . withMaxSuccess 1000 $ isSafeWorkflowSound_FreeChoice)
     , testProperty "General Petri net based algorithm"     (mapSize (const 20)  . withMaxSuccess 100  $ isSafeWorkflowSound_General)
+    , testProperty "Cross validation"                      (mapSize (const 20)  . withMaxSuccess 5  $ bothYieldSameDecision)
     ]
   ]
