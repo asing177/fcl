@@ -42,7 +42,6 @@ module Language.FCL.Eval (
 ) where
 
 import Protolude hiding (DivideByZero, Overflow, Underflow, StateT, execStateT, runStateT, modify, get, gets)
-import Control.Monad.Fail
 
 import Numeric.Lossless.Number
 import Language.FCL.AST
@@ -264,9 +263,6 @@ currentTxIssuer loc = do
 -------------------------------------------------------------------------------
 
 type RandomM = Crypto.MonadPseudoRandom Crypto.SystemDRG
--- TODO: Fix the MonadFail issues
-instance MonadFail RandomM where
-  fail s = panic ("Monad RandomM Fail " <> toS s)
 
 -- | Initialize the random number generator and run the monadic
 -- action.
