@@ -29,7 +29,7 @@ data WFError
   | NotOneBoundedMerge WorkflowState WorkflowState (Set Place)
   | ImproperCompletionMerge WorkflowState WorkflowState
   | LoopingANDBranch WorkflowState WorkflowState
-  deriving (Eq, Ord, Show, Generic)
+  deriving (Eq, Ord, Show, Generic, NFData)
 
 instance ToJSON WFError where
   toJSON = genericToJSON (defaultOptions { sumEncoding = ObjectWithSingleField })
