@@ -1156,9 +1156,6 @@ instance Arbitrary a => Arbitrary (Located a) where
 addLoc :: Gen a -> Gen (Located a)
 addLoc g = Located <$> arbitrary <*> g
 
-instance Arbitrary BinOp where
-  arbitrary = arbitraryBoundedEnum
-
 instance Arbitrary UnOp where
   arbitrary = arbitraryBoundedEnum
 
@@ -1256,7 +1253,7 @@ arbNumLogicExpr n
             , LBool <$> arbitrary
             ]
   | otherwise = let n' = n `div` 2 in oneof
-      [ EBinOp <$> arbitrary
+      [ EBinOp <$> addLoc (elements (enumFromTo Add Greater)) -- exclude RecordAccess
                <*> addLoc (arbNumLogicExpr n')
                <*> addLoc (arbNumLogicExpr n')
       , EUnOp <$> arbitrary <*> addLoc (arbNumLogicExpr n')
@@ -1284,6 +1281,9 @@ arbNonSeqExpr n
                  <*> addLoc (arbNonSeqExpr n')
                  <*> arbLExpr n'
       , ECase <$> addLoc (arbNonSeqExpr n') <*> arbMatches n'
+      , EBinOp <$> addLoc (pure RecordAccess)
+               <*> addLoc (EVar <$> arbitrary)
+               <*> addLoc (EVar <$> arbitrary)
       , arbNumLogicExpr n
       ]
 

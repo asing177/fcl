@@ -1,4 +1,4 @@
-module Helpers where
+module Test.Helpers where
 
 import Protolude
 

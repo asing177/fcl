@@ -5,7 +5,7 @@
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE DataKinds #-}
 
-module TestScript
+module Test.Script
   ( evalTests
   , compilerTests
   , scriptPropTests
@@ -43,9 +43,9 @@ import qualified Language.FCL.Init as Init
 import qualified Language.FCL.Prim as Prim
 import qualified Language.FCL.Hash as Hash
 
-import qualified Reference as Ref
+import qualified Test.Reference as Ref
 
-import Golden
+import Test.Golden as Golden
 
 -------------------------------------------------------------------------------
 -- Test trees

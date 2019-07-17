@@ -1,7 +1,7 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
-module TestNumber where
+module Test.Number where
 
 import Protolude
 import Control.Applicative (liftA2)

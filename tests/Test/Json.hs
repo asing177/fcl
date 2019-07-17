@@ -1,6 +1,6 @@
 {-# LANGUAGE TypeApplications #-}
 
-module TestJson (
+module Test.Json (
   jsonTests,
 ) where
 
@@ -16,10 +16,10 @@ import Test.Tasty.Golden
 import Test.Tasty.HUnit
 import Test.Tasty.QuickCheck
 
-import Helpers
-
-import qualified Reference
 import qualified Language.FCL.AST as Script
+
+import Test.Helpers
+import qualified Test.Reference as Reference
 
 -- | Test that a JSON representation of the core data structures kept invariant.
 jsonTests :: TestTree

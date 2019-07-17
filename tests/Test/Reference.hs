@@ -13,7 +13,7 @@ Test fixtures.
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE TypeFamilies #-}
 
-module Reference where
+module Test.Reference where
 
 import Protolude
 
@@ -133,7 +133,7 @@ data Ref
   | Security          -- ^ Security
   deriving (Eq, Ord, Show, Read, Enum, Bounded, Generic)
 
-instance Arbitrary Reference.Ref where
+instance Arbitrary Test.Reference.Ref where
   arbitrary = elements [ minBound.. maxBound ]
 
 -------------------------------------------------------------------------------
