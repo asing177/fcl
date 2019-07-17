@@ -241,10 +241,16 @@ buildGraph curr = do
 
       -- NOTE: Only keep those states that hasn't been visited already.
       let mergedResult' = filter (`S.notMember` visitedByOtherXORBranches) mergedResult
+          {- NOTE: If the merged result is the local state itself,
+            it means the local state is the beginning and the end
+            of the split as well. In this case, we do not want to
+            connect it with itself.
+          -}
+          hasOnlySingletonBranches = mergedResult' == [lclSt]
 
       unvisited <- unvisitedM lclSt
-      when unvisited $ do
-        modifyGraph $ M.insert lclSt (S.fromList mergedResult')
+      when (unvisited && not hasOnlySingletonBranches) $ do
+        modifyGraph $ M.insert lclSt (S.fromList mergedResult)
 
       {- NOTE: They are equal iff there is a single AND branch.
          If it was a simple path, we already visited all the nodes on it.
