@@ -1,3 +1,5 @@
 Workflow soundness errors:
+• Erroneous looping AND branch. When AND-splitting from '{a}',
+  the result branch of '{a}' loops indefinetely locally, or loops back to the splitting point.
 • Erroneous looping AND branch. When AND-splitting from '{a,b}',
   the result branch of '{a}' loops indefinetely locally, or loops back to the splitting point.

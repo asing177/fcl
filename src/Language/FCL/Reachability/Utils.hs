@@ -8,6 +8,7 @@ import Control.Monad.Writer
 
 import Data.Set (Set)
 import qualified Data.Set as S
+import qualified Data.Map as M
 
 import Language.FCL.AST (Place(..), Transition(..), WorkflowState(..), (\\), endState, isSubWorkflow, places, wfIntersection, wfUnion)
 import Language.FCL.Reachability.Definitions
@@ -40,6 +41,12 @@ applyTransition curr t@(Arrow src dst)
       newState = (curr \\ src) `wfUnion` dst
 {-# INLINE applyTransition #-} -- very important for performance!!
 
+unsafeApplyTransition :: WorkflowState -> Transition -> Maybe WorkflowState
+unsafeApplyTransition curr t@(Arrow src dst)
+  | not (src `isSubWorkflow` curr) = Nothing -- can't fire transition
+  | otherwise = Just $ (curr \\ src) `wfUnion` dst
+{-# INLINE unsafeApplyTransition #-}
+
 -- | Checks whether a given foldable structures is not empty.
 isNonEmpty :: Foldable f => f a -> Bool
 isNonEmpty = not . null
@@ -52,3 +59,18 @@ isSingleton _   = False
 yell :: WFError -> GraphBuilderM s ()
 yell err = tell (S.singleton err, mempty)
 {-# INLINE yell #-}
+
+-- | Gather all the reachable state from a given state using the reachability graph.
+gatherReachableStatesFrom :: WorkflowState -> ReachabilityGraph -> Set WorkflowState
+gatherReachableStatesFrom start graph =
+  execState (gatherReachableStatesFromM start graph) mempty where
+
+  gatherReachableStatesFromM :: WorkflowState -> ReachabilityGraph -> State (Set WorkflowState) ()
+  gatherReachableStatesFromM wfSt graph = do
+    s <- get
+    when (wfSt `S.notMember` s) $ do
+      modify $ S.insert wfSt
+      case M.lookup wfSt graph of
+        Nothing    -> pure ()
+        Just nexts ->
+          mapM_ (flip gatherReachableStatesFromM graph) nexts

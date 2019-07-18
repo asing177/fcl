@@ -24,13 +24,17 @@ import Language.FCL.Reachability.Utils
 
 
 -- | Locally visited nodes inside an AND branch.
-type LocallyVisited = Set WorkflowState
+data ANDSplitContext =
+  ANDSplitContext { ascSplittingPoint :: WorkflowState
+                  , ascLocallyVisited :: Set WorkflowState
+                  }
+  deriving (Eq, Ord, Show)
 
 -- | State for constructing a reachability graph for a free choice net.
 data BuilderState
   = BuilderState
   { bsReachabilityGraph :: ReachabilityGraph  -- ^ The reachability graph itself
-  , bsLocallyVisted     :: [LocallyVisited]   -- ^ Stack of local contexts for AND-split branches
+  , bsLocallyVisted     :: [ANDSplitContext]   -- ^ Stack of local contexts for AND-split branches
   } deriving (Eq, Ord, Show)
 
 -- | Reachability graph builder monad for free choice nets
@@ -43,8 +47,8 @@ checkTransitions ts = case first S.toList $ reachabilityGraph ts of
     (errs@(_:_), _) -> Left errs
 
 
--- | Build a (partial) reachability graph. When the set of errors is empty,
--- then the graph is complete and the workflow is sound. This graph does not
+-- | Build a reachability graph. When the set of errors is empty,
+-- then the workflow is sound. This graph does not
 -- contain any intermediate states across AND branches.
 reachabilityGraph :: Set Transition -> (Set WFError, ReachabilityGraph)
 reachabilityGraph declaredTransitions =
@@ -60,7 +64,7 @@ reachabilityGraph declaredTransitions =
       = runRWS
           (buildGraph startState)      -- Function to run in RWS monad
           outgoing                     -- The static context
-          (BuilderState mempty [mempty]) -- The dynamic context
+          (BuilderState mempty []) -- The dynamic context
 
     allErrs :: Set WFError
     allErrs = mconcat [stateErrs, prunedCoreachabilityErrs, unreachableTransitionErrs]
@@ -234,6 +238,7 @@ buildGraph curr = do
             loops    = filter (null . fst) branches
         forM_ loops $ \(_, splitHead) -> do
           yell (LoopingANDBranch lclSt splitHead)
+
       -- Here the different wf states of the AND branches get merged.
       -- Even if there were no XOR branches inside the AND branches,
       -- the different wf states get merged into a single one.
@@ -272,17 +277,24 @@ buildGraph curr = do
       concatMapM continueIfNew xorSplitResult
 
   else do
-    locals <- getLocalContext
-    if curr `S.member` locals then do
-      {- NOTE: Locally visited nodes add no new information to the context.
-         This is when a node inside a branch refers back to another node inside the same branch.
-      -}
-      pure []
-    else do
-      {- NOTE: Globally visited nodes can have impact on other exectuion paths.
-         This is when a node inside a branch refers to another node outside of the current branch.
-      -}
-      pure [curr]
+    mContext <- getLocalContext
+    case mContext of
+      Nothing -> pure [curr]
+      Just ANDSplitContext{..} ->
+        if curr == ascSplittingPoint then do
+          -- TODO: fix second argument
+          yell $ LoopingANDBranch ascSplittingPoint ascSplittingPoint
+          pure []
+        else if curr `S.member` ascLocallyVisited then do
+          {- NOTE: Locally visited nodes add no new information to the context.
+            This is when a node inside a branch refers back to another node inside the same branch.
+          -}
+          pure []
+        else do
+          {- NOTE: Globally visited nodes can have impact on other exectuion paths.
+            This is when a node inside a branch refers to another node outside of the current branch.
+          -}
+          pure [curr]
 
 -- | Checks whether a workflow state is globally unvisited.
 unvisitedM :: WorkflowState -> FreeChoiceGBM Bool
@@ -370,7 +382,7 @@ modifyGraph f = do
   put $ BuilderState (f rg) lv
 
 -- | General modifying function for the current local context.
-modifyLocalContext :: (LocallyVisited -> LocallyVisited) -> FreeChoiceGBM ()
+modifyLocalContext :: (ANDSplitContext -> ANDSplitContext) -> FreeChoiceGBM ()
 modifyLocalContext f = do
   BuilderState rg lv <- get
   case lv of
@@ -379,14 +391,18 @@ modifyLocalContext f = do
     []   -> pure ()
 
 -- | Creates a new empty local context (for an AND branch).
-pushEmptyLocalContext :: FreeChoiceGBM ()
-pushEmptyLocalContext = do
+pushNewLocalContext :: WorkflowState -> FreeChoiceGBM ()
+pushNewLocalContext wf = do
   BuilderState rg lv <- get
-  put $ BuilderState rg (mempty:lv)
+  put $ BuilderState rg (ANDSplitContext wf (S.singleton wf) : lv)
+
+-- | Adds a given state to a context.
+addLocalState :: WorkflowState -> ANDSplitContext -> ANDSplitContext
+addLocalState wfSt (ANDSplitContext p s) = (ANDSplitContext p (S.insert wfSt s))
 
 -- | Adds a given state to the current local context.
 pushLocalState :: WorkflowState -> FreeChoiceGBM ()
-pushLocalState wfSt = modifyLocalContext (S.insert wfSt)
+pushLocalState wfSt = modifyLocalContext (addLocalState wfSt)
 
 -- | Removes the current local context.
 popLocalContext :: FreeChoiceGBM ()
@@ -397,12 +413,12 @@ popLocalContext = do
     []   -> panic $ "Reachability: can't pop from empty context stack"
 
 -- | Acquires the current local context.
-getLocalContext :: FreeChoiceGBM LocallyVisited
+getLocalContext :: FreeChoiceGBM (Maybe ANDSplitContext)
 getLocalContext = do
   BuilderState rg lv <- get
   case lv of
-    x:_ -> pure x
-    []  -> panic $ "Reachability: can't get locally visited states from empty context stack"
+    x:_ -> pure $ Just x
+    []  -> pure Nothing --panic $ "Reachability: can't get locally visited states from empty context stack"
 
 -- | Start analyzing and AND branch by creating a new local context for it.
 -- Add the splitting state to the previous context as well to the current one.
@@ -411,9 +427,8 @@ startBuildingLocally prev wfSt = do
   BuilderState rg lv <- get
   -- NOTE: have to add it to the previous context as well
   pushLocalState prev
-  pushEmptyLocalContext
   -- NOTE: adding it to the currect context
-  pushLocalState prev
+  pushNewLocalContext prev
   r <- buildGraph wfSt
   popLocalContext
   pure r
@@ -424,18 +439,3 @@ continueBuildingLocally :: WorkflowState -> WorkflowState -> FreeChoiceGBM [Work
 continueBuildingLocally prev wfSt = do
   pushLocalState prev
   buildGraph wfSt
-
--- | Gather all the reachable state from a given state using the reachability graph.
-gatherReachableStatesFrom :: WorkflowState -> ReachabilityGraph -> Set WorkflowState
-gatherReachableStatesFrom start graph =
-  execState (gatherReachableStatesFromM start graph) mempty where
-
-  gatherReachableStatesFromM :: WorkflowState -> ReachabilityGraph -> State (Set WorkflowState) ()
-  gatherReachableStatesFromM wfSt graph = do
-    s <- get
-    when (wfSt `S.notMember` s) $ do
-      modify $ S.insert wfSt
-      case M.lookup wfSt graph of
-        Nothing    -> pure ()
-        Just nexts ->
-          mapM_ (flip gatherReachableStatesFromM graph) nexts
