@@ -1,4 +1,8 @@
-module Language.FCL.Debug where
+-- | Newtype wrapper for defining instances with more information to help users
+-- debug their FCL scripts.
+module Language.FCL.Debug
+  ( Debug(..)
+  ) where
 
 import Protolude
 
@@ -6,7 +10,6 @@ import qualified Data.Set as S
 
 import Language.FCL.AST
 import Language.FCL.Pretty
-
 import qualified Language.FCL.Token as Token
 
 

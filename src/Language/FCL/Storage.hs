@@ -33,17 +33,13 @@ module Language.FCL.Storage (
 
 import Protolude hiding (Type)
 
-import Language.FCL.AST (Value(..), DateTime(..))
-import Language.FCL.Pretty (Pretty(..), prettyPrint)
-import qualified Language.FCL.Parser as Parser
+import Language.FCL.AST (Value(..))
+import Language.FCL.Pretty (Pretty(..))
 
-import Control.Monad (fail)
 import Crypto.Number.Serialize (os2ip)
 
 import qualified Language.FCL.Encoding as Encoding
 import qualified Language.FCL.Hash as Hash
-
-import Datetime.Types
 
 import Data.Serialize as S (Serialize, encode, decode, put, get)
 import Data.Aeson as A hiding (Value(..), encode, decode)

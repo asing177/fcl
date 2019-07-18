@@ -18,6 +18,8 @@ import Data.Aeson (ToJSON(..), FromJSON(..))
 import Data.Serialize as S (Serialize(..))
 import Data.Binary (Binary(..))
 
+import Language.FCL.Orphans ()
+
 -- | Type level tags of address type.
 data AddrType
   = AAccount
@@ -29,15 +31,6 @@ data AddrType
 newtype Address (t :: AddrType)
   = Address ByteString
   deriving (Eq, Ord, Show, Generic, Hash.Hashable, Binary, Serialize, FromJSON, ToJSON)
-
--- XXX: These are kind of unsafe.
-instance ToJSON ByteString where
-  toJSON = toJSON . decodeUtf8
-
-instance FromJSON ByteString where
-  parseJSON v = do
-    t :: Text <- parseJSON v
-    pure $ encodeUtf8 t
 
 instance Pretty (Address 'AAccount) where
   ppr (Address bs) = ppr bs
