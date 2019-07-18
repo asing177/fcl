@@ -152,6 +152,7 @@ library:
     - Language.FCL.Reachability.Definitions
     - Language.FCL.Reachability.FreeChoice
     - Language.FCL.Reachability.General
+    - Language.FCL.Reachability.Utils
     - Language.FCL.Analysis
     - Language.FCL.Graphviz
     - Language.FCL.Hash
