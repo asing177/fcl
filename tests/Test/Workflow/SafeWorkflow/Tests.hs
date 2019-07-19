@@ -3,23 +3,31 @@ module Test.Workflow.SafeWorkflow.Tests
   , isSafeWorkflowSound_General
   , basicNetTests
   , exampleNetTests
+  , witnessNetTests
   , bothYieldSameDecision
   , bothYieldSameDecisionFC
   , isReallyFreeChoice
+  , fcGraphIsSmaller_SW
+  , fcGraphIsSmaller_ESW
+
+  -- TODO: remove these
+  , checkWithBoth
   ) where
 
 import Protolude
 
 import qualified Data.Set as S
+import qualified Data.Map as M
 
 import Test.Tasty
 import Test.Tasty.HUnit
 
-import Language.FCL.AST (Transition)
-import Language.FCL.Pretty (Pretty(..), vsep)
+import Language.FCL.AST (Transition, startState)
+import Language.FCL.Pretty (Pretty(..), (<$$>), vsep, linebreak)
 import Language.FCL.Reachability.General (completeReachabilityGraph)
 import Language.FCL.Reachability.FreeChoice (reachabilityGraph, freeChoicePropertyViolations)
 import Language.FCL.Reachability.Definitions (WFError(..), ReachabilityGraph)
+import Language.FCL.Reachability.Utils (gatherReachableStatesFrom)
 
 import Test.Workflow.SafeWorkflow
 import Test.Workflow.SafeWorkflow.Extended
@@ -49,13 +57,23 @@ soundnessCheckWith constructGraph
 mkFCSoundnessTest :: SafeWorkflow -> [Char] -> TestTree
 mkFCSoundnessTest swf name = testCase name $ do
   let errs = soundnessCheckWith reachabilityGraph swf
-  assertBool (show . vsep . map ppr $ errs) (null errs)
+  assertBool (show . ppr $ errs) (null errs)
+
+mkCrossValidationTest :: ExtendedFCSW -> [Char] -> TestTree
+mkCrossValidationTest esw name = testCase name $ do
+  let (fcErrs, genErrs) = checkWithBoth (fcGetESW esw)
+      fcDecision  = null fcErrs
+      genDecision = null genErrs
+  assertBool (show $ ppr fcErrs <$$> linebreak <> ppr genErrs) (fcDecision == genDecision)
 
 basicNetTests :: [TestTree]
 basicNetTests = map (uncurry mkFCSoundnessTest) namedBasicNets
 
 exampleNetTests :: [TestTree]
 exampleNetTests = map (uncurry mkFCSoundnessTest) namedExampleNets
+
+witnessNetTests :: [TestTree]
+witnessNetTests = map (uncurry mkCrossValidationTest) namedWitnessNets
 
 -----------------------------
 -- Extended safe workflows --
@@ -105,3 +123,16 @@ isReallyFreeChoice = null
                    . S.fromList
                    . extendedWorkflowTransitions
                    . fcGetESW
+
+------------
+
+countStates :: (a, ReachabilityGraph) -> Int
+countStates = length . gatherReachableStatesFrom startState . snd
+
+fcGraphIsSmaller_SW :: SafeWorkflow -> Bool
+fcGraphIsSmaller_SW sw = (countStates . reachabilityGraph $ trs) <= (countStates . completeReachabilityGraph $ trs) where
+  trs = S.fromList $ constructTransitions sw
+
+fcGraphIsSmaller_ESW :: ExtendedFCSW -> Bool
+fcGraphIsSmaller_ESW esw = (countStates . reachabilityGraph $ trs) <= (countStates . completeReachabilityGraph $ trs) where
+  trs = S.fromList $ extendedWorkflowTransitions $ fcGetESW esw

@@ -52,9 +52,13 @@ isNonEmpty :: Foldable f => f a -> Bool
 isNonEmpty = not . null
 
 -- | Checks whether a given list contains a single element.
-isSingleton :: [a] -> Bool
-isSingleton [x] = True
-isSingleton _   = False
+isSingletonList :: [a] -> Bool
+isSingletonList [x] = True
+isSingletonList _   = False
+
+-- | Checks whether a given data structure contains a single element.
+isSingleton :: Foldable t => t a -> Bool
+isSingleton = isSingletonList . toList
 
 yell :: WFError -> GraphBuilderM s ()
 yell err = tell (S.singleton err, mempty)

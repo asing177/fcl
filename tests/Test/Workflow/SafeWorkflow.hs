@@ -159,9 +159,9 @@ instance Arbitrary SafeWorkflow where
     someSWFNets :: Int -> QC.Gen (NonEmpty SafeWorkflow)
     someSWFNets n = do
       k <- frequency [ (60, pure 2)
-                     , (25, pure 3)
-                     , (10, pure 4)
-                     , (5,  pure 5)
+                     , (40, pure 3)
+                    --  , (10, pure 4)
+                    --  , (5,  pure 5)
                      ]
       xs <- replicateM k (genSWFNet (n `div` k))
       pure $ NE.fromList xs

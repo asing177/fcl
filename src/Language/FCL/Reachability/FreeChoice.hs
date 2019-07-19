@@ -1,5 +1,7 @@
 {-# LANGUAGE ViewPatterns #-}
 
+-- TODO: keep AND-local visits, but then delete them through XOR visits
+
 module Language.FCL.Reachability.FreeChoice
   ( module Language.FCL.Reachability.Definitions
   , checkTransitions
@@ -18,10 +20,38 @@ import qualified Data.Map.Strict as M
 import qualified Data.Set as S
 import qualified Data.Sequence as Sq
 
-import Language.FCL.AST (unsafeWorkflowState, Place(..), Transition(..), WorkflowState, endState, places, startState)
+import Language.FCL.AST (Name(..), Place(..), Transition(..), WorkflowState, endState, places, startState, unsafeWorkflowState, makeWorkflowState)
 import Language.FCL.Reachability.Definitions
 import Language.FCL.Reachability.Utils
 
+-- TODO: remove these
+import Language.FCL.Debug
+import Language.FCL.Pretty
+
+data MarkedWorkflowState
+  = FreshlyVisited  { getWorkflowState :: WorkflowState }
+  | LocallyVisited  { getWorkflowState :: WorkflowState }
+  | GloballyVisited { getWorkflowState :: WorkflowState }
+  deriving (Eq, Ord, Show)
+
+instance Pretty MarkedWorkflowState where
+  ppr (FreshlyVisited wfSt)  = "F" <+> (ppr $ Debug wfSt)
+  ppr (LocallyVisited wfSt)  = "L" <+> (ppr $ Debug wfSt)
+  ppr (GloballyVisited wfSt) = "G" <+> (ppr $ Debug wfSt)
+
+isLocallyVisited :: MarkedWorkflowState -> Bool
+isLocallyVisited LocallyVisited{..} = True
+isLocallyVisited _ = False
+
+isFreshlyVisited :: MarkedWorkflowState -> Bool
+isFreshlyVisited FreshlyVisited{..} = True
+isFreshlyVisited _ = False
+
+data XORBranchResult
+  = CanContinue [WorkflowState] -- not simple path
+  | AlreadyFinished [WorkflowState]  -- simple path
+  | LoopsLocally WorkflowState WorkflowState -- null mergedResult
+  deriving (Eq, Ord, Show)
 
 -- | Locally visited nodes inside an AND branch.
 data ANDSplitContext =
@@ -186,9 +216,14 @@ coreachabilityGraph rGraph = go endState mempty
 -- (XOR splits can introduce non-determinism). In order to reduce the
 -- the number of possible states, AND-splits are treated as a "direct" transition
 -- from the input state to the merged result of the individual branch states.
-buildGraph :: WorkflowState -> FreeChoiceGBM [WorkflowState]
+buildGraph :: WorkflowState -> FreeChoiceGBM [MarkedWorkflowState]
 buildGraph curr = do
   unvisited <- unvisitedM curr
+
+  let pprD = ppr . Debug
+      doNothing :: Text -> FreeChoiceGBM ()
+      doNothing x = pure ()
+  doNothing $ show $ "Current: " <> pprD curr
 
   if unvisited then do
     outgoing <- ask
@@ -202,6 +237,11 @@ buildGraph curr = do
       . places                           -- Get the places in the current state
       ) curr
 
+    doNothing $ show $ indent 2 $ vsep
+      [ "xors:" <+> bracketList (map pprD xorSplitStates)
+      ]
+    doNothing ""
+
     modifyGraph $ M.insert curr (S.fromList xorSplitStates) -- direct connections
 
     -- NOTE: states visited before the XOR split
@@ -213,6 +253,14 @@ buildGraph curr = do
       -}
       visitedStatesAfterXOR <- gets (M.keysSet . bsReachabilityGraph)
       let visitedByOtherXORBranches = S.difference visitedStatesAfterXOR visitedStatesBeforeXOR
+
+      doNothing $ show $ "Exploring at:" <+> pprD lclSt
+      doNothing $ show $ indent 2 $ vsep
+        [ "before-xors:" <+> (bracketList $ map pprD $ S.toList visitedStatesBeforeXOR)
+        , "after-xors:" <+> (bracketList $ map pprD $ S.toList visitedStatesAfterXOR)
+        , "other-xors:" <+> (bracketList $ map pprD $ S.toList visitedByOtherXORBranches)
+        ]
+      doNothing ""
 
       let andSplitLocalStates = splitState lclSt
       {- NOTE: keep locally visited when following a straight path,
@@ -227,22 +275,38 @@ buildGraph curr = do
       -- Each element is a seperate AND branch result.
       -- Inner lists represent possible XOR splits inside a branch.
       -- Here, the results are stored as DIFFERENT workflow states.
-      (individualResults :: [[WorkflowState]]) <- mapM buildBranch andSplitLocalStates
+      (individualResults :: [[MarkedWorkflowState]]) <- mapM buildBranch andSplitLocalStates
+
+      -- A workflow state that has already been locally visited,
+      -- and does not progress into another XOR branch.
+      -- Basically a local loop.
+      let nonProgressingLocal (LocallyVisited wfSt) = wfSt `notElem` visitedStatesAfterXOR
+          nonProgressingLocal _ = False
+
+          nonProgressingIndividualResults = map getWorkflowState
+                                          . filter (not . nonProgressingLocal)
+                                          <$> individualResults
+
+          nonLocalIndividualResults = map getWorkflowState
+                                    . filter (not . isLocallyVisited)
+                                    <$> individualResults
       {- NOTE: AND branches that loop back a locally visited state
         return an empty list (and only these). These branches will never
         get joined together with the other branches, or they loop back to
         the splitting point. In both cases, they result in an error.
       -}
+      -- TODO: could do a similar thing for globally visited nodes? (they are probably problematic)
+      -- TODO: why not simplePath?
       when (not isSimplePath) $ do
         let branches = zip individualResults andSplitLocalStates
-            loops    = filter (null . fst) branches
+            loops    = filter (all isLocallyVisited . fst) branches
         forM_ loops $ \(_, splitHead) -> do
           yell (LoopingANDBranch lclSt splitHead)
 
       -- Here the different wf states of the AND branches get merged.
       -- Even if there were no XOR branches inside the AND branches,
       -- the different wf states get merged into a single one.
-      (mergedResult :: [WorkflowState]) <- foldlM (cartesianWithM checkedWfUnionM) [mempty] individualResults
+      (mergedResult :: [WorkflowState]) <- foldlM (cartesianWithM checkedWfUnionM) [mempty] nonLocalIndividualResults
 
       -- NOTE: Only keep those states that hasn't been visited already.
       let mergedResult' = filter (`S.notMember` visitedByOtherXORBranches) mergedResult
@@ -253,48 +317,83 @@ buildGraph curr = do
           -}
           hasOnlySingletonBranches = mergedResult' == [lclSt]
 
+      (mergedResult'' :: [WorkflowState]) <- foldlM (cartesianWithM checkedWfUnionM) [mempty] (map getWorkflowState <$> individualResults)
+      let mergedResult''' = filter (`S.notMember` visitedByOtherXORBranches) mergedResult''
+
+      doNothing $ show $ "Merging at:" <+> pprD lclSt
+      doNothing $ show $ indent 2 $ vsep
+        [ "indiviuals:" <+> bracketList (map bracketList individualResults)
+        , "non-locals:" <+> (bracketList $ map (bracketList . map pprD) nonLocalIndividualResults)
+        , "merged:" <+> (bracketList $ map pprD mergedResult)
+        , "merged':" <+> (bracketList $ map pprD mergedResult')
+        , "merged'':" <+> (bracketList $ map pprD mergedResult'')
+        , "merged''':" <+> (bracketList $ map pprD mergedResult''')
+        , "unvisited" <+> ppr unvisited
+        , "non-only-singleton:" <+> ppr (not hasOnlySingletonBranches)
+        ]
+      doNothing ""
+
+
       unvisited <- unvisitedM lclSt
       when (unvisited && not hasOnlySingletonBranches) $ do
-        modifyGraph $ M.insert lclSt (S.fromList mergedResult)
+        modifyGraph $ M.insert lclSt (S.fromList mergedResult''')
 
       {- NOTE: They are equal iff there is a single AND branch.
          If it was a simple path, we already visited all the nodes on it.
          However, it there was an AND split whose merge resulted in a new state,
          we must continue exploring from that new merged state.
       -}
-      let isNewMergedState = not isSimplePath
-      pure (mergedResult', isNewMergedState)
+      -- if any (all isLocallyVisited) individualResults then
+      --   pure $ LoopsLocally curr lclSt
+      -- else
 
+      if not isSimplePath then
+        pure $ CanContinue mergedResult'''
+      else
+        pure $ AlreadyFinished mergedResult'''
 
     let noApplicableTranstions = null xorSplitStates
     if noApplicableTranstions then do
     -- NOTE: the current branch got stuck
-      pure [curr]
+      pure [FreshlyVisited curr]
     else do
       -- NOTE: Only continue those XOR branches where the AND branches yielded a new merged state
-      let continueIfNew (rs,True)  = concatMapM buildGraph rs
-          continueIfNew (rs,False) = pure rs
+      let continueIfNew (CanContinue rs)       = concatMapM buildGraph rs
+          continueIfNew (AlreadyFinished rs)   = pure (map FreshlyVisited rs)
+          -- continueIfNew (LoopsLocally from br) = yell (LoopingANDBranch from br) >> pure []
       concatMapM continueIfNew xorSplitResult
 
   else do
     mContext <- getLocalContext
     case mContext of
-      Nothing -> pure [curr]
+      Nothing -> do
+        doNothing $ show $ indent 2 "no context"
+        doNothing ""
+        pure [FreshlyVisited curr]
       Just ANDSplitContext{..} ->
         if curr == ascSplittingPoint then do
           -- TODO: fix second argument
           yell $ LoopingANDBranch ascSplittingPoint ascSplittingPoint
-          pure []
+          doNothing $ show $ indent 2 "splitting point"
+          doNothing ""
+          pure [LocallyVisited curr]
+          -- pure []
         else if curr `S.member` ascLocallyVisited then do
           {- NOTE: Locally visited nodes add no new information to the context.
             This is when a node inside a branch refers back to another node inside the same branch.
           -}
-          pure []
+          doNothing $ show $ indent 2 "locally visited"
+          doNothing ""
+          pure [LocallyVisited curr]
+          -- pure []
         else do
           {- NOTE: Globally visited nodes can have impact on other exectuion paths.
             This is when a node inside a branch refers to another node outside of the current branch.
           -}
-          pure [curr]
+          doNothing $ show $ indent 2 "globally visited"
+          doNothing ""
+          pure [GloballyVisited curr]
+          -- pure [curr]
 
 -- | Checks whether a workflow state is globally unvisited.
 unvisitedM :: WorkflowState -> FreeChoiceGBM Bool
@@ -422,9 +521,8 @@ getLocalContext = do
 
 -- | Start analyzing and AND branch by creating a new local context for it.
 -- Add the splitting state to the previous context as well to the current one.
-startBuildingLocally :: WorkflowState -> WorkflowState -> FreeChoiceGBM [WorkflowState]
+startBuildingLocally :: WorkflowState -> WorkflowState -> FreeChoiceGBM [MarkedWorkflowState]
 startBuildingLocally prev wfSt = do
-  BuilderState rg lv <- get
   -- NOTE: have to add it to the previous context as well
   pushLocalState prev
   -- NOTE: adding it to the currect context
@@ -435,7 +533,7 @@ startBuildingLocally prev wfSt = do
 
 -- | Continue with the current local context.
 -- Add the previously visited state to the current local context.
-continueBuildingLocally :: WorkflowState -> WorkflowState -> FreeChoiceGBM [WorkflowState]
+continueBuildingLocally :: WorkflowState -> WorkflowState -> FreeChoiceGBM [MarkedWorkflowState]
 continueBuildingLocally prev wfSt = do
   pushLocalState prev
   buildGraph wfSt

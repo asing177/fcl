@@ -6,13 +6,18 @@ module Test.Workflow.SafeWorkflow.Examples
   , namedBasicNets
   , namedExampleNets
   , namedArbitraryNets
+  , namedWitnessNets
   ) where
 
 import Protolude
 
 import Data.List.NonEmpty (NonEmpty(..))
+import qualified Data.Set as S
+
+import Language.FCL.AST (Name(..), Place(..), WorkflowState(..), Transition(..))
 
 import Test.Workflow.SafeWorkflow
+import Test.Workflow.SafeWorkflow.Extended
 
 -------------------------------------------------
 -- Basic building blocks of safe workflow nets --
@@ -157,4 +162,13 @@ arbitraryNets =
   , Seq {seqLhs = GenLoop {gLoopIn = Nothing, gLoopExit = GenLoop {gLoopIn = Just (AND {andBranches = Atom :| [Atom]}), gLoopExit = Atom, gLoopOut = Seq {seqLhs = Atom, seqRhs = Atom}}, gLoopOut = XOR {xorLhs = GenXOR {gXorLhsIn = Atom, gXorLhsOut = Atom, gXorRhsIn = Atom, gXorRhsOut = Atom, gXorMToRhs = Just Atom, gXorMToLhs = Just Atom}, xorRhs = Atom}}, seqRhs = XOR {xorLhs = Atom, xorRhs = XOR {xorLhs = XOR {xorLhs = Atom, xorRhs = XOR {xorLhs = Atom, xorRhs = Atom}}, xorRhs = XOR {xorLhs = Atom, xorRhs = XOR {xorLhs = Atom, xorRhs = Atom}}}}}
   , XOR {xorLhs = GenLoop {gLoopIn = Nothing, gLoopExit = XOR {xorLhs = AND {andBranches = Seq {seqLhs = Atom, seqRhs = Atom} :| [Seq {seqLhs = Atom, seqRhs = Atom}]}, xorRhs = Seq {seqLhs = XOR {xorLhs = Atom, xorRhs = XOR {xorLhs = Atom, xorRhs = Atom}}, seqRhs = GenLoop {gLoopIn = Nothing, gLoopExit = Atom, gLoopOut = Atom}}}, gLoopOut = AND {andBranches = XOR {xorLhs = XOR {xorLhs = Atom, xorRhs = XOR {xorLhs = Atom, xorRhs = Atom}}, xorRhs = Atom} :| [Seq {seqLhs = XOR {xorLhs = Atom, xorRhs = XOR {xorLhs = Atom, xorRhs = Atom}}, seqRhs = AND {andBranches = Atom :| [Atom,Atom]}}]}}, xorRhs = XOR {xorLhs = Seq {seqLhs = Atom, seqRhs = AND {andBranches = Atom :| [Atom,Atom,Atom]}}, xorRhs = XOR {xorLhs = AND {andBranches = Atom :| [Atom,Atom,Atom,Atom]}, xorRhs = XOR {xorLhs = GenXOR {gXorLhsIn = Atom, gXorLhsOut = Atom, gXorRhsIn = Atom, gXorRhsOut = Atom, gXorMToRhs = Just Atom, gXorMToLhs = Just Atom}, xorRhs = GenLoop {gLoopIn = Just Atom, gLoopExit = Atom, gLoopOut = Atom}}}}}
   , AND {andBranches = AND {andBranches = XOR {xorLhs = AND {andBranches = Atom :| [Atom]}, xorRhs = Atom} :| [XOR {xorLhs = Seq {seqLhs = AND {andBranches = Atom :| [Atom]}, seqRhs = XOR {xorLhs = Atom, xorRhs = XOR {xorLhs = Atom, xorRhs = Atom}}}, xorRhs = Atom}]} :| [XOR {xorLhs = GenXOR {gXorLhsIn = Atom, gXorLhsOut = Atom, gXorRhsIn = Atom, gXorRhsOut = Atom, gXorMToRhs = Just Atom, gXorMToLhs = Just Atom}, xorRhs = GenLoop {gLoopIn = Just (GenXOR {gXorLhsIn = Atom, gXorLhsOut = Atom, gXorRhsIn = Atom, gXorRhsOut = Atom, gXorMToRhs = Just Atom, gXorMToLhs = Nothing}), gLoopExit = XOR {xorLhs = Atom, xorRhs = XOR {xorLhs = Atom, xorRhs = Atom}}, gLoopOut = XOR {xorLhs = Atom, xorRhs = XOR {xorLhs = Atom, xorRhs = Atom}}}}]}
+  ]
+
+namedWitnessNets :: [(ExtendedFCSW, [Char])]
+namedWitnessNets = zip witnessNets [ "witness0"
+                                   ]
+
+witnessNets :: [ExtendedFCSW]
+witnessNets =
+  [ EFCSW {fcGetESW = ExtendedSW {eswSafeWorkflow = AND {andBranches = Atom :| [Atom]}, eswExtraPlaces = S.fromList [Place {placeName = Name {unName = "dh"}},Place {placeName = Name {unName = "sc"}}], eswExtraStates = S.fromList [WorkflowState {places = S.fromList [Place {placeName = Name {unName = "3"}},Place {placeName = Name {unName = "sc"}},PlaceEnd]},WorkflowState {places = S.fromList [Place {placeName = Name {unName = "dh"}},Place {placeName = Name {unName = "sc"}}]},WorkflowState {places = S.fromList [Place {placeName = Name {unName = "sc"}}]}], eswExtraTransitions = S.fromList [Arrow (WorkflowState {places = S.fromList [Place {placeName = Name {unName = "3"}}]}) (WorkflowState {places = S.fromList [Place {placeName = Name {unName = "sc"}}]}),Arrow (WorkflowState {places = S.fromList [Place {placeName = Name {unName = "sc"}}]}) (WorkflowState {places = S.fromList [Place {placeName = Name {unName = "sc"}}]})]}}
   ]

@@ -239,11 +239,11 @@ instance Arbitrary ExtendedFCSW where
         -- | Generate a new transition.
         genNewTransition :: Set Transition -> Gen (Set Transition)
         genNewTransition acc = do
-          mTr <- arbFreeChoiceTransition acc (S.fromList allStates)
+          mTr <- arbFreeChoiceTransition (acc <> (S.fromList origTrans)) (S.fromList allStates)
           pure . S.union acc . S.fromList . maybeToList $ mTr
 
         someFCTransitions :: Int -> Gen (Set Transition)
-        someFCTransitions n = foldM (\acc _ -> genNewTransition acc) (S.fromList origTrans) [1..n]
+        someFCTransitions n = foldM (\acc _ -> genNewTransition acc) mempty [1..n]
 
         newTransDist :: Distribution
         newTransDist = map (fmap (+1)) baseDistribution
