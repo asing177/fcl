@@ -34,6 +34,7 @@ module Language.FCL.Typecheck (
   emptyInferState,
   tcPreconditions,
   runSolverM,
+  createADTInfo,
 
   -- ** Pretty Printing
   ppSig,
