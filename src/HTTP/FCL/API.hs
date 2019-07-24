@@ -44,8 +44,6 @@ type App = AppT IO
 
 type FCLAPI = ScriptsAPI :<|> MethodsAPI :<|> DefsAPI
 
-type SwaggerAPI = "swagger.json" :> Get '[JSON] Swagger
-
 type API = SwaggerSchemaUI "swagger-ui" "swagger.json" :<|> FCLAPI
 
 data RPCResponseError

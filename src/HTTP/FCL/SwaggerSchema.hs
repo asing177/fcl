@@ -23,6 +23,7 @@ import Language.FCL.Typecheck as Typecheck
 import Language.FCL.Compile as Compile
 import Language.FCL.Warning as Warning
 import Language.FCL.Effect as Effect
+import Language.FCL.Encoding as Encoding
 import Language.FCL.Analysis as Analysis
 import Language.FCL.Undefinedness as Undefinedness
 import Language.FCL.ReachabilityGraph as Reachability
@@ -236,3 +237,21 @@ instance ToSchema Sig
 instance ToSchema Effects
 instance ToSchema Effect
 instance ToSchema Warning
+
+instance ToSchema Encoding.Base16ByteString where
+  declareNamedSchema _ = do
+    pure $ NamedSchema (Just "Base16ByteString")
+      $ mempty { _schemaParamSchema = mempty { _paramSchemaType = SwaggerString } }
+
+instance ToSchema Encoding.Base64ByteString where
+  declareNamedSchema _ = do
+    pure $ NamedSchema (Just "Base64ByteString")
+      $ mempty { _schemaParamSchema = mempty { _paramSchemaType = SwaggerString } }
+instance ToSchema Encoding.Base64PByteString where
+  declareNamedSchema _ = do
+    pure $ NamedSchema (Just "Base64PByteString")
+      $ mempty { _schemaParamSchema = mempty { _paramSchemaType = SwaggerString } }
+instance ToSchema Encoding.Base58ByteString where
+  declareNamedSchema _ = do
+    pure $ NamedSchema (Just "Base58ByteString")
+      $ mempty { _schemaParamSchema = mempty { _paramSchemaType = SwaggerString } }
