@@ -109,6 +109,9 @@ callableMethods' wfs s =
 -- | Allowed callers of a method
 data PermittedCallers = Anyone | Restricted (Set (Address AAccount))
 
+instance ToJSON PermittedCallers where
+  toJSON = callersJSON
+
 -- | Create a JSON value returning the sorted list of addresses by hash. This is
 -- done instead of using the ToJSON instance for Address such that integration
 -- tests can pass; They expect an ordered list of addresses.
@@ -119,7 +122,6 @@ callersJSON callers =
       Anyone -> []
       Restricted rs -> sortCallers rs
   where
-    -- addrHash = decodeUtf8 . Hash.getRawHash . unAddress
     sortCallers = sort . toList
 
 -- | Datatype used by Eval.hs to report callable methods after evaluating the
