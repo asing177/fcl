@@ -3,7 +3,7 @@ module Main where
 import qualified Data.Aeson.Encode.Pretty as A
 import Options.Applicative
 import Protolude
-import qualified Language.FCL.Reachability.FreeChoice as FC (reachabilityGraph, pprReachabilityGraph)
+import qualified Language.FCL.Reachability.General as FC (completeReachabilityGraph, pprReachabilityGraph)
 import qualified Language.FCL.Analysis as Analysis (inferTransitions)
 import qualified Language.FCL.Compile as Compile
 import qualified Language.FCL.Graphviz as Graphviz
@@ -147,7 +147,7 @@ driverScript cmd
     ReachabilityGraph scriptFile -> do
       ast <- Parser.parseFile scriptFile
       let transitions = S.fromList $ Analysis.inferTransitions ast
-          (errSet, rGraph) = FC.reachabilityGraph transitions
+          (errSet, rGraph) = FC.completeReachabilityGraph transitions
           errs = S.toList errSet
       putText "Reachability graph of the workflow net:"
       putText ""

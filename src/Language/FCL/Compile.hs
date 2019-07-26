@@ -72,7 +72,7 @@ import qualified Language.FCL.Parser as Parser
 import qualified Language.FCL.Duplicate as Dupl
 import qualified Language.FCL.Effect as Effect
 import qualified Language.FCL.Typecheck as Typecheck
-import qualified Language.FCL.Reachability.FreeChoice as Reachability
+import qualified Language.FCL.Reachability.General as Reachability
 import qualified Language.FCL.Undefinedness as Undef
 import Language.FCL.Warning (Warning(..))
 import Language.FCL.Utils ((?))
@@ -188,7 +188,7 @@ compileScriptPrettyErr = ppCompilationErr . compileScript
 
 -- | Given a list of transitions, return any workflow errors
 transitionSoundness :: [Transition] -> [Reachability.WFError]
-transitionSoundness = Set.toList . fst . Reachability.reachabilityGraph . Set.fromList
+transitionSoundness = Set.toList . fst . Reachability.completeReachabilityGraph . Set.fromList
 
 -- | Given a file path, make sure the script parses, returning any parser errors
 lintFile :: FilePath -> IO [Parser.ParseErrInfo]
