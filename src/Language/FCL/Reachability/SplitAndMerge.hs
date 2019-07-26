@@ -14,7 +14,6 @@ module Language.FCL.Reachability.SplitAndMerge
 import Protolude
 
 import Control.Monad.RWS.Strict
-import qualified Control.Monad.Trans.Reader
 
 import Data.Set (Set)
 import Data.Sequence (Seq(..))
@@ -25,7 +24,7 @@ import qualified Data.Set as S
 import qualified Data.Sequence as Sq
 import qualified Data.List.NonEmpty as NE
 
-import Language.FCL.AST (Name(..), Place(..), Transition(..), WorkflowState, endState, places, startState, unsafeWorkflowState, makeWorkflowState, isSubWorkflow, wfUnion, (\\))
+import Language.FCL.AST (Place(..), Transition(..), WorkflowState, endState, places, startState, unsafeWorkflowState, isSubWorkflow, wfUnion, (\\))
 import Language.FCL.Reachability.Definitions
 import Language.FCL.Reachability.Utils
 import Language.FCL.Reachability.StructuredTransition

@@ -1,7 +1,27 @@
 {-# LANGUAGE GADTSyntax #-}
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE ViewPatterns #-}
-module Language.FCL.Reachability.StructuredTransition where
+module Language.FCL.Reachability.StructuredTransition
+  ( SimpleTransition(NoSplit)
+  , StructuredTransition(Single)
+  , pattern XORTransitions
+  , pattern ANDSplit
+
+  , mkSimpleTransition
+  , unstructureSimpleTransition
+  , mkStructuredTransition
+  , unstructureTransition
+
+  , inputState
+  , outputStates
+
+  , TransitionsGroup
+  , structureSimply
+  , unstructureSimply
+  , structureTransitions
+  , unstructureTransitions
+
+  ) where
 
 import Protolude hiding (Complex, toList)
 
@@ -9,7 +29,7 @@ import qualified Data.Set as S
 
 import Language.FCL.AST
 import Language.FCL.Debug (Debug(..))
-import Language.FCL.Pretty (bracketList, ppr)
+import Language.FCL.Pretty (ppr)
 
 -- TODO: should this be here?
 data List2 a where
@@ -80,9 +100,6 @@ mkStructuredTransition :: TransitionsGroup -> StructuredTransition
 mkStructuredTransition [] = panic "mkStructuredTransition: can't construct structured transition from an empty list of transitions"
 mkStructuredTransition [tr] = Single $ mkSimpleTransition tr
 mkStructuredTransition trs@(Arrow lhs _ : _) = XORSplit $ fromList $ map mkSimpleTransition trs
-mkStructuredTransition trs = panic $
-  "mkStructuredTransition: can't can't construct structured transition from '" <>
-  show (bracketList (map Debug trs)) <> "'"
 
 structureTransitions :: [Transition] -> [StructuredTransition]
 structureTransitions = map mkStructuredTransition . groupByInputs
