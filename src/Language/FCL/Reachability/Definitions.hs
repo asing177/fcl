@@ -29,6 +29,7 @@ data WFError
   | NotOneBoundedMerge WorkflowState WorkflowState (Set Place)
   | ImproperCompletionMerge WorkflowState WorkflowState
   | LoopingANDBranch WorkflowState WorkflowState
+  | ANDBranchGlobalExit WorkflowState
   deriving (Eq, Ord, Show, Generic, NFData)
 
 instance ToJSON WFError where
@@ -37,6 +38,7 @@ instance ToJSON WFError where
 instance FromJSON WFError where
   parseJSON = genericParseJSON (defaultOptions { sumEncoding = ObjectWithSingleField })
 
+-- TODO: separate general errors from split-and-merge errors
 instance Pretty WFError where
   ppr = \case
       NotOneBounded curr t badGuys
@@ -71,6 +73,9 @@ instance Pretty WFError where
       LoopingANDBranch splittingPoint splitHead ->
         "Erroneous looping AND branch." <+> "When AND-splitting from" <+> qp splittingPoint <> comma </+>
         "the result branch of" <+> qp splitHead <+> "loops indefinetely locally, or loops back to the splitting point."
+      ANDBranchGlobalExit wfSt ->
+        "An AND-branch can incorrectly loop back to the state " <+> qp wfSt <+> "." </+>
+        "This kind of transition is not allowed during split-and-merge analysis."
 
     where
       qp :: Pretty (Debug a) => a -> Doc
