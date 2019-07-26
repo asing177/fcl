@@ -137,7 +137,7 @@ mArbNewState :: Set Place -> Set WorkflowState -> Gen (Maybe WorkflowState)
 mArbNewState (S.toList -> allPlaces) (S.toList -> origStates) = do
   let origStatePlaces = map places origStates
   mNewPlaceSet <- sublistOf allPlaces `suchThatMaybe` \ps ->
-    length ps <= 3 && (S.fromList ps) `notElem` origStatePlaces
+    not (null ps) && length ps <= 3 && (S.fromList ps) `notElem` origStatePlaces
   pure $ (unsafeWorkflowState . S.fromList) <$> mNewPlaceSet
 
 isSingleton :: [a] -> Bool
