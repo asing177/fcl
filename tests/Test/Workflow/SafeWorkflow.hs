@@ -1,6 +1,7 @@
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE BangPatterns #-}
 module Test.Workflow.SafeWorkflow
   ( SafeWorkflow(..)
   , pattern XOR3
@@ -36,8 +37,9 @@ import Language.FCL.Orphans()
 -- | Workflow nets that are sound by construction. We only allow these _safe_ workflow nets
 -- to be constructed in very specific ways in order to make soundness verification automatic.
 data SafeWorkflow
+  -- TODO: should be List2 instead
   -- | AND splitting into multiple workflows.
-  = AND { andBranches :: NonEmpty SafeWorkflow    -- ^ At least one branch
+  = AND { andBranches :: NonEmpty SafeWorkflow    -- ^ At least one branc
         }
   -- | XOR splitting into two workflows.
   | XOR { xorLhs :: SafeWorkflow                  -- ^ Left XOR branch
@@ -136,38 +138,112 @@ instance Arbitrary SafeWorkflow where
   arbitrary = sized genSWFNet where
     -- | Sized `SafeWorkflow generation
     genSWFNet :: Int -> QC.Gen SafeWorkflow
-    genSWFNet 0 = pure Atom
-    genSWFNet n | n > 0 = oneof
-      [ AND <$> someSWFNets n
-      , XOR <$> genSWFNet (n `div` 2) <*> genSWFNet (n `div` 2)
-      , XOR3 <$> genSWFNet (n `div` 3) <*> genSWFNet (n `div` 3) <*> genSWFNet (n `div` 3)
-      , Seq <$> genSWFNet (n `div` 2) <*> genSWFNet (n `div` 2)
-      , SimpleLoop <$> genSWFNet (n `div` 2) <*> genSWFNet (n `div` 2)
-      , Loop <$> genSWFNet (n `div` 3) <*> genSWFNet (n `div` 3) <*> genSWFNet (n `div` 3)
-      -- crops size 3/4 of the time
-      , GenXOR <$> genSWFNet (n `div` 6)
-               <*> genSWFNet (n `div` 6)
-               <*> genSWFNet (n `div` 6)
-               <*> genSWFNet (n `div` 6)
-               <*> mGenSWFNet (n `div` 6)
-               <*> mGenSWFNet (n `div` 6)
-      , pure Atom
-      ]
+    genSWFNet n |          n <= 1 = atom
+    genSWFNet n | 1 < n && n <= 2 = complexity 2
+    genSWFNet n | 2 < n && n <= 3 = complexity 3
+    genSWFNet n | 3 < n && n <= 4 = complexity 4
+    genSWFNet n | 4 < n && n <= 5 = complexity 5
+    genSWFNet n | 5 < n           = oneof (allComplexities n)
     genSWFNet n = panic $ "Negative value for SafeWorkflow generation: " <> show n
 
+    partitionThen :: Int -> Int -> ([Int] -> QC.Gen a) -> QC.Gen a
+    partitionThen n k g = do
+      let partitions = filter ((==k) . length) $ partitionInt n
+      case partitions of
+        [] -> panic $ "Couldn't partition " <> show n <> " into 2 integers"
+        _  -> do
+          aPartition <- elements partitions
+          g aPartition
+
+    complexity :: Int -> QC.Gen SafeWorkflow
+    complexity n = oneof $ take n (allComplexities n)
+
+    allComplexities :: Int -> [QC.Gen SafeWorkflow]
+    allComplexities n = [ atom, complexity2 n, complexity3 n, complexity4 n, complexity5 n, complexity6 n ]
+
+    atom :: QC.Gen SafeWorkflow
+    atom = pure Atom
+
+    complexity2 :: Int -> QC.Gen SafeWorkflow
+    complexity2 n = partitionThen n 2 $ \partition -> do
+      case partition of
+        [k1,k2] -> oneof
+          [ XOR <$> genSWFNet k1 <*> genSWFNet k2
+          , Seq <$> genSWFNet k1 <*> genSWFNet k2
+          , SimpleLoop <$> genSWFNet k1 <*> genSWFNet k2
+          ]
+        _ -> panic $ show n <> " was not partitioned into 2 components"
+
+    complexity3 :: Int -> QC.Gen SafeWorkflow
+    complexity3 n = partitionThen n 3 $ \partition -> do
+      case partition of
+        [k1,k2,k3] -> oneof
+          [ Loop <$> genSWFNet k1 <*> genSWFNet k2 <*> genSWFNet k3
+          , XOR3 <$> genSWFNet k1 <*> genSWFNet k2 <*> genSWFNet k3
+          ]
+        _ -> panic $ show n <> " was not partitioned into 3 components"
+
+    complexity4 :: Int -> QC.Gen SafeWorkflow
+    complexity4 n = partitionThen n 4 $ \partition -> do
+      case partition of
+        [k1,k2,k3,k4] -> oneof
+          [ AND <$> someSWFNets (n-2) 2
+          , GenXOR <$> genSWFNet k1
+                   <*> genSWFNet k2
+                   <*> genSWFNet k3
+                   <*> genSWFNet k4
+                   <*> pure Nothing
+                   <*> pure Nothing
+          ]
+        _ -> panic $ show n <> " was not partitioned into 4 components"
+
+    complexity5 :: Int -> QC.Gen SafeWorkflow
+    complexity5 n = partitionThen n 5 $ \partition -> do
+      case partition of
+        [k1,k2,k3,k4,k5] -> oneof
+          [ AND <$> someSWFNets (n-2) 3
+          , GenXOR <$> genSWFNet k1
+                   <*> genSWFNet k2
+                   <*> genSWFNet k3
+                   <*> genSWFNet k4
+                   <*> mGenSWFNet k5
+                   <*> pure Nothing
+          , GenXOR <$> genSWFNet k1
+                   <*> genSWFNet k2
+                   <*> genSWFNet k3
+                   <*> genSWFNet k4
+                   <*> pure Nothing
+                   <*> mGenSWFNet k5
+          ]
+        _ -> panic $ show n <> " was not partitioned into 5 components"
+
+    complexity6 :: Int -> QC.Gen SafeWorkflow
+    complexity6 n = partitionThen n 6 $ \partition -> do
+      case partition of
+        [k1,k2,k3,k4,k5,k6] -> oneof
+          [ GenXOR <$> genSWFNet k1
+                   <*> genSWFNet k2
+                   <*> genSWFNet k3
+                   <*> genSWFNet k4
+                   <*> mGenSWFNet k5
+                   <*> mGenSWFNet k6
+          ]
+        _ -> panic $ show n <> " was not partitioned into 5 components"
+
     -- | Generates `SafeWorkflow`s of summed size `n`.
-    someSWFNets :: Int -> QC.Gen (NonEmpty SafeWorkflow)
-    someSWFNets n = do
-      k <- frequency [ (60, pure 2)
-                     , (40, pure 3)
-                    --  , (10, pure 4)
-                    --  , (5,  pure 5)
-                     ]
-      xs <- replicateM k (genSWFNet (n `div` k))
-      pure $ NE.fromList xs
+    someSWFNets :: Int -> Int -> QC.Gen (NonEmpty SafeWorkflow)
+    someSWFNets n k =
+      partitionThen n k $ \ps -> do
+        xs <- mapM genSWFNet ps
+        pure $ NE.fromList xs
 
     -- | Sized `Maybe SafeWorkflow` generation
     mGenSWFNet :: Int -> QC.Gen (Maybe SafeWorkflow)
     mGenSWFNet n = resize n (arbitrary @(Maybe SafeWorkflow))
 
-  shrink = genericShrink
+    partitionInt d = go d d where
+      go _  0  = [[]]
+      go !h !n = [ a:as | a<-[1..min n h], as <- go a (n-a) ]
+
+  shrink x@AND{..} = Atom : genericShrink x
+  shrink x = genericShrink x
