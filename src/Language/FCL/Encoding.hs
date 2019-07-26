@@ -6,6 +6,7 @@ Byte encoding schemes.
 
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE DeriveGeneric #-}
 
 module Language.FCL.Encoding (
   -- ** ByteStringEncoding
@@ -56,7 +57,7 @@ class (B.ByteArrayAccess a, S.Serialize a) => ByteStringEncoding a where
 -- > 123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz
 newtype Base58ByteString = Base58ByteString
   { unbase58 :: ByteString
-  } deriving (Show, B.ByteArrayAccess, S.Serialize, Eq, Ord, Semigroup, Monoid, Read, B.Binary, Pretty)
+  } deriving (Show, B.ByteArrayAccess, S.Serialize, Eq, Ord, Semigroup, Monoid, Read, B.Binary, Pretty, Generic)
 
 instance ByteStringEncoding Base58ByteString where
   encodeBase = Base58ByteString . B58.encodeBase58 B58.bitcoinAlphabet
@@ -94,7 +95,7 @@ instance FromJSONKey Base58ByteString where
 
 newtype Base16ByteString = Base16ByteString
   { unbase16 :: ByteString
-  } deriving (Show, B.ByteArrayAccess, S.Serialize, Eq, Ord, Semigroup, Monoid, Read, B.Binary)
+  } deriving (Show, B.ByteArrayAccess, S.Serialize, Eq, Ord, Semigroup, Monoid, Read, B.Binary, Generic)
 
 instance ByteStringEncoding Base16ByteString where
   encodeBase = Base16ByteString . B.convertToBase B.Base16
@@ -131,7 +132,7 @@ instance ToJSON Base16ByteString where
 
 newtype Base64ByteString = Base64ByteString
  { unbase64 :: ByteString
- } deriving (Show, B.ByteArrayAccess, S.Serialize, Eq, Ord, Semigroup, Monoid, Read, B.Binary)
+ } deriving (Show, B.ByteArrayAccess, S.Serialize, Eq, Ord, Semigroup, Monoid, Read, B.Binary, Generic)
 
 instance ByteStringEncoding Base64ByteString where
   encodeBase = Base64ByteString . B.convertToBase B.Base64URLUnpadded
@@ -170,7 +171,7 @@ instance ToJSON Base64ByteString where
 -- | Base 64 hash (padded)
 newtype Base64PByteString = Base64PByteString
   { unbase64P :: ByteString
-  } deriving (Show, B.ByteArrayAccess, S.Serialize, Eq, Ord, Semigroup, Monoid, Read, B.Binary)
+  } deriving (Show, B.ByteArrayAccess, S.Serialize, Eq, Ord, Semigroup, Monoid, Read, B.Binary, Generic)
 
 instance ByteStringEncoding Base64PByteString where
   encodeBase = Base64PByteString . B.convertToBase B.Base64

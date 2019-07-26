@@ -17,7 +17,7 @@ module Language.FCL.Contract (
 
   callableMethods,
   PermittedCallers(..),
-  CallableMethods,
+  CallableMethods(..),
   callableMethodsJSON,
   callableMethods',
 
@@ -126,12 +126,14 @@ callersJSON callers =
 
 -- | Datatype used by Eval.hs to report callable methods after evaluating the
 -- access restriction expressions associated with contract methods.
-type CallableMethods = Map.Map Name (PermittedCallers, [(Name, Type)])
+newtype CallableMethods = CallableMethods (Map.Map Name (PermittedCallers, [(Name, Type)]))
+instance ToJSON CallableMethods where
+  toJSON = callableMethodsJSON
 
 callableMethodsJSON :: CallableMethods -> A.Value
-callableMethodsJSON = toJSON
+callableMethodsJSON (CallableMethods m) = toJSON
                     . Map.mapKeys Pretty.prettyPrint
-                    . Map.map (bimap callersJSON (map (bimap Pretty.prettyPrint Pretty.prettyPrint)))
+                    . Map.map (bimap callersJSON (map (bimap Pretty.prettyPrint Pretty.prettyPrint))) $ m
 
 -------------------------------------------------------------------------------
 

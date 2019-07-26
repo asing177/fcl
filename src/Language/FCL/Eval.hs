@@ -1203,9 +1203,9 @@ checkPreconditions m = do
 
 evalCallableMethods :: (World world, Show (AccountError' world), Show (AssetError' world)) => Contract.Contract -> (EvalM world) Contract.CallableMethods
 evalCallableMethods contract =
-    foldM insertCallableMethod mempty (Contract.callableMethods contract)
+    foldM insertCallableMethod (Contract.CallableMethods mempty) (Contract.callableMethods contract)
   where
-    insertCallableMethod cms method = do
+    insertCallableMethod (Contract.CallableMethods cms) method = do
       PreconditionsV afterV beforeV roleV <- evalPreconditions method
       withinTime <-
         case (afterV, beforeV) of
@@ -1217,12 +1217,12 @@ evalCallableMethods contract =
                 isBefore = maybe True (\dt -> now < dt) beforeV
             pure (isAfter && isBefore)
       if not withinTime
-        then pure cms -- don't add to callable methods since not callable at this time
+        then pure $ Contract.CallableMethods cms -- don't add to callable methods since not callable at this time
         else do
           let group = case roleV of
                 Nothing -> Contract.Anyone
                 Just accounts -> Contract.Restricted accounts
-          pure $ Map.insert (locVal $ methodName method) (group, argtys method) cms
+          pure . Contract.CallableMethods $ Map.insert (locVal $ methodName method) (group, argtys method) cms
 
 -------------------------------------------------------------------------------
 -- Value Hashing
