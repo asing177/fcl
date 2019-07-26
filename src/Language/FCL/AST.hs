@@ -58,7 +58,6 @@ module Language.FCL.AST (
   Place(..),
   Transition(..),
   WorkflowState(..),
-  places,
   unsafeWorkflowState,
   makePlace,
   makeWorkflowState,
@@ -118,8 +117,6 @@ import qualified Language.FCL.Token as Token
 import qualified Language.FCL.Hash as Hash
 import qualified Data.Text as T
 import qualified Datetime.Types as DT
-import qualified Data.Hourglass as DH
-import qualified Data.Time.Calendar as DC
 
 import Data.Aeson as A hiding (Value)
 import qualified Data.Binary as B
@@ -129,10 +126,8 @@ import qualified Data.Set as Set
 import Data.String (IsString(..))
 import Data.Serialize (Serialize(..), putInt8, getInt8)
 import Data.Serialize.Text()
-import Data.Function (on)
 
 import Language.FCL.Address
-import Language.FCL.Utils (duplicates)
 import Language.FCL.Orphans ()
 
 -------------------------------------------------------------------------------
@@ -1069,27 +1064,6 @@ unsafeWorkflowState = WorkflowState
 -- Arbitrary --
 ---------------
 
-instance Arbitrary DT.Datetime where
-  arbitrary = DT.posixToDatetime <$> choose (1, 32503680000) -- (01/01/1970, 01/01/3000)
-
-instance Arbitrary DT.Period where
-  arbitrary = do
-    year <- choose (0,1000)
-    month <- choose (0,12)
-    let monthNumDays = DC.gregorianMonthLength (fromIntegral year) month
-    day <- choose (0, monthNumDays)
-    pure $ DT.Period $ DH.Period year month day
-
-instance Arbitrary DT.Duration where
-  arbitrary = fmap DT.Duration $ DH.Duration
-    <$> (fmap DH.Hours $ choose (0,23))
-    <*> (fmap DH.Minutes $ choose (0,59))
-    <*> (fmap DH.Seconds $ choose (0,59))
-    <*> pure 0
-
-instance Arbitrary DT.Delta where
-  arbitrary = DT.Delta <$> arbitrary <*> arbitrary
-
 arbValue :: Int -> Gen Value
 arbValue n
   | n <= 0
@@ -1155,9 +1129,6 @@ instance Arbitrary a => Arbitrary (Located a) where
 -- This is basically liftArbitrary from Arbitrary1
 addLoc :: Gen a -> Gen (Located a)
 addLoc g = Located <$> arbitrary <*> g
-
-instance Arbitrary BinOp where
-  arbitrary = arbitraryBoundedEnum
 
 instance Arbitrary UnOp where
   arbitrary = arbitraryBoundedEnum
@@ -1256,7 +1227,7 @@ arbNumLogicExpr n
             , LBool <$> arbitrary
             ]
   | otherwise = let n' = n `div` 2 in oneof
-      [ EBinOp <$> arbitrary
+      [ EBinOp <$> addLoc (elements (enumFromTo Add Greater)) -- exclude RecordAccess
                <*> addLoc (arbNumLogicExpr n')
                <*> addLoc (arbNumLogicExpr n')
       , EUnOp <$> arbitrary <*> addLoc (arbNumLogicExpr n')
@@ -1284,6 +1255,9 @@ arbNonSeqExpr n
                  <*> addLoc (arbNonSeqExpr n')
                  <*> arbLExpr n'
       , ECase <$> addLoc (arbNonSeqExpr n') <*> arbMatches n'
+      , EBinOp <$> addLoc (pure RecordAccess)
+               <*> addLoc (EVar <$> arbitrary)
+               <*> addLoc (EVar <$> arbitrary)
       , arbNumLogicExpr n
       ]
 

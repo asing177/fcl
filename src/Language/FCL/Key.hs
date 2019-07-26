@@ -162,7 +162,8 @@ import qualified Crypto.PubKey.ECC.Types as ECC
 import qualified Crypto.PubKey.ECC.ECDSA as ECDSA
 
 import Crypto.Number.ModArithmetic (inverse)
-import Math.NumberTheory.Moduli (sqrtModP)
+import Math.NumberTheory.Moduli.Sqrt (sqrtsModPrime)
+import Math.NumberTheory.UniqueFactorisation (isPrime)
 
 import Crypto.Cipher.AES (AES256)
 import Crypto.Cipher.TripleDES (DES_EDE3)
@@ -893,7 +894,7 @@ recover_ sig@(ECDSA.Signature r s) msg =
   let hash = os2ip (Hash.sha256Raw msg)
       [x0] = fmap (\x -> mod x p) $ takeWhile (<p) [(r + i*n) | i <- [0..h]]
       Just invr = inverse r n
-      Just y0 = sqrtModP (x0^3 + a*x0 + b) p
+      Just (y0:_) = sqrtsModPrime (x0^3 + a*x0 + b) <$> isPrime p
       p0 = ECC.Point x0 y0
       q0 = ECC.pointAddTwoMuls sec_p256k1 (invr * s) p0
                                           (invr * (-hash)) g

@@ -17,7 +17,7 @@ module Language.FCL.Contract (
 
   callableMethods,
   PermittedCallers(..),
-  CallableMethods,
+  CallableMethods(..),
   callableMethodsJSON,
   callableMethods',
 
@@ -109,6 +109,9 @@ callableMethods' wfs s =
 -- | Allowed callers of a method
 data PermittedCallers = Anyone | Restricted (Set (Address AAccount))
 
+instance ToJSON PermittedCallers where
+  toJSON = callersJSON
+
 -- | Create a JSON value returning the sorted list of addresses by hash. This is
 -- done instead of using the ToJSON instance for Address such that integration
 -- tests can pass; They expect an ordered list of addresses.
@@ -119,17 +122,18 @@ callersJSON callers =
       Anyone -> []
       Restricted rs -> sortCallers rs
   where
-    -- addrHash = decodeUtf8 . Hash.getRawHash . unAddress
     sortCallers = sort . toList
 
 -- | Datatype used by Eval.hs to report callable methods after evaluating the
 -- access restriction expressions associated with contract methods.
-type CallableMethods = Map.Map Name (PermittedCallers, [(Name, Type)])
+newtype CallableMethods = CallableMethods (Map.Map Name (PermittedCallers, [(Name, Type)]))
+instance ToJSON CallableMethods where
+  toJSON = callableMethodsJSON
 
 callableMethodsJSON :: CallableMethods -> A.Value
-callableMethodsJSON = toJSON
+callableMethodsJSON (CallableMethods m) = toJSON
                     . Map.mapKeys Pretty.prettyPrint
-                    . Map.map (bimap callersJSON (map (bimap Pretty.prettyPrint Pretty.prettyPrint)))
+                    . Map.map (bimap callersJSON (map (bimap Pretty.prettyPrint Pretty.prettyPrint))) $ m
 
 -------------------------------------------------------------------------------
 
