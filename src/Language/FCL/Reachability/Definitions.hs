@@ -30,6 +30,7 @@ data WFError
   | ImproperCompletionMerge WorkflowState WorkflowState
   | LoopingANDBranch WorkflowState WorkflowState
   | ANDBranchGlobalExit WorkflowState
+  | DirectANDSplitBranch WorkflowState WorkflowState
   deriving (Eq, Ord, Show, Generic, NFData)
 
 instance ToJSON WFError where
@@ -75,6 +76,11 @@ instance Pretty WFError where
         "the result branch of" <+> qp splitHead <+> "loops indefinetely locally, or loops back to the splitting point."
       ANDBranchGlobalExit wfSt ->
         "An AND-branch can incorrectly loop back to the state " <+> qp wfSt <+> "." </+>
+        "This kind of transition is not allowed during split-and-merge analysis."
+      DirectANDSplitBranch splittingPoint splitHead ->
+        "When AND-splitting from the state " <+> qp splittingPoint <> comma </+>
+        "the branch of" <+> qp splitHead <+> "is a direct transition to a state" </+>
+        "where no further transitions can be applied." </+>
         "This kind of transition is not allowed during split-and-merge analysis."
 
     where

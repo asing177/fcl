@@ -1,6 +1,6 @@
 {-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE LambdaCase #-}
-
+{-# OPTIONS_GHC -Wwarn #-}
 -- TODO: investigate one-step AND global loops
 
 module Language.FCL.Reachability.SplitAndMerge
@@ -257,25 +257,34 @@ buildGraph curr = do
         -- singleton local states of each branch
         let localStates = map (unsafeWorkflowState . S.singleton) ps
 
-        allBranchesAreSingletons <- null <$> concatMapM applicableTransitions localStates
-        continuations <- if allBranchesAreSingletons then
-          buildGraph next
-        else do
-          -- NOTE: continue exploring the graph locally
-          setStatus next BeingExplored
-          (individualResults :: [[WorkflowState]]) <- forM localStates $ \lclSt -> do
+        -- NOTE: continue exploring the graph locally
+        setStatus next BeingExplored
+        (individualResults :: [[WorkflowState]]) <- forM localStates $ \lclSt -> do
+          beenThere <- not <$> unvisitedM lclSt
+          cantContinue <- null <$> applicableTransitions lclSt
+
+          -- NOTE: Jumps to states where we can't continue have to be handled separately
+          if cantContinue && beenThere then do
+            yell $ ANDBranchGlobalExit lclSt
+            pure []
+          else if cantContinue && not beenThere then do
+            setStatus lclSt CanProgress
+            yell $ DirectANDSplitBranch curr lclSt
+            pure []
+          else do
             pushNewLocalContext
-            addToLocalContext lclSt
+            -- addToLocalContext lclSt
             r <- buildGraph lclSt
             when (null r) $
               yell $ LoopingANDBranch input lclSt
             popLocalContext
             pure r
-          -- NOTE: during the merge, we need to track errors
-          (mergedResult :: [WorkflowState]) <- foldlM (cartesianWithM checkedWfUnionM) [leftover] individualResults
 
-          modifyGraph $ M.insertWith S.union next (S.fromList mergedResult)
-          concatMapM buildGraph mergedResult
+        -- NOTE: during the merge, we need to track errors
+        (mergedResult :: [WorkflowState]) <- foldlM (cartesianWithM checkedWfUnionM) [leftover] individualResults
+
+        modifyGraph $ M.insertWith S.union next (S.fromList mergedResult)
+        continuations <- concatMapM buildGraph mergedResult
 
         sm <- gets bsStatusMap
 
@@ -291,7 +300,7 @@ buildGraph curr = do
         maybeLog ""
 
         if BeingExplored `elem` statuses then
-          panic $ show $ "When exploring state '" <> pprD next <> "' the returned statuses of the XOR branches contained 'BeingExplored'"
+          panic $ show $ "buildGraph: When exploring state '" <> pprD next <> "' the returned statuses of the XOR branches contained 'BeingExplored'"
         else if CanProgress `elem` statuses then
           setStatus next CanProgress
         else
@@ -305,7 +314,7 @@ buildGraph curr = do
         statuses    = mapMaybe (`M.lookup` sm) xorResults'
 
     if BeingExplored `elem` statuses then
-      panic $ show $ "When exploring state '" <> pprD curr <> "' the returned statuses of the XOR branches contained 'BeingExplored'"
+      panic $ show $ "buildGraph: When exploring state '" <> pprD curr <> "' the returned statuses of the XOR branches contained 'BeingExplored'"
     else if CanProgress `elem` statuses then
       setStatus curr CanProgress
     else
@@ -328,13 +337,6 @@ buildGraph curr = do
   -- visited an already visited state
   else do
     sm <- gets bsStatusMap
-
-    maybeLog $ show $ "Current:" <+> pprD curr
-    maybeLog $ show $ indent 2 $ vsep
-      [ ppr (PP sm)
-      ]
-    maybeLog ""
-
     case M.lookup curr sm of
       Nothing -> panic $ show $
         "buildGraph: state '" <> pprD curr <>
