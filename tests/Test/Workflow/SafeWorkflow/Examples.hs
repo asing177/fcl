@@ -6,7 +6,8 @@ module Test.Workflow.SafeWorkflow.Examples
   , namedBasicNets
   , namedExampleNets
   , namedArbitraryNets
-  , namedWitnessNets
+  , namedCrossValidWitnessNets
+  , namedSoundButNotSafeWitnessNets
   ) where
 
 import Protolude
@@ -14,7 +15,7 @@ import Protolude
 import Data.List.NonEmpty (NonEmpty(..))
 import qualified Data.Set as S
 
-import Language.FCL.AST (Name(..), Place(..), WorkflowState(..), Transition(..))
+import Language.FCL.AST (Name(..), Place(..), WorkflowState(..), Transition(..), makeWorkflowState, startState, endState, wfUnion)
 
 import Test.Workflow.SafeWorkflow
 import Test.Workflow.SafeWorkflow.Extended
@@ -164,17 +165,93 @@ arbitraryNets =
   , AND {andBranches = AND {andBranches = XOR {xorLhs = AND {andBranches = Atom :| [Atom]}, xorRhs = Atom} :| [XOR {xorLhs = Seq {seqLhs = AND {andBranches = Atom :| [Atom]}, seqRhs = XOR {xorLhs = Atom, xorRhs = XOR {xorLhs = Atom, xorRhs = Atom}}}, xorRhs = Atom}]} :| [XOR {xorLhs = GenXOR {gXorLhsIn = Atom, gXorLhsOut = Atom, gXorRhsIn = Atom, gXorRhsOut = Atom, gXorMToRhs = Just Atom, gXorMToLhs = Just Atom}, xorRhs = GenLoop {gLoopIn = Just (GenXOR {gXorLhsIn = Atom, gXorLhsOut = Atom, gXorRhsIn = Atom, gXorRhsOut = Atom, gXorMToRhs = Just Atom, gXorMToLhs = Nothing}), gLoopExit = XOR {xorLhs = Atom, xorRhs = XOR {xorLhs = Atom, xorRhs = Atom}}, gLoopOut = XOR {xorLhs = Atom, xorRhs = XOR {xorLhs = Atom, xorRhs = Atom}}}}]}
   ]
 
-namedWitnessNets :: [(ExtendedFCSW, [Char])]
-namedWitnessNets = zip witnessNets [ "witness0"
-                                   , "AND-split: singleton branches"
-                                   , "AND-split: looping branches"
-                                   , "AND-split: some progressing branches"
-                                   ]
+namedCrossValidWitnessNets :: [(ExtendedFCSW, [Char])]
+namedCrossValidWitnessNets = zip crossValidWitnessNets
+  [ "witness0"
+  , "looping branches"
+  , "local jump back to dead-end state"
+  , "incorrect direct jump back to AND branch"
+  , "incorrect direct jump back to before AND-split"
+  ]
 
-witnessNets :: [ExtendedFCSW]
-witnessNets =
+-- NOTE: For these workflows the split-and-merge alogrithm should give the same result.
+crossValidWitnessNets :: [ExtendedFCSW]
+crossValidWitnessNets =
   [ EFCSW {fcGetESW = ExtendedSW {eswSafeWorkflow = AND {andBranches = Atom :| [Atom]}, eswExtraPlaces = S.fromList [Place {placeName = Name {unName = "dh"}},Place {placeName = Name {unName = "sc"}}], eswExtraStates = S.fromList [WorkflowState {places = S.fromList [Place {placeName = Name {unName = "3"}},Place {placeName = Name {unName = "sc"}},PlaceEnd]},WorkflowState {places = S.fromList [Place {placeName = Name {unName = "dh"}},Place {placeName = Name {unName = "sc"}}]},WorkflowState {places = S.fromList [Place {placeName = Name {unName = "sc"}}]}], eswExtraTransitions = S.fromList [Arrow (WorkflowState {places = S.fromList [Place {placeName = Name {unName = "3"}}]}) (WorkflowState {places = S.fromList [Place {placeName = Name {unName = "sc"}}]}),Arrow (WorkflowState {places = S.fromList [Place {placeName = Name {unName = "sc"}}]}) (WorkflowState {places = S.fromList [Place {placeName = Name {unName = "sc"}}]})]}}
-  , EFCSW {fcGetESW = ExtendedSW {eswSafeWorkflow = Atom, eswExtraPlaces = S.fromList [Place {placeName = Name {unName = "bn"}},Place {placeName = Name {unName = "f"}},Place {placeName = Name {unName = "fw"}},Place {placeName = Name {unName = "h"}},Place {placeName = Name {unName = "hY"}}], eswExtraStates = S.fromList [WorkflowState {places = S.fromList [Place {placeName = Name {unName = "f"}},Place {placeName = Name {unName = "fw"}}]},WorkflowState {places = S.fromList [Place {placeName = Name {unName = "f"}},Place {placeName = Name {unName = "h"}},Place {placeName = Name {unName = "hY"}}]}], eswExtraTransitions = S.fromList [Arrow (WorkflowState {places = S.fromList [PlaceStart]}) (WorkflowState {places = S.fromList [Place {placeName = Name {unName = "f"}},Place {placeName = Name {unName = "fw"}}]}),Arrow (WorkflowState {places = S.fromList [Place {placeName = Name {unName = "f"}},Place {placeName = Name {unName = "fw"}}]}) (WorkflowState {places = S.fromList [PlaceEnd]})]}}
   , EFCSW {fcGetESW = ExtendedSW {eswSafeWorkflow = Atom, eswExtraPlaces = S.fromList [Place {placeName = Name {unName = "bn"}},Place {placeName = Name {unName = "f"}},Place {placeName = Name {unName = "fw"}},Place {placeName = Name {unName = "h"}},Place {placeName = Name {unName = "hY"}}], eswExtraStates = S.fromList [WorkflowState {places = S.fromList [Place {placeName = Name {unName = "f"}},Place {placeName = Name {unName = "fw"}}]},WorkflowState {places = S.fromList [Place {placeName = Name {unName = "f"}},Place {placeName = Name {unName = "h"}},Place {placeName = Name {unName = "hY"}}]}], eswExtraTransitions = S.fromList [Arrow (WorkflowState {places = S.fromList [PlaceStart]}) (WorkflowState {places = S.fromList [Place {placeName = Name {unName = "f"}},Place {placeName = Name {unName = "fw"}}]}),Arrow (WorkflowState {places = S.fromList [Place {placeName = Name {unName = "f"}}]}) (WorkflowState {places = S.fromList [Place {placeName = Name {unName = "f"}}]}), Arrow (WorkflowState {places = S.fromList [Place {placeName = Name {unName = "fw"}}]}) (WorkflowState {places = S.fromList [Place {placeName = Name {unName = "fw"}}]})]}}
-  , EFCSW {fcGetESW = ExtendedSW {eswSafeWorkflow = Atom, eswExtraPlaces = S.fromList [Place {placeName = Name {unName = "bn"}},Place {placeName = Name {unName = "f"}},Place {placeName = Name {unName = "fw"}},Place {placeName = Name {unName = "h"}},Place {placeName = Name {unName = "hY"}}], eswExtraStates = S.fromList [WorkflowState {places = S.fromList [Place {placeName = Name {unName = "f"}},Place {placeName = Name {unName = "fw"}}]},WorkflowState {places = S.fromList [Place {placeName = Name {unName = "f"}},Place {placeName = Name {unName = "h"}},Place {placeName = Name {unName = "hY"}}]}], eswExtraTransitions = S.fromList [Arrow (WorkflowState {places = S.fromList [PlaceStart]}) (WorkflowState {places = S.fromList [Place {placeName = Name {unName = "f"}},Place {placeName = Name {unName = "fz"}}]}),Arrow (WorkflowState {places = S.fromList [Place {placeName = Name {unName = "f"}},Place {placeName = Name {unName = "fw"}}]}) (WorkflowState {places = S.fromList [PlaceEnd]}), Arrow (WorkflowState {places = S.fromList [Place {placeName = Name {unName = "fz"}}]}) (WorkflowState {places = S.fromList [Place {placeName = Name {unName = "fw"}}]})]}}
+  -- local jump back to dead-end state
+  , EFCSW $ ExtendedSW
+      (Seq (AND2 Atom Atom) Atom) mempty mempty $
+      S.fromList
+        [ Arrow (makeWorkflowState [Name "1"]) (makeWorkflowState [Name "3"])
+        ]
+  -- incorrect direct jump back to AND branch
+  , EFCSW $ ExtendedSW
+      (Seq (AND2 Atom Atom) Atom) mempty mempty $
+      S.fromList
+        [ Arrow (makeWorkflowState [Name "1"]) (makeWorkflowState [Name "2", Name "3"])
+        ]
+  -- incorrect direct jump back to before AND-split
+  , EFCSW $ ExtendedSW
+      (Seq (AND2 Atom Atom) Atom) mempty mempty $
+      S.fromList
+        [ Arrow (makeWorkflowState [Name "1"]) (makeWorkflowState [Name "3"] `wfUnion` startState)
+        ]
+  ]
+
+-- NOTE: These workflows are sound but should be rejected by the split-and-merge analysis.
+namedSoundButNotSafeWitnessNets :: [(ExtendedFCSW, [Char])]
+namedSoundButNotSafeWitnessNets = zip soundButNotSafeWitnessNets
+  [ "all branches are singletons"
+  , "some branches are singletons"
+  , "correct direct jump to AND-join"
+  , "correct direct jump to AND branches"
+  , "correct indirect jump back to AND-join"
+  , "correct indirect jump back to AND branches"
+  ]
+
+soundButNotSafeWitnessNets :: [ExtendedFCSW]
+soundButNotSafeWitnessNets =
+  [ EFCSW $ ExtendedSW
+      Atom mempty mempty $
+      S.fromList
+        [ Arrow startState (makeWorkflowState [Name "a", Name "b"])
+        , Arrow (makeWorkflowState [Name "a", Name "b"]) endState
+        ]
+
+  , EFCSW $ ExtendedSW
+      Atom mempty mempty $
+      S.fromList
+        [ Arrow startState (makeWorkflowState [Name "a1", Name "b"])
+        , Arrow (makeWorkflowState [Name "a1"]) (makeWorkflowState [Name "a2"])
+        , Arrow (makeWorkflowState [Name "a2", Name "b"]) endState
+        ]
+
+  , EFCSW $ ExtendedSW
+      (Seq (AND2 Atom Atom) Atom) mempty mempty $
+      S.fromList
+        [ Arrow (makeWorkflowState [Name "1"]) (makeWorkflowState [Name "3", Name "5"])
+        ]
+
+  , EFCSW $ ExtendedSW
+      (Seq (AND2 Atom Atom) Atom) mempty mempty $
+      S.fromList
+        [ Arrow (makeWorkflowState [Name "1"]) (makeWorkflowState [Name "3", Name "4"])
+        ]
+
+  , EFCSW $ ExtendedSW
+      (Seq (AND2 Atom Atom) Atom) mempty mempty $
+      S.fromList
+        [ Arrow (makeWorkflowState [Name "1"]) (makeWorkflowState [Name "6", Name "7"])
+        , Arrow (makeWorkflowState [Name "6"]) (makeWorkflowState [Name "3"])
+        , Arrow (makeWorkflowState [Name "7"]) (makeWorkflowState [Name "5"])
+        ]
+
+  , EFCSW $ ExtendedSW
+      (Seq (AND2 Atom Atom) Atom) mempty mempty $
+      S.fromList
+        [ Arrow (makeWorkflowState [Name "1"]) (makeWorkflowState [Name "6", Name "7"])
+        , Arrow (makeWorkflowState [Name "6"]) (makeWorkflowState [Name "3"])
+        , Arrow (makeWorkflowState [Name "7"]) (makeWorkflowState [Name "4"])
+        ]
   ]

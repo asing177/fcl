@@ -4,7 +4,8 @@ module Test.Workflow.SafeWorkflow.Tests
   , isSafeWorkflowSound_General
   , basicNetTests
   , exampleNetTests
-  , witnessNetTests
+  , crossValidWitnessNetTests
+  , soundButNotSafeWitnessNetTests
   , bothYieldSameDecision
   , bothYieldSameDecisionFC
   , splitAndMergeIsStricter
@@ -74,7 +75,12 @@ mkCrossValidationTest esw name = testCase name $ do
   let (fcErrs, genErrs) = checkWithBoth (fcGetESW esw)
       fcDecision  = null fcErrs
       genDecision = null genErrs
-  assertBool (show $ ppr fcErrs <$$> linebreak <> ppr genErrs) (fcDecision == genDecision)
+  assertBool (show $ ppr fcErrs <$$> linebreak <> "--- (got ^^^) ----- (expected ˇˇˇ) ---" <> linebreak <$$> ppr genErrs) (fcDecision == genDecision)
+
+mkExpectedFailureTest :: ExtendedFCSW -> [Char] -> TestTree
+mkExpectedFailureTest esw name = testCase name $ do
+  let errs = fst . checkWithBoth . fcGetESW $ esw
+  assertBool "Split-and-Merge should have rejected this" (not $ null errs)
 
 basicNetTests :: [TestTree]
 basicNetTests = map (uncurry mkFCSoundnessTest) namedBasicNets
@@ -82,8 +88,11 @@ basicNetTests = map (uncurry mkFCSoundnessTest) namedBasicNets
 exampleNetTests :: [TestTree]
 exampleNetTests = map (uncurry mkFCSoundnessTest) namedExampleNets
 
-witnessNetTests :: [TestTree]
-witnessNetTests = map (uncurry mkCrossValidationTest) namedWitnessNets
+crossValidWitnessNetTests :: [TestTree]
+crossValidWitnessNetTests = map (uncurry mkCrossValidationTest) namedCrossValidWitnessNets
+
+soundButNotSafeWitnessNetTests :: [TestTree]
+soundButNotSafeWitnessNetTests = map (uncurry mkExpectedFailureTest) namedSoundButNotSafeWitnessNets
 
 -----------------------------
 -- Extended safe workflows --

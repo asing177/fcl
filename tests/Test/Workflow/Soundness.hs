@@ -17,7 +17,8 @@ soundnessTests = testGroup ("Test the soundness checking algorithm on safely con
   [ testGroup "Unit tests"
     [ testGroup "Basic nets"   basicNetTests
     , testGroup "Example nets" exampleNetTests
-    , testGroup "Witness nets" witnessNetTests
+    , testGroup "Cross validation witness nets" crossValidWitnessNetTests
+    , testGroup "Sound but not safe witness nets" soundButNotSafeWitnessNetTests
     ]
 
   , localOption (QuickCheckMaxSize 20) $
@@ -25,7 +26,7 @@ soundnessTests = testGroup ("Test the soundness checking algorithm on safely con
     testGroup "QuickCheck tests"
     [ testProperty "Number of transitions in a generated workflow is LEQ to its size" $ transitionsLEQSize
 
-    , testProperty "Split-and-Merge on safe workflows" $ splitAndMergeIsStricter
+    , testProperty "Split-and-Merge on safe workflows" $ isSafeWorkflowSound_SplitAndMerge
 
     , testProperty "General Petri net based soundness check on safe workflows" isSafeWorkflowSound_General
 
