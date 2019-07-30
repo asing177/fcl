@@ -1,7 +1,7 @@
 {-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE TypeApplications #-}
-{-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE DeriveGeneric, DeriveAnyClass #-}
 module Test.Workflow.SafeWorkflow.Extended where
 
 import Protolude
@@ -25,7 +25,7 @@ data ExtendedSW
                , eswExtraStates       :: Set WorkflowState  -- ^ Additional states (can contain new places)       [TODO: might not be needed]
                , eswExtraTransitions  :: Set Transition     -- ^ Additional transitions (can contain new states)
                }
-  deriving (Eq, Ord, Show, Generic)
+  deriving (Eq, Ord, Show, Generic, NFData)
 
 -- | Return the transitions associated with an
 -- extended safe worklow. The original transitions
@@ -196,7 +196,7 @@ arbFreeChoiceTransition trSet (S.toList -> wfs) = do
     Just lhs -> (Arrow <$> pure lhs <*> elements wfs) `suchThatMaybe` (`notElem` trSet)
 
 newtype ExtendedFCSW = EFCSW { fcGetESW :: ExtendedSW }
-  deriving (Eq, Ord, Show)
+  deriving (Eq, Ord, Show, Generic, NFData)
 
 instance Arbitrary ExtendedFCSW where
   arbitrary = do
