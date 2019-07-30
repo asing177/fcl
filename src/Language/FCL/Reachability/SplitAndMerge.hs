@@ -1,14 +1,13 @@
 {-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE MultiWayIf #-}
-{-# OPTIONS_GHC -Wwarn #-}
--- TODO: investigate one-step AND global loops
+{-# OPTIONS_GHC -Wwarn #-} -- TODO: remove this
 
 module Language.FCL.Reachability.SplitAndMerge
   ( module Language.FCL.Reachability.Definitions
   , checkTransitions
   , reachabilityGraph
-  , coreachabilityGraph
+  , reverseTransitions
   , freeChoicePropertyViolations
   ) where
 
@@ -35,14 +34,15 @@ import Language.FCL.Debug
 import Language.FCL.Pretty
 
 -- | Tags for detecting loops.
-data Status = BeingExplored
-            | Looping
-            | CanProgress
+data Status = BeingExplored -- ^ Means that the state is currently being explored
+            | Looping       -- ^ Means that we can loop from this state
+            | NotLooping    -- ^ Means that we can progress from this state without looping, or the state has no applicable transitions.
   deriving (Eq, Ord, Show)
 
+-- | This will be used for the loop analysis. See `analyzeLoops`.
 instance Semigroup Status where
-  (<>) CanProgress _ = CanProgress
-  (<>) _ CanProgress = CanProgress
+  (<>) NotLooping _ = NotLooping
+  (<>) _ NotLooping = NotLooping
   (<>) BeingExplored x = x
   (<>) x BeingExplored = x
   (<>) Looping Looping = Looping
@@ -52,8 +52,8 @@ instance Monoid Status where
 
 instance Pretty Status where
   ppr BeingExplored = "BeingExplored"
-  ppr Looping = "Looping"
-  ppr CanProgress = "CanProgress"
+  ppr Looping       = "Looping"
+  ppr NotLooping    = "NotLooping"
 
 -- | Assigns a status tag for each visited workflow state.
 type StatusMap = Map WorkflowState Status
@@ -194,15 +194,12 @@ reachabilityGraph declaredTransitions
 
                 allCounreachable, coreachable, reachable :: Set WorkflowState
                 allCounreachable = reachable S.\\ coreachable
-                -- coreachable = gatherReachableStatesFrom endState (coreachabilityGraph graph)
-                coreachable = gatherReachableStatesFrom endState (coreachabilityGraph graph)
+                coreachable = gatherReachableStatesFrom endState (reverseTransitions graph)
                 reachable = gatherReachableStatesFrom startState graph
 
--- Given a reachability graph, make a coreachability graph:
--- 1. reverse all the arrows in the reachability graph
--- TODO: remove this outdated comment --> 2. traverse the graph from the end state and collect all reachable states
-coreachabilityGraph :: ReachabilityGraph -> ReachabilityGraph
-coreachabilityGraph rGraph = M.fromListWith (<>)
+-- | Reverse the direction of all transitions in a given reachability graph
+reverseTransitions :: ReachabilityGraph -> ReachabilityGraph
+reverseTransitions rGraph = M.fromListWith (<>)
   [ (dst, S.singleton src)
   | (src, dsts) <- M.toList rGraph
   , dst <- S.toList dsts
@@ -246,7 +243,7 @@ buildGraph curr = do
     ]
   maybeLog ""
 
-  -- new state, can continue
+  -- NOTE: new state, can continue
   x <- if unvisited && hasApplicableTransitions then do
     setStatus curr BeingExplored
     addToLocalContext curr
@@ -276,7 +273,7 @@ buildGraph curr = do
             yell $ ANDBranchGlobalExit lclSt
             pure []
           else if cantContinue && not beenThere then do
-            setStatus lclSt CanProgress
+            setStatus lclSt NotLooping
             yell $ DirectANDSplitBranch curr lclSt
             pure []
           else do
@@ -309,8 +306,8 @@ buildGraph curr = do
 
         if BeingExplored `elem` statuses then
           panic $ show $ "buildGraph: When exploring state '" <> pprD next <> "' the returned statuses of the XOR branches contained 'BeingExplored'"
-        else if CanProgress `elem` statuses then
-          setStatus next CanProgress
+        else if NotLooping `elem` statuses then
+          setStatus next NotLooping
         else
           setStatus next Looping
 
@@ -323,16 +320,16 @@ buildGraph curr = do
 
     if BeingExplored `elem` statuses then
       panic $ show $ "buildGraph: When exploring state '" <> pprD curr <> "' the returned statuses of the XOR branches contained 'BeingExplored'"
-    else if CanProgress `elem` statuses then
-      setStatus curr CanProgress
+    else if NotLooping `elem` statuses then
+      setStatus curr NotLooping
     else
       setStatus curr Looping
 
     pure xorResults'
 
-  -- new state, can't continue
+  -- NOTE: new state, can't continue
   else if unvisited && noApplicableTransitions then do
-    setStatus curr CanProgress
+    setStatus curr NotLooping
     modifyGraph $ M.insert curr mempty
     addToLocalContext curr
     pure [curr]
@@ -342,26 +339,23 @@ buildGraph curr = do
     pure [curr]
   else if (not unvisited) && noApplicableTransitions && (curr `elem` locals) then do
     pure [curr]
-  -- visited an already visited state
+  -- NOTE: visited an already visited state that has applicable transitions
   else do
     sm <- gets bsStatusMap
     case M.lookup curr sm of
       Nothing -> panic $ show $
         "buildGraph: state '" <> pprD curr <>
         "' has already been visited but does not have an entry in the status map"
-      Just CanProgress   ->
+      Just NotLooping   ->
         if curr `elem` locals then
-          -- TODO: or just pure [] instead of pure [curr]?
           pure []
         else do
-          -- TODO: is the error message needed here?
           yell $ ANDBranchGlobalExit curr
           pure [curr]
       Just Looping       ->
         if curr `elem` locals then
           pure []
         else do
-          -- TODO: can't we just pure [curr]?
           yell $ ANDBranchGlobalExit curr
           pure []
       Just BeingExplored -> do
@@ -369,7 +363,6 @@ buildGraph curr = do
         if curr `elem` locals then
           pure []
         else do
-          -- TODO: can't we just pure [curr]?
           yell $ ANDBranchGlobalExit curr
           pure []
   pure x
@@ -517,8 +510,16 @@ execLoopAnalysis graph statuses = snd . runLoopAnalysis graph statuses
 -- It propagates information bacward in the reachability graph.
 -- If we can progress forward from a given state, we can also
 -- progress forward from any predecessor of it.
+-- After building the reachability graph, the states of a local loop
+-- will be marked `Looping` except the the states where can exit.
+-- During the loop analysis, this information will be propagated
+-- backward in the reachability graph. So in the end result,
+-- everything should be either `Looping` or `NotLooping`.
+-- `Looping means that from this state we always loop.
+-- `NotLooping` means that we are not looping,
+-- or if we are, then there is an option to exit from the loop.
 analyzeLoops :: ReachabilityGraph -> StatusMap -> StatusMap
-analyzeLoops graph statuses = execLoopAnalysis (coreachabilityGraph graph) statuses
+analyzeLoops graph statuses = execLoopAnalysis (reverseTransitions graph) statuses
                             $ untilFixedM propagateInfoM
   where
 

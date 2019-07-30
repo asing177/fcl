@@ -175,7 +175,8 @@ namedCrossValidWitnessNets = zip crossValidWitnessNets
   , "incorrect direct forward jump to AND branches"
   ]
 
--- \ For these workflows the split-and-merge alogrithm should give the same result.
+-- \ For these workflows the split-and-merge alogrithm should give the same result
+-- as the general soundness checking algorithm.
 crossValidWitnessNets :: [ExtendedFCSW]
 crossValidWitnessNets =
   [ -- local loop inside AND branch
@@ -222,7 +223,8 @@ crossValidWitnessNets =
         ]
   ]
 
--- | These workflows are sound but should be rejected by the split-and-merge analysis.
+-- | These workflows are sound but should be rejected by the split-and-merge analysis
+-- (they are not safe workflows).
 namedSoundButNotSafeWitnessNets :: [(ExtendedFCSW, [Char])]
 namedSoundButNotSafeWitnessNets = zip soundButNotSafeWitnessNets
   [ "all transitions are direct"

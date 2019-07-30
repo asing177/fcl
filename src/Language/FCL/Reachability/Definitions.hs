@@ -39,7 +39,7 @@ instance ToJSON WFError where
 instance FromJSON WFError where
   parseJSON = genericParseJSON (defaultOptions { sumEncoding = ObjectWithSingleField })
 
--- TODO: separate general errors from split-and-merge errors
+-- QUESTION: should we separate general errors from split-and-merge errors?
 instance Pretty WFError where
   ppr = \case
       NotOneBounded curr t badGuys

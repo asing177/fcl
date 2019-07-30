@@ -31,7 +31,7 @@ import Language.FCL.AST
 import Language.FCL.Debug (Debug(..))
 import Language.FCL.Pretty (ppr)
 
--- TODO: should this be here?
+-- QUESTION: should this be here?
 data List2 a where
   List2 :: a -> a -> [a] -> List2 a
   deriving (Eq, Ord, Show)

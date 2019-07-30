@@ -110,9 +110,11 @@ bothYieldSameDecision esw
   , genDecision <- null generalErrs
   = containsFCErr freeChoiceErrs || fcDecision == genDecision
 
+-- | Checks whether the list of workkflow errors contain free-choice viloation errors.
 containsFCErr :: [WFError] -> Bool
 containsFCErr errs = not . null $ [ fcErr | fcErr@(FreeChoiceViolation _ _ _) <- errs ]
 
+-- | Analyzes an extended safe workflow with both the split-and-merge and general approaches.
 checkWithBoth :: ExtendedSW -> ([WFError], [WFError])
 checkWithBoth ExtendedSW{..} = ( getErrors . reachabilityGraph         $ eswTransitions
                                , getErrors . completeReachabilityGraph $ eswTransitions
@@ -126,9 +128,12 @@ checkWithBoth ExtendedSW{..} = ( getErrors . reachabilityGraph         $ eswTran
   swTransitions :: Set Transition
   swTransitions  = S.fromList $ constructTransitions eswSafeWorkflow
 
--- TODO: move these to a sepearate module
+-- QUESTION: should these be moved to a separate module
 -----------
 
+-- | Checks whether the split-and-merge analysis
+-- and the general soundness checking give the same result
+-- for a given extended safe workflow.
 bothYieldSameDecisionFC :: ExtendedFCSW -> Bool
 bothYieldSameDecisionFC efcsw
   | esw <- fcGetESW efcsw
@@ -137,6 +142,9 @@ bothYieldSameDecisionFC efcsw
   , genDecision <- null generalErrs
   = fcDecision == genDecision
 
+-- | Checks whether the split-and-merge analysis
+-- rejects those extended safe workflows
+-- that the general soundness checking algorithm rejects.
 splitAndMergeIsStricter :: ExtendedFCSW -> Bool
 splitAndMergeIsStricter efcsw
   | esw <- fcGetESW efcsw
@@ -145,6 +153,8 @@ splitAndMergeIsStricter efcsw
   , genDecision <- null generalErrs
   = not fcDecision || genDecision
 
+-- | Checks whetehr a given extended free-choice safe workflow
+-- is really a free-choice workflow.
 isReallyFreeChoice :: ExtendedFCSW -> Bool
 isReallyFreeChoice = null
                    . freeChoicePropertyViolations
@@ -154,6 +164,9 @@ isReallyFreeChoice = null
 
 ------------
 
+-- | Checks whether the number of transitions in a generated safe workflow
+-- is less than or equal to the size of the workflow
+-- (size paramater used by the `Arbitrary` instance).
 transitionsLEQSize :: NonNegative (Small Int) -> Gen Bool
 transitionsLEQSize (getSmall . getNonNegative -> 0) = do
   swf <- resize 0 $ arbitrary :: Gen SafeWorkflow
@@ -166,21 +179,29 @@ transitionsLEQSize (getSmall . getNonNegative -> n) = do
 
 ------------
 
+-- | Counts the number of states in reachability graph
+-- given by a reachability analysis.
 countStates :: (a, ReachabilityGraph) -> Int
 countStates = length . gatherReachableStatesFrom startState . snd
 
+-- | Checks whether the reachability graph calculated by the split-and-merge analysis
+-- has fewer states than the one calculated by the general algorithm (for a given safe workflow).
 samGraphIsSmaller_SW :: SafeWorkflow -> Bool
 samGraphIsSmaller_SW sw = (countStates . reachabilityGraph $ trs) <= (countStates . completeReachabilityGraph $ trs) where
   trs = S.fromList $ constructTransitions sw
 
--- TODO: move these to a sepearate module
+-- QUESTION: should this be moved to a separate module?
+-- | Checks whether the reachability graph calculated by the split-and-merge analysis
+-- has fewer states than the one calculated by the general algorithm (for a given extended safe workflow).
 samGraphIsSmaller_ESW :: ExtendedFCSW -> Bool
 samGraphIsSmaller_ESW esw = (countStates . reachabilityGraph $ trs) <= (countStates . completeReachabilityGraph $ trs) where
   trs = S.fromList $ extendedWorkflowTransitions $ fcGetESW esw
 
--- TODO: move these to a sepearate module
+-- QUESTION: should these be moved to a separate module?
 --------------
 
+-- | Checks whether structuring then unstructuring a set of transitions
+-- is equivalent to the identity function.
 structureUnstructureId :: Set Transition -> Bool
 structureUnstructureId trSet = trSet == roundTrip trSet where
   roundTrip = S.fromList
@@ -188,11 +209,15 @@ structureUnstructureId trSet = trSet == roundTrip trSet where
             . structureTransitions
             . S.toList
 
+-- | Checks whether structuring then unstructuring a set of transitions
+-- calculated from a given safe workflow is equivalent to the identity function.
 structureUnstructureId_Safe :: SafeWorkflow -> Bool
 structureUnstructureId_Safe = structureUnstructureId
                             . S.fromList
                             . constructTransitions
 
+-- | Checks whether structuring then unstructuring a set of transitions
+-- calculated from a given extended safe workflow is equivalent to the identity function.
 structureUnstructureId_Extended :: ExtendedFCSW -> Bool
 structureUnstructureId_Extended = structureUnstructureId
                                 . S.fromList
@@ -201,6 +226,8 @@ structureUnstructureId_Extended = structureUnstructureId
 
 --
 
+-- | Checks whether structuring simply then unstructuring simply a set of transitions
+-- is equivalent to the identity function.
 structureUnstructureSimplyId :: Set Transition -> Bool
 structureUnstructureSimplyId trSet = trSet == roundTrip trSet where
   roundTrip = S.fromList
@@ -208,11 +235,15 @@ structureUnstructureSimplyId trSet = trSet == roundTrip trSet where
             . structureSimply
             . S.toList
 
+-- | Checks whether structuring simply then unstructuring simply a set of transitions
+-- calculated from a given safe workflow is equivalent to the identity function.
 structureUnstructureSimplyId_Safe :: SafeWorkflow -> Bool
 structureUnstructureSimplyId_Safe = structureUnstructureSimplyId
                                   . S.fromList
                                   . constructTransitions
 
+-- | Checks whether structuring simply then unstructuring simply a set of transitions
+-- calculated from a given extended safe workflow is equivalent to the identity function.
 structureUnstructureSimplyId_Extended :: ExtendedFCSW -> Bool
 structureUnstructureSimplyId_Extended = structureUnstructureSimplyId
                                       . S.fromList
