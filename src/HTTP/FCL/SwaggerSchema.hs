@@ -6,18 +6,23 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE DeriveGeneric #-}
 
+{-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE FlexibleInstances          #-}
 module HTTP.FCL.SwaggerSchema () where
 
 import Protolude hiding (get, from, Type)
 import Data.Swagger
+import Data.Swagger.Declare
 import Datetime.Types
 import Data.HashMap.Strict.InsOrd
 
 import Language.FCL.AST as AST hiding (at)
 import Language.FCL.Prim
+import Language.FCL.Hash
 import Language.FCL.Address
+import Language.FCL.Key as Key
+import Language.FCL.Asset
 import Language.FCL.Parser as Parser
 import Language.FCL.Typecheck as Typecheck
 import Language.FCL.Compile as Compile
@@ -29,8 +34,17 @@ import Language.FCL.Undefinedness as Undefinedness
 import Language.FCL.ReachabilityGraph as Reachability
 import qualified Language.FCL.Duplicate as Dupl
 import Numeric.Lossless.Decimal
+import Numeric.Lossless.Number
 import qualified Language.FCL.LanguageServerProtocol as LSP
 
+instance ToSchema Key.Signature where
+  declareNamedSchema _ = do
+    i <- declareSchemaRef (Proxy :: Proxy Integer)
+    pure $ NamedSchema (Just "Signature")
+      $ mempty { _schemaParamSchema = mempty { _paramSchemaType = SwaggerObject }
+               , _schemaProperties = fromList [("sign_r", i), ("sign_s", i)]
+               , _schemaRequired = [ "sign_r", "sign_s"  ]
+               }
 instance ToSchema Def
 instance ToSchema Type where
   declareNamedSchema = genericDeclareNamedSchemaUnrestricted defaultSchemaOptions
@@ -140,9 +154,7 @@ instance ToSchema CollPrimOp
 instance ToSchema ADTDef
 instance ToSchema ADTConstr
 instance ToSchema Name where
-  declareNamedSchema _ = do
-    pure $ NamedSchema (Just "Name")
-      $ mempty { _schemaParamSchema = mempty { _paramSchemaType = SwaggerString } }
+  declareNamedSchema _ = simpleStringSchema "Name"
 
 instance ToSchema TVar
 
@@ -151,9 +163,8 @@ instance ToSchema Script
 instance ToSchema Helper
 instance ToSchema Transition
 instance ToSchema WorkflowState where
-  declareNamedSchema _ = do
-    pure $ NamedSchema (Just "WorkflowState")
-      $ mempty { _schemaParamSchema = mempty { _paramSchemaType = SwaggerString } }
+  declareNamedSchema _ = simpleStringSchema "WorkflowState"
+
 instance ToSchema Place where
   declareNamedSchema = genericDeclareNamedSchemaUnrestricted defaultSchemaOptions
 instance ToSchema Method
@@ -161,9 +172,8 @@ instance ToSchema Arg
 
 instance ToSchema Decimal
 instance ToSchema DateTime where
-  declareNamedSchema _ = do
-    pure $ NamedSchema (Just "DateTime")
-      $ mempty { _schemaParamSchema = mempty { _paramSchemaType = SwaggerString } }
+  declareNamedSchema _ = simpleStringSchema "DateTime"
+
 instance ToSchema TimeDelta
 instance ToSchema NameUpper
 instance ToSchema Datetime where
@@ -237,21 +247,41 @@ instance ToSchema Sig
 instance ToSchema Effects
 instance ToSchema Effect
 instance ToSchema Warning
+instance ToSchema Value where
+  declareNamedSchema = genericDeclareNamedSchemaUnrestricted defaultSchemaOptions
 
-instance ToSchema Encoding.Base16ByteString where
+instance ToSchema Balance
+instance ToSchema Number
+instance ToSchema (Ratio Integer) where
   declareNamedSchema _ = do
-    pure $ NamedSchema (Just "Base16ByteString")
-      $ mempty { _schemaParamSchema = mempty { _paramSchemaType = SwaggerString } }
+    i <- declareSchemaRef (Proxy :: Proxy Integer)
+    pure . NamedSchema (Just "Ratio") $
+      mempty { _schemaParamSchema = mempty { _paramSchemaType = SwaggerObject }
+             , _schemaProperties = fromList [("numerator", i), ("denominator", i)]
+             , _schemaRequired = [ "numerator", "denominator" ]
+             }
+
+instance ToSchema (Hash Encoding.Base16ByteString) where
+  declareNamedSchema _ = do
+    b <- declareSchemaRef (Proxy :: Proxy Encoding.Base16ByteString)
+    pure . NamedSchema (Just "Hash Base16ByteString") $
+      mempty { _schemaParamSchema = mempty { _paramSchemaType = SwaggerObject }
+             , _schemaProperties = fromList [("hash", b)]
+             , _schemaRequired = ["hash"]
+             }
+instance ToSchema Encoding.Base16ByteString where
+  declareNamedSchema _ = simpleStringSchema "Base16ByteString"
 
 instance ToSchema Encoding.Base64ByteString where
-  declareNamedSchema _ = do
-    pure $ NamedSchema (Just "Base64ByteString")
-      $ mempty { _schemaParamSchema = mempty { _paramSchemaType = SwaggerString } }
+  declareNamedSchema _ = simpleStringSchema "Base64ByteString"
+
 instance ToSchema Encoding.Base64PByteString where
-  declareNamedSchema _ = do
-    pure $ NamedSchema (Just "Base64PByteString")
-      $ mempty { _schemaParamSchema = mempty { _paramSchemaType = SwaggerString } }
+  declareNamedSchema _ = simpleStringSchema "Base64PByteString"
+
 instance ToSchema Encoding.Base58ByteString where
-  declareNamedSchema _ = do
-    pure $ NamedSchema (Just "Base58ByteString")
+  declareNamedSchema _ = simpleStringSchema "Base58ByteString"
+
+simpleStringSchema :: Text -> Declare (Definitions Schema) NamedSchema
+simpleStringSchema name = do
+    pure $ NamedSchema (Just name)
       $ mempty { _schemaParamSchema = mempty { _paramSchemaType = SwaggerString } }
