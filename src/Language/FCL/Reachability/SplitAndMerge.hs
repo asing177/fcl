@@ -1,5 +1,6 @@
 {-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE MultiWayIf #-}
 {-# OPTIONS_GHC -Wwarn #-}
 -- TODO: investigate one-step AND global loops
 
@@ -85,10 +86,12 @@ checkTransitions ts = case first S.toList $ reachabilityGraph ts of
 -- then the workflow is sound. This graph does not
 -- contain any intermediate states across AND branches.
 reachabilityGraph :: Set Transition -> (Set WFError, ReachabilityGraph)
-reachabilityGraph declaredTransitions =
-  case freeChoicePropertyViolations declaredTransitions of
-    []   -> (allErrs, graph)
-    errs -> (S.fromList errs, mempty)
+reachabilityGraph declaredTransitions
+  | fcErrs        <- freeChoicePropertyViolations declaredTransitions
+  , notSafeWfErrs <- filter isDisallowedTransitionError . S.toList $ allErrs
+  = if | not (null fcErrs)        -> (S.fromList fcErrs,        mempty)
+       | not (null notSafeWfErrs) -> (S.fromList notSafeWfErrs,  graph)
+       | otherwise                -> (allErrs,                   graph)
 
   where
     graph :: ReachabilityGraph
@@ -99,6 +102,11 @@ reachabilityGraph declaredTransitions =
           (buildGraph startState)                     -- Function to run in RWS monad
           (structureSimply $ S.toList declaredTransitions)  -- The static context
           (BuilderState mempty mempty (mempty :| []))                    -- The dynamic context
+
+    isDisallowedTransitionError :: WFError -> Bool
+    isDisallowedTransitionError (ANDBranchGlobalExit _)    = True
+    isDisallowedTransitionError (DirectANDSplitBranch _ _) = True
+    isDisallowedTransitionError _ = False
 
     allErrs :: Set WFError
     allErrs = mconcat [stateErrs, loopingStateErrs, prunedCoreachabilityErrs, unreachableTransitionErrs]
