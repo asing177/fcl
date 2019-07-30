@@ -42,9 +42,9 @@ newtype AppT m a = AppT
 
 type App = AppT IO
 
-type FCLAPI = ScriptsAPI :<|> MethodsAPI :<|> DefsAPI
+type FCLAPI resp = ScriptsAPI resp :<|> MethodsAPI resp :<|> DefsAPI resp
 
-type API = SwaggerSchemaUI "swagger-ui" "swagger.json" :<|> FCLAPI
+type API = SwaggerSchemaUI "swagger-ui" "swagger.json" :<|> FCLAPI RPCResponse
 
 data RPCResponseError
   = RPCLSPErr LSP.LSPErr
@@ -65,7 +65,6 @@ instance ToSchema RPCResponseError where
 data RPCResponse a
   = RPCResp a
   | RPCRespError RPCResponseError
-  | RPCRespOK
   deriving (Show, Generic)
 
 instance ToJSON a => ToJSON (RPCResponse a) where
@@ -78,7 +77,7 @@ instance ToSchema (RPCResponse LSP.RespScript) where
     rspErr <- declareSchemaRef (Proxy :: Proxy RPCResponseError)
     pure $ NamedSchema (Just "RPCResponse Script")
       $ mempty { _schemaParamSchema = mempty { _paramSchemaType = SwaggerObject }
-               , _schemaProperties = fromList [("RPCResp", rsp), ("RPCRespError", rspErr), ("RPCRespOK", rspOK)]
+               , _schemaProperties = fromList [("RPCResp", rsp), ("RPCRespError", rspErr)]
                }
 
 instance ToSchema (RPCResponse LSP.RespMethod) where
@@ -88,7 +87,7 @@ instance ToSchema (RPCResponse LSP.RespMethod) where
     rspErr <- declareSchemaRef (Proxy :: Proxy RPCResponseError)
     pure $ NamedSchema (Just "RPCResponse Method")
       $ mempty { _schemaParamSchema = mempty { _paramSchemaType = SwaggerObject }
-               , _schemaProperties = fromList [("RPCResp", rsp), ("RPCRespError", rspErr), ("RPCRespOK", rspOK)]
+               , _schemaProperties = fromList [("RPCResp", rsp), ("RPCRespError", rspErr)]
                }
 
 instance ToSchema (RPCResponse LSP.RespDef) where
@@ -98,35 +97,35 @@ instance ToSchema (RPCResponse LSP.RespDef) where
     rspErr <- declareSchemaRef (Proxy :: Proxy RPCResponseError)
     pure $ NamedSchema (Just "RPCResponse Def")
       $ mempty { _schemaParamSchema = mempty { _paramSchemaType = SwaggerObject }
-               , _schemaProperties = fromList [("RPCResp", rsp), ("RPCRespError", rspErr), ("RPCRespOK", rspOK)]
+               , _schemaProperties = fromList [("RPCResp", rsp), ("RPCRespError", rspErr)]
                }
 
 --------------------
 -- Scripts
 --------------------
 
-type ScriptCompile = ReqBody '[JSON] LSP.ReqScript :> Post '[JSON] (RPCResponse LSP.RespScript)
-type ScriptCompileRaw = "raw" :> ReqBody '[PlainText] Text :> Post '[JSON] (RPCResponse LSP.RespScript)
-type ScriptParse = ReqBody '[JSON] LSP.ReqScript :> Post '[JSON] (RPCResponse LSP.RespScript)
+type ScriptCompile resp = ReqBody '[JSON] LSP.ReqScript :> Post '[JSON] (resp LSP.RespScript)
+type ScriptCompileRaw resp = "raw" :> ReqBody '[PlainText] Text :> Post '[JSON] (resp LSP.RespScript)
+type ScriptParse resp = ReqBody '[JSON] LSP.ReqScript :> Post '[JSON] (resp LSP.RespScript)
 
-type ScriptsAPI = "scripts" :>
- ( ("compile" :> (ScriptCompile :<|> ScriptCompileRaw)) :<|>
-   ("parse" :> ScriptParse)
+type ScriptsAPI resp = "scripts" :>
+ ( ("compile" :> (ScriptCompile resp :<|> ScriptCompileRaw resp)) :<|>
+   ("parse" :> ScriptParse resp)
  )
 
-scriptsCompile :: LSP.ReqScript -> App (RPCResponse LSP.RespScript)
+scriptsCompile :: Monad m => LSP.ReqScript -> m (RPCResponse LSP.RespScript)
 scriptsCompile req
   = case LSP.scriptCompile req of
       Left err -> pure . RPCRespError . RPCLSPErr $ err
       Right resp -> pure  . RPCResp $ resp
 
-scriptsCompileRaw :: Text -> App (RPCResponse LSP.RespScript)
+scriptsCompileRaw :: Monad m => Text -> m (RPCResponse LSP.RespScript)
 scriptsCompileRaw body
   = case LSP.scriptCompileRaw body of
       Left err -> pure . RPCRespError . RPCLSPErr $ err
       Right script -> pure  . RPCResp $ script
 
-scriptsParse :: LSP.ReqScript -> App (RPCResponse LSP.RespScript)
+scriptsParse :: Monad m => LSP.ReqScript -> m (RPCResponse LSP.RespScript)
 scriptsParse req
  = case LSP.scriptParse req of
      Left err -> pure $ RPCRespError . RPCLSPErr $ err
@@ -136,19 +135,19 @@ scriptsParse req
 -- Methods
 --------------------
 
-type MethodsCompileRaw = "raw" :> ReqBody '[PlainText] Text :> Post '[JSON] (RPCResponse LSP.RespMethod)
-type MethodsCompile = ReqBody '[JSON] LSP.ReqMethod :> Post '[JSON] (RPCResponse LSP.RespMethod)
+type MethodsCompileRaw resp = "raw" :> ReqBody '[PlainText] Text :> Post '[JSON] (resp LSP.RespMethod)
+type MethodsCompile resp = ReqBody '[JSON] LSP.ReqMethod :> Post '[JSON] (resp LSP.RespMethod)
 
-type MethodsAPI = "methods" :>
- ("compile" :> (MethodsCompile :<|> MethodsCompileRaw))
+type MethodsAPI resp = "methods" :>
+ ("compile" :> (MethodsCompile resp :<|> MethodsCompileRaw resp))
 
-methodCompileRaw :: Text -> App (RPCResponse LSP.RespMethod)
+methodCompileRaw :: Monad m => Text -> m (RPCResponse LSP.RespMethod)
 methodCompileRaw text
   = case LSP.methodCompileRaw text of
       Left err -> pure . RPCRespError . RPCLSPErr $ err
       Right method -> pure . RPCResp $ method
 
-methodCompile :: LSP.ReqMethod -> App (RPCResponse LSP.RespMethod)
+methodCompile :: Monad m => LSP.ReqMethod -> m (RPCResponse LSP.RespMethod)
 methodCompile req
   = case LSP.methodCompile req of
         Left err -> pure . RPCRespError . RPCLSPErr $ err
@@ -158,18 +157,18 @@ methodCompile req
 -- Defs
 --------------------
 
-type DefsCompileRaw = "raw" :> ReqBody '[PlainText] Text :> Post '[JSON] (RPCResponse LSP.RespDef)
-type DefsCompile = ReqBody '[JSON] LSP.ReqDef :> Post '[JSON] (RPCResponse LSP.RespDef)
+type DefsCompileRaw resp = "raw" :> ReqBody '[PlainText] Text :> Post '[JSON] (resp LSP.RespDef)
+type DefsCompile resp = ReqBody '[JSON] LSP.ReqDef :> Post '[JSON] (resp LSP.RespDef)
 
-type DefsAPI = "defs" :>
-  ("compile" :> (DefsCompile :<|> DefsCompileRaw))
+type DefsAPI resp = "defs" :>
+  ("compile" :> (DefsCompile resp :<|> DefsCompileRaw resp))
 
-defsCompileRaw :: Text -> App (RPCResponse LSP.RespDef)
+defsCompileRaw :: Monad m => Text -> m (RPCResponse LSP.RespDef)
 defsCompileRaw text = case LSP.defCompileRaw text of
   Left err -> pure . RPCRespError . RPCLSPErr $ err
   Right defn -> pure . RPCResp $ defn
 
-defsCompile :: LSP.ReqDef -> App (RPCResponse LSP.RespDef)
+defsCompile :: Monad m => LSP.ReqDef -> m (RPCResponse LSP.RespDef)
 defsCompile req = case LSP.defCompile req of
   Left err -> pure . RPCRespError . RPCLSPErr $ err
   Right defn -> pure . RPCResp $ defn
@@ -178,26 +177,26 @@ defsCompile req = case LSP.defCompile req of
 -- Server
 ----------------------
 
-fclProxyAPI :: Proxy FCLAPI
+fclProxyAPI :: Proxy (FCLAPI RPCResponse)
 fclProxyAPI = Proxy
 
 api :: Proxy API
 api = Proxy
 
-fclServer :: ServerT FCLAPI App
+fclServer :: Monad m => ServerT (FCLAPI RPCResponse) m
 fclServer = scripts :<|> methods :<|> defs
   where
     scripts = (scriptsCompile :<|> scriptsCompileRaw) :<|> scriptsParse
     methods =  methodCompile :<|> methodCompileRaw
     defs = defsCompile :<|> defsCompileRaw
 
-runHttpFclAsHandler :: App a -> Handler a
-runHttpFclAsHandler app = Handler $ runReaderT (runApp app) Config
+runHttpFclAsHandler :: (m a -> ExceptT ServantErr IO a) -> m a -> Handler a
+runHttpFclAsHandler runner app  = Handler (runner app)
 
 appToServer :: Server API
 appToServer =
   swaggerSchemaUIServer (toSwagger fclProxyAPI)
-    :<|> (hoistServer fclProxyAPI runHttpFclAsHandler fclServer)
+    :<|> (hoistServer fclProxyAPI (runHttpFclAsHandler (flip runReaderT Config . runApp)) fclServer)
 
 runHttpFcl :: IO ()
 runHttpFcl = do
@@ -215,7 +214,6 @@ instance Arbitrary a => Arbitrary (RPCResponse a) where
   arbitrary = oneof
     [ RPCResp <$> arbitrary
     , RPCRespError <$> arbitrary
-    , pure RPCRespOK
     ]
 
 instance Arbitrary RPCResponseError where
