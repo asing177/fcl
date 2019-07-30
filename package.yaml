@@ -116,6 +116,7 @@ library:
     -fwarn-missing-fields
     -fwarn-missing-methods
     -fwarn-missing-signatures
+    -fwarn-missing-pattern-synonym-signatures
     -fwarn-noncanonical-monad-instances
     -fwarn-unused-imports
     -fwarn-unused-pattern-binds
