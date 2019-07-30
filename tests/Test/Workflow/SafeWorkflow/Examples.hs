@@ -181,7 +181,7 @@ crossValidWitnessNets :: [ExtendedFCSW]
 crossValidWitnessNets =
   [ -- local loop inside AND branch
     EFCSW $ ExtendedSW
-      (Seq (AND2 Atom Atom) Atom) mempty mempty $
+      (Seq (AND2 Atom Atom) Atom) $
       S.fromList
         [ Arrow (makeWorkflowState [Name "3"]) (makeWorkflowState [Name "5"])
         , Arrow (makeWorkflowState [Name "5"]) (makeWorkflowState [Name "5"])
@@ -189,7 +189,7 @@ crossValidWitnessNets =
 
   -- looping AND branches
   , EFCSW $ ExtendedSW
-      Atom mempty mempty $
+      Atom $
       S.fromList
         [ Arrow startState (makeWorkflowState [Name "1", Name "2"])
         , Arrow (makeWorkflowState [Name "1"]) (makeWorkflowState [Name "2"])
@@ -198,26 +198,26 @@ crossValidWitnessNets =
 
   -- local backward jump to dead-end state
   , EFCSW $ ExtendedSW
-      (Seq (AND2 Atom Atom) Atom) mempty mempty $
+      (Seq (AND2 Atom Atom) Atom) $
       S.fromList
         [ Arrow (makeWorkflowState [Name "1"]) (makeWorkflowState [Name "3"])
         ]
   -- incorrect direct backward jump to AND branch
   , EFCSW $ ExtendedSW
-      (Seq (AND2 Atom Atom) Atom) mempty mempty $
+      (Seq (AND2 Atom Atom) Atom) $
       S.fromList
         [ Arrow (makeWorkflowState [Name "1"]) (makeWorkflowState [Name "2", Name "3"])
         ]
   -- incorrect direct backward jump to before AND-split
   , EFCSW $ ExtendedSW
-      (Seq (AND2 Atom Atom) Atom) mempty mempty $
+      (Seq (AND2 Atom Atom) Atom) $
       S.fromList
         [ Arrow (makeWorkflowState [Name "1"]) (makeWorkflowState [Name "3"] `wfUnion` startState)
         ]
 
   -- correct direct forward jump to AND branches
   , EFCSW $ ExtendedSW
-      (AND2 Atom Atom) mempty mempty $
+      (AND2 Atom Atom) $
       S.fromList
         [ Arrow startState (makeWorkflowState [Name "1", Name "2"])
         ]
@@ -241,7 +241,7 @@ soundButNotSafeWitnessNets :: [ExtendedFCSW]
 soundButNotSafeWitnessNets =
   [ -- all transitions are direct
     EFCSW $ ExtendedSW
-      Atom mempty mempty $
+      Atom $
       S.fromList
         [ Arrow startState (makeWorkflowState [Name "a", Name "b"])
         , Arrow (makeWorkflowState [Name "a", Name "b"]) endState
@@ -249,7 +249,7 @@ soundButNotSafeWitnessNets =
 
   -- some transitions are direct
   , EFCSW $ ExtendedSW
-      Atom mempty mempty $
+      Atom $
       S.fromList
         [ Arrow startState (makeWorkflowState [Name "a1", Name "b"])
         , Arrow (makeWorkflowState [Name "a1"]) (makeWorkflowState [Name "a2"])
@@ -258,21 +258,21 @@ soundButNotSafeWitnessNets =
 
   -- correct direct backward jump to AND-join
   , EFCSW $ ExtendedSW
-      (Seq (AND2 Atom Atom) Atom) mempty mempty $
+      (Seq (AND2 Atom Atom) Atom) $
       S.fromList
         [ Arrow (makeWorkflowState [Name "1"]) (makeWorkflowState [Name "3", Name "5"])
         ]
 
   -- correct direct backward jump to AND branches
   , EFCSW $ ExtendedSW
-      (Seq (AND2 Atom Atom) Atom) mempty mempty $
+      (Seq (AND2 Atom Atom) Atom) $
       S.fromList
         [ Arrow (makeWorkflowState [Name "1"]) (makeWorkflowState [Name "3", Name "4"])
         ]
 
   -- correct indirect backward jump to AND-join
   , EFCSW $ ExtendedSW
-      (Seq (AND2 Atom Atom) Atom) mempty mempty $
+      (Seq (AND2 Atom Atom) Atom) $
       S.fromList
         [ Arrow (makeWorkflowState [Name "1"]) (makeWorkflowState [Name "6", Name "7"])
         , Arrow (makeWorkflowState [Name "6"]) (makeWorkflowState [Name "3"])
@@ -281,7 +281,7 @@ soundButNotSafeWitnessNets =
 
   -- correct indirect backward jump to AND branches
   , EFCSW $ ExtendedSW
-      (Seq (AND2 Atom Atom) Atom) mempty mempty $
+      (Seq (AND2 Atom Atom) Atom) $
       S.fromList
         [ Arrow (makeWorkflowState [Name "1"]) (makeWorkflowState [Name "6", Name "7"])
         , Arrow (makeWorkflowState [Name "6"]) (makeWorkflowState [Name "3"])
@@ -290,14 +290,14 @@ soundButNotSafeWitnessNets =
 
   -- correct direct forward jump to AND-join
   , EFCSW $ ExtendedSW
-      (AND2 Atom Atom) mempty mempty $
+      (AND2 Atom Atom) $
       S.fromList
         [ Arrow startState (makeWorkflowState [Name "2", Name "4"])
         ]
 
   -- correct direct forward jump to AND branches
   , EFCSW $ ExtendedSW
-      (AND2 Atom Atom) mempty mempty $
+      (AND2 Atom Atom) $
       S.fromList
         [ Arrow startState (makeWorkflowState [Name "2", Name "3"])
         ]

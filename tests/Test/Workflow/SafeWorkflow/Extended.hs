@@ -21,8 +21,6 @@ import Test.Workflow.SafeWorkflow (SafeWorkflow(..), constructTransitions)
 -- | Safe workflow extended with some additional places, states and transitions.
 data ExtendedSW
   = ExtendedSW { eswSafeWorkflow      :: SafeWorkflow       -- ^ Basic safe workflow
-               , eswExtraPlaces       :: Set Place          -- ^ Additional places                                [TODO: might not be needed]
-               , eswExtraStates       :: Set WorkflowState  -- ^ Additional states (can contain new places)       [TODO: might not be needed]
                , eswExtraTransitions  :: Set Transition     -- ^ Additional transitions (can contain new states)
                }
   deriving (Eq, Ord, Show, Generic, NFData)
@@ -31,7 +29,7 @@ data ExtendedSW
 -- extended safe worklow. The original transitions
 -- appear earlier in the list than the newly added ones.
 extendedWorkflowTransitions :: ExtendedSW -> [Transition]
-extendedWorkflowTransitions (ExtendedSW swf _ _ trs) = nub $ (S.toList trs) ++ (constructTransitions swf)
+extendedWorkflowTransitions (ExtendedSW swf trs) = nub $ (S.toList trs) ++ (constructTransitions swf)
 
 {- distribution based on original number of places?
   generate "safe" transitions (net stays free choice)
@@ -93,7 +91,7 @@ instance Arbitrary ExtendedSW where
 
     extraTransitions <- someUnique mArbNewTrans `withDistribution` newTransDist
 
-    pure $ ExtendedSW swf extraPlaces extraStates extraTransitions
+    pure $ ExtendedSW swf extraTransitions
 
   -- TODO: probably should remove extra places and states, then shrinking would not need to track them
   shrink eSwf@ExtendedSW{..}
@@ -250,6 +248,6 @@ instance Arbitrary ExtendedFCSW where
 
     extraTransitions <- someFCTransitions `withDistribution` newTransDist
 
-    pure $ EFCSW $ ExtendedSW swf extraPlaces extraStates extraTransitions
+    pure $ EFCSW $ ExtendedSW swf extraTransitions
 
   shrink (EFCSW esw) = [ EFCSW esw' | esw' <- shrink esw ]
