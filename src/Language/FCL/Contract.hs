@@ -108,7 +108,7 @@ callableMethods' wfs s =
 
 -- | Allowed callers of a method
 data PermittedCallers = Anyone | Restricted (Set (Address AAccount))
-
+  deriving (Generic)
 instance ToJSON PermittedCallers where
   toJSON = callersJSON
 
@@ -126,7 +126,8 @@ callersJSON callers =
 
 -- | Datatype used by Eval.hs to report callable methods after evaluating the
 -- access restriction expressions associated with contract methods.
-newtype CallableMethods = CallableMethods (Map.Map Name (PermittedCallers, [(Name, Type)]))
+newtype CallableMethods = CallableMethods (Map.Map Name (PermittedCallers, [(Name, Type)])) deriving (Generic)
+
 instance ToJSON CallableMethods where
   toJSON = callableMethodsJSON
 

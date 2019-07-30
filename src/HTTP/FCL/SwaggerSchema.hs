@@ -23,11 +23,15 @@ import Language.FCL.Hash
 import Language.FCL.Address
 import Language.FCL.Key as Key
 import Language.FCL.Asset
+import Language.FCL.Contract
 import Language.FCL.Parser as Parser
 import Language.FCL.Typecheck as Typecheck
 import Language.FCL.Compile as Compile
 import Language.FCL.Warning as Warning
 import Language.FCL.Effect as Effect
+import Language.FCL.Error as Error
+import Language.FCL.Storage as Storage
+import Language.FCL.Metadata as Metadata
 import Language.FCL.Encoding as Encoding
 import Language.FCL.Analysis as Analysis
 import Language.FCL.Undefinedness as Undefinedness
@@ -45,6 +49,19 @@ instance ToSchema Key.Signature where
                , _schemaProperties = fromList [("sign_r", i), ("sign_s", i)]
                , _schemaRequired = [ "sign_r", "sign_s"  ]
                }
+
+instance ToSchema EvalFail where
+  declareNamedSchema = genericDeclareNamedSchemaUnrestricted defaultSchemaOptions
+
+instance ToSchema Contract
+instance ToSchema InvalidMethodName
+instance ToSchema GlobalStorage
+instance ToSchema Key
+instance ToSchema Metadata
+instance ToSchema CallableMethods
+instance ToSchema PermittedCallers where
+  declareNamedSchema = genericDeclareNamedSchemaUnrestricted defaultSchemaOptions
+
 instance ToSchema Def
 instance ToSchema Type where
   declareNamedSchema = genericDeclareNamedSchemaUnrestricted defaultSchemaOptions
@@ -250,6 +267,21 @@ instance ToSchema Warning
 instance ToSchema Value where
   declareNamedSchema = genericDeclareNamedSchemaUnrestricted defaultSchemaOptions
 
+instance ToSchema InvalidSignature where
+  declareNamedSchema _ = do
+    t <- declareSchemaRef @Text Proxy
+    s <- declareSchemaRef @Key.Signature Proxy
+    pure . NamedSchema (Just "Ratio") $
+      mempty { _schemaParamSchema = mempty { _paramSchemaType = SwaggerObject }
+             , _schemaProperties = fromList [("InvalidSignature", Inline $ mempty
+                                               { _schemaParamSchema = mempty { _paramSchemaType = SwaggerArray
+                                                                             , _paramSchemaItems = Just $ SwaggerItemsArray [s, t]
+                                                                             }
+                                               })
+                                            ,("DecodeSignatureFail", t)
+                                            ,("SignatureSplittingFail", t)
+                                            ]
+             }
 instance ToSchema Balance
 instance ToSchema Number
 instance ToSchema (Ratio Integer) where
