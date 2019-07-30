@@ -1,5 +1,5 @@
 {-# LANGUAGE PatternSynonyms #-}
-{-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE DeriveGeneric, DeriveAnyClass #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE BangPatterns #-}
 module Test.Workflow.SafeWorkflow
@@ -65,7 +65,7 @@ data SafeWorkflow
            }
   -- | Atom representing a single transition.
   | Atom
-  deriving (Eq, Ord, Show, Generic)
+  deriving (Eq, Ord, Show, Generic, NFData)
 
 {-# COMPLETE XOR, AND, Seq, SimpleLoop, Loop, GenXOR #-}
 -- | XOR with three branches.
@@ -150,7 +150,7 @@ instance Arbitrary SafeWorkflow where
     partitionThen n k g = do
       let partitions = filter ((==k) . length) $ partitionInt n
       case partitions of
-        [] -> panic $ "Couldn't partition " <> show n <> " into 2 integers"
+        [] -> panic $ "partitionThen: Couldn't partition " <> show n <> " into " <> show k <> " integers"
         _  -> do
           aPartition <- elements partitions
           g aPartition
@@ -228,7 +228,7 @@ instance Arbitrary SafeWorkflow where
                    <*> mGenSWFNet k5
                    <*> mGenSWFNet k6
           ]
-        _ -> panic $ show n <> " was not partitioned into 5 components"
+        _ -> panic $ show n <> " was not partitioned into 6 components"
 
     -- | Generates `SafeWorkflow`s of summed size `n`.
     someSWFNets :: Int -> Int -> QC.Gen (NonEmpty SafeWorkflow)
