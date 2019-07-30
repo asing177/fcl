@@ -65,20 +65,20 @@ soundnessCheckWith constructGraph
   . S.fromList
   . constructTransitions
 
-mkFCSoundnessTest :: SafeWorkflow -> [Char] -> TestTree
-mkFCSoundnessTest swf name = testCase name $ do
+mkFCSoundnessTest :: [Char] -> SafeWorkflow -> TestTree
+mkFCSoundnessTest name swf = testCase name $ do
   let errs = soundnessCheckWith reachabilityGraph swf
   assertBool (show . ppr $ errs) (null errs)
 
-mkCrossValidationTest :: ExtendedFCSW -> [Char] -> TestTree
-mkCrossValidationTest esw name = testCase name $ do
+mkCrossValidationTest :: [Char] -> ExtendedFCSW -> TestTree
+mkCrossValidationTest name esw = testCase name $ do
   let (fcErrs, genErrs) = checkWithBoth (fcGetESW esw)
       fcDecision  = null fcErrs
       genDecision = null genErrs
   assertBool (show $ ppr fcErrs <$$> linebreak <> "--- (got ^^^) ----- (expected ˇˇˇ) ---" <> linebreak <$$> ppr genErrs) (fcDecision == genDecision)
 
-mkExpectedFailureTest :: ExtendedFCSW -> [Char] -> TestTree
-mkExpectedFailureTest esw name = testCase name $ do
+mkExpectedFailureTest :: [Char] -> ExtendedFCSW -> TestTree
+mkExpectedFailureTest name esw = testCase name $ do
   let errs = fst . checkWithBoth . fcGetESW $ esw
   assertBool "Split-and-Merge should have rejected this" (not $ null errs)
 
