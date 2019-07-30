@@ -29,7 +29,7 @@ import qualified Data.Set as S
 
 import Language.FCL.AST
 import Language.FCL.Debug (Debug(..))
-import Language.FCL.Pretty (ppr)
+import Language.FCL.Pretty ((<+>), sqppr)
 
 -- QUESTION: should this be here?
 data List2 a where
@@ -46,6 +46,7 @@ toList (List2 x y ys) = x:y:ys
 
 -- | Pattern synonym to facilitate pattern matching
 -- without turning on `ViewPatterns` at the use-site
+pattern L2 :: [a] -> List2 a
 pattern L2 l <- (toList -> l)
 {-# COMPLETE L2 #-}
 
@@ -62,9 +63,11 @@ data StructuredTransition where
 
 -- | Pattern synonym for conveniently getting
 -- the possible transitions in a XOR-split.
+pattern XORTransitions :: [SimpleTransition] -> StructuredTransition
 pattern XORTransitions trs <- XORSplit (L2 trs)
 {-# COMPLETE XORTransitions #-}
 
+pattern ANDSplit :: WorkflowState -> [Place] -> SimpleTransition
 pattern ANDSplit wf ps <- ANDSplit' wf (L2 ps)
 {-# COMPLETE NoSplit, ANDSplit #-}
 
@@ -93,8 +96,9 @@ mkSimpleTransition tr@(Arrow lhs rhs)
   | [p]        <- S.toList . places $ rhs = NoSplit  lhs p
   | (p1:p2:ps) <- S.toList . places $ rhs = ANDSplit' lhs (List2 p1 p2 ps)
   | otherwise = panic errMsg where
-    errMsg = "mkSimpleTransition: Can't construct simple transition from '" <>
-             show (ppr $ Debug tr) <> "'"
+    errMsg = show
+      $ "mkSimpleTransition: Can't construct simple transition from"
+      <+> sqppr (Debug tr)
 
 mkStructuredTransition :: TransitionsGroup -> StructuredTransition
 mkStructuredTransition [] = panic "mkStructuredTransition: can't construct structured transition from an empty list of transitions"
