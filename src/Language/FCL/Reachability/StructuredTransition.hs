@@ -27,28 +27,11 @@ import Protolude hiding (Complex, toList)
 
 import qualified Data.Set as S
 
+import Data.List.List2
+
 import Language.FCL.AST
 import Language.FCL.Debug (Debug(..))
 import Language.FCL.Pretty ((<+>), sqppr)
-
--- QUESTION: should this be here?
-data List2 a where
-  List2 :: a -> a -> [a] -> List2 a
-  deriving (Eq, Ord, Show)
-
-fromList :: [a] -> List2 a
-fromList []       = panic "toList2: The input list is empty"
-fromList [x]      = panic "toList2: The input list is a singleton"
-fromList (x:y:ys) = List2 x y ys
-
-toList :: List2 a -> [a]
-toList (List2 x y ys) = x:y:ys
-
--- | Pattern synonym to facilitate pattern matching
--- without turning on `ViewPatterns` at the use-site
-pattern L2 :: [a] -> List2 a
-pattern L2 l <- (toList -> l)
-{-# COMPLETE L2 #-}
 
 data SimpleTransition where
   NoSplit   :: WorkflowState -> Place       -> SimpleTransition

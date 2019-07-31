@@ -131,6 +131,8 @@ library:
     -Wmissing-export-lists
 
   exposed-modules:
+    - Data.List.List2
+
     - Language.FCL.Contract
     - Language.FCL.AST
     - Language.FCL.Delta
