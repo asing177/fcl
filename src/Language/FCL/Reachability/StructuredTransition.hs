@@ -27,7 +27,7 @@ import Protolude hiding (Complex, toList)
 
 import qualified Data.Set as S
 
-import Data.List.List2
+import Data.List.List2 -- internal
 
 import Language.FCL.AST
 import Language.FCL.Debug (Debug(..))
@@ -47,11 +47,11 @@ data StructuredTransition where
 -- | Pattern synonym for conveniently getting
 -- the possible transitions in a XOR-split.
 pattern XORTransitions :: [SimpleTransition] -> StructuredTransition
-pattern XORTransitions trs <- XORSplit (L2 trs)
+pattern XORTransitions trs <- XORSplit (AsList trs)
 {-# COMPLETE XORTransitions #-}
 
 pattern ANDSplit :: WorkflowState -> [Place] -> SimpleTransition
-pattern ANDSplit wf ps <- ANDSplit' wf (L2 ps)
+pattern ANDSplit wf ps <- ANDSplit' wf (AsList ps)
 {-# COMPLETE NoSplit, ANDSplit #-}
 
 inputState :: SimpleTransition -> WorkflowState
@@ -60,11 +60,11 @@ inputState (ANDSplit' wfSt _) = wfSt
 
 outputStates :: SimpleTransition -> [WorkflowState]
 outputStates (NoSplit _ p)           = [unsafeWorkflowState (S.singleton p)]
-outputStates (ANDSplit' _ (L2 ps)) = [unsafeWorkflowState $ S.fromList ps]
+outputStates (ANDSplit' _ (AsList ps)) = [unsafeWorkflowState $ S.fromList ps]
 
 possibleTransitions :: StructuredTransition -> [SimpleTransition]
 possibleTransitions (Single tr) = [tr]
-possibleTransitions (XORSplit (L2 trs)) = trs
+possibleTransitions (XORSplit (AsList trs)) = trs
 
 groupByInputs :: [Transition] -> [TransitionsGroup]
 groupByInputs = groupBy sameInput where
@@ -93,7 +93,7 @@ structureTransitions = map mkStructuredTransition . groupByInputs
 
 unstructureSimpleTransition :: SimpleTransition -> Transition
 unstructureSimpleTransition (NoSplit  wf p) = Arrow wf (unsafeWorkflowState $ S.singleton p)
-unstructureSimpleTransition (ANDSplit' wf (L2 ps)) = Arrow wf (unsafeWorkflowState $ S.fromList ps)
+unstructureSimpleTransition (ANDSplit' wf (AsList ps)) = Arrow wf (unsafeWorkflowState $ S.fromList ps)
 
 unstructureTransition :: StructuredTransition -> [Transition]
 unstructureTransition (Single tr) = [unstructureSimpleTransition tr]
