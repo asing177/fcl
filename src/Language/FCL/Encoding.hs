@@ -7,6 +7,7 @@ Byte encoding schemes.
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE TypeApplications #-}
 
 module Language.FCL.Encoding (
   -- ** ByteStringEncoding
@@ -28,6 +29,8 @@ import Protolude hiding (Show, show)
 import Prelude (Show(..))
 import Control.Monad (fail)
 import Data.Aeson
+import Test.QuickCheck
+import Test.QuickCheck.Instances.Text ()
 import qualified Data.Binary as B
 import qualified Data.ByteArray as B
 import qualified Data.ByteArray.Encoding as B
@@ -68,6 +71,10 @@ instance ByteStringEncoding Base58ByteString where
     case decodeBase58M b58bs of
       Nothing -> Left $ BadEncoding b58bs
       Just _  -> Right b58bs
+
+
+instance Arbitrary Base58ByteString where
+  arbitrary = Base58ByteString . encodeBase . toS <$> (arbitrary @Text)
 
 decodeBase58M :: Base58ByteString -> Maybe ByteString
 decodeBase58M = B58.decodeBase58 B58.bitcoinAlphabet . unbase58
@@ -110,6 +117,9 @@ instance ByteStringEncoding Base16ByteString where
       Right _  -> Right b16bs
 
 
+instance Arbitrary Base16ByteString where
+  arbitrary = Base16ByteString . encodeBase . toS <$> (arbitrary @Text)
+
 decodeBase16E :: Base16ByteString -> Either [Char] ByteString
 decodeBase16E b = B.convertFromBase B.Base16 (unbase16 b)
 
@@ -146,6 +156,8 @@ instance ByteStringEncoding Base64ByteString where
       Left _ -> Left $ BadEncoding b64bs
       Right _  -> Right b64bs
 
+instance Arbitrary Base64ByteString where
+  arbitrary = Base64ByteString . encodeBase . toS <$> (arbitrary @Text)
 
 decodeBase64E :: Base64ByteString -> Either [Char] ByteString
 decodeBase64E b = B.convertFromBase B.Base64URLUnpadded (unbase64 b)
@@ -185,6 +197,8 @@ instance ByteStringEncoding Base64PByteString where
       Left _ -> Left $ BadEncoding b64Pbs
       Right _  -> Right b64Pbs
 
+instance Arbitrary Base64PByteString where
+  arbitrary = Base64PByteString . encodeBase . toS <$> (arbitrary @Text)
 
 decodeBase64PE :: Base64PByteString -> Either [Char] ByteString
 decodeBase64PE b = B.convertFromBase B.Base64 (unbase64P b)
