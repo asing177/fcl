@@ -25,8 +25,9 @@ module Language.FCL.Reachability.StructuredTransition
 
 import Protolude hiding (Complex, toList)
 
-import qualified Data.Set as S
+import GHC.Exts (IsList(..))
 
+import qualified Data.Set as S
 import Data.List.List2 -- internal
 
 import Language.FCL.AST

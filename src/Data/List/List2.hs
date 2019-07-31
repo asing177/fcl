@@ -1,22 +1,32 @@
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE InstanceSigs #-}
+{-# LANGUAGE TypeFamilies #-}
 -- NOTE: This library is developed in a lazy manner. Feel free to add anything if you need it.
 module Data.List.List2
   ( List2(..)
-  , fromList
   , pattern AsList
   ) where
 
-import Protolude
+import Protolude hiding (toList)
+import GHC.Exts (IsList(..))
+
+import qualified Data.Foldable as F
 
 data List2 a = List2 a a [a]
   deriving (Eq, Ord, Show)
 
-fromList :: [a] -> List2 a
-fromList []       = panic "toList2: The input list is empty"
-fromList [x]      = panic "toList2: The input list is a singleton"
-fromList (x:y:ys) = List2 x y ys
+instance IsList (List2 a) where
+
+  type (Item (List2 a)) = a
+
+  fromList :: [a] -> List2 a
+  fromList []       = panic "toList2: The input list is empty"
+  fromList [x]      = panic "toList2: The input list is a singleton"
+  fromList (x:y:ys) = List2 x y ys
+
+  toList :: List2 a -> [a]
+  toList = F.toList
 
 instance Foldable List2 where
   foldMap :: Monoid m => (a -> m) -> List2 a -> m
@@ -29,5 +39,5 @@ instance Functor List2 where
 -- | Pattern synonym to facilitate pattern matching
 -- without turning on `ViewPatterns` at the use-site
 pattern AsList :: [a] -> List2 a
-pattern AsList l <- (toList -> l)
+pattern AsList l <- (F.toList -> l)
 {-# COMPLETE AsList #-}
