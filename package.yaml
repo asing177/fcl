@@ -58,6 +58,7 @@ dependencies:
   - warp
   - servant
   - servant-server
+  - servant-checked-exceptions
   - servant-swagger
   - servant-swagger-ui
   - swagger2
@@ -194,8 +195,6 @@ executables:
     - -with-rtsopts=-N
     dependencies:
     - fcl
-    - wai-logger
-    - scotty
 
 tests:
   fcl-test:

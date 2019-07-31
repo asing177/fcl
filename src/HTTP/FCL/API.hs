@@ -1,3 +1,5 @@
+{-# options_ghc -fno-warn-orphans #-}
+
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE EmptyDataDecls #-}
@@ -7,211 +9,130 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE FlexibleInstances #-}
+
 module HTTP.FCL.API
   ( FCLAPI
   , fclProxyAPI
-  , fclServer
-  , runHttpFclAsHandler
   , runHttpFcl
-  , RPCResponseError(..)
-  , RPCResponse(..)
   ) where
 
 import Protolude hiding (get, from, Type)
-import Test.QuickCheck
 import Network.Wai.Handler.Warp
-import Data.HashMap.Strict.InsOrd
 
 import Servant.Server
 import Data.Swagger
 import Servant
 import Servant.Swagger
 import Servant.Swagger.UI
+import Servant.Checked.Exceptions
 import Network.Wai.Middleware.Cors
 
 import qualified Language.FCL.LanguageServerProtocol as LSP
-import Data.Aeson as A
+import Language.FCL.LanguageServerProtocol (LSPErr)
 
 import HTTP.FCL.SwaggerSchema()
-
-data Config = Config
-
-newtype AppT m a = AppT
-  { runApp :: ReaderT Config (ExceptT ServantErr m) a
-  } deriving (Functor, Applicative, Monad, MonadReader Config, MonadError ServantErr, MonadIO)
-
-type App = AppT IO
-
-type FCLAPI resp = ScriptsAPI resp :<|> MethodsAPI resp :<|> DefsAPI resp
-
-type API = SwaggerSchemaUI "swagger-ui" "swagger.json" :<|> FCLAPI RPCResponse
-
-data RPCResponseError
-  = RPCLSPErr LSP.LSPErr
-  deriving (Show, Generic)
-
-instance ToJSON RPCResponseError
-instance ToSchema RPCResponseError where
-  declareNamedSchema _ = do
-    t <- declareSchemaRef (Proxy :: Proxy Text)
-    l <- declareSchemaRef (Proxy :: Proxy [LSP.LSP])
-    pure $ NamedSchema (Just "RPCResponseError")
-      $ mempty { _schemaParamSchema = mempty { _paramSchemaType = SwaggerObject }
-               , _schemaProperties = fromList [("lsp", l), ("errorMsg", t)]
-               , _schemaRequired = [ "lsp", "errorMsg" ]
-               }
-
--- | An RPC response body
-data RPCResponse a
-  = RPCResp a
-  | RPCRespError RPCResponseError
-  deriving (Show, Generic)
-
-instance ToJSON a => ToJSON (RPCResponse a) where
-  toJSON = genericToJSON (defaultOptions { sumEncoding = ObjectWithSingleField })
-
-instance ToSchema (RPCResponse LSP.RespScript) where
-  declareNamedSchema _ = do
-    rsp <- declareSchemaRef (Proxy :: Proxy LSP.RespScript)
-    rspErr <- declareSchemaRef (Proxy :: Proxy RPCResponseError)
-    pure $ NamedSchema (Just "RPCResponse Script")
-      $ mempty { _schemaParamSchema = mempty { _paramSchemaType = SwaggerObject }
-               , _schemaProperties = fromList [("RPCResp", rsp), ("RPCRespError", rspErr)]
-               }
-
-instance ToSchema (RPCResponse LSP.RespMethod) where
-  declareNamedSchema _ = do
-    rsp <- declareSchemaRef (Proxy :: Proxy LSP.RespMethod)
-    rspErr <- declareSchemaRef (Proxy :: Proxy RPCResponseError)
-    pure $ NamedSchema (Just "RPCResponse Method")
-      $ mempty { _schemaParamSchema = mempty { _paramSchemaType = SwaggerObject }
-               , _schemaProperties = fromList [("RPCResp", rsp), ("RPCRespError", rspErr)]
-               }
-
-instance ToSchema (RPCResponse LSP.RespDef) where
-  declareNamedSchema _ = do
-    rsp <- declareSchemaRef (Proxy :: Proxy LSP.RespDef)
-    rspErr <- declareSchemaRef (Proxy :: Proxy RPCResponseError)
-    pure $ NamedSchema (Just "RPCResponse Def")
-      $ mempty { _schemaParamSchema = mempty { _paramSchemaType = SwaggerObject }
-               , _schemaProperties = fromList [("RPCResp", rsp), ("RPCRespError", rspErr)]
-               }
 
 --------------------
 -- Scripts
 --------------------
 
-type ScriptCompile resp = ReqBody '[JSON] LSP.ReqScript :> Post '[JSON] (resp LSP.RespScript)
-type ScriptCompileRaw resp = "raw" :> ReqBody '[PlainText] Text :> Post '[JSON] (resp LSP.RespScript)
-type ScriptParse resp = ReqBody '[JSON] LSP.ReqScript :> Post '[JSON] (resp LSP.RespScript)
+type ScriptCompile = ReqBody '[JSON] LSP.ReqScript :> Throws LSPErr :> Post '[JSON] LSP.RespScript
+type ScriptCompileRaw = "raw" :> Throws LSPErr :> ReqBody '[PlainText] Text :> Post '[JSON] LSP.RespScript
+type ScriptParse = Throws LSPErr :> ReqBody '[JSON] LSP.ReqScript :> Post '[JSON] LSP.RespScript
 
-type ScriptsAPI resp = "scripts" :>
- ( ("compile" :> (ScriptCompile resp :<|> ScriptCompileRaw resp)) :<|>
-   ("parse" :> ScriptParse resp)
+type ScriptsAPI = "scripts" :>
+ ( ("compile" :> (ScriptCompile :<|> ScriptCompileRaw)) :<|>
+   ("parse" :> ScriptParse)
  )
 
-scriptsCompile :: Monad m => LSP.ReqScript -> m (RPCResponse LSP.RespScript)
+scriptsCompile :: LSP.ReqScript -> Handler (Envelope '[LSPErr] LSP.RespScript)
 scriptsCompile req
-  = case LSP.scriptCompile req of
-      Left err -> pure . RPCRespError . RPCLSPErr $ err
-      Right resp -> pure  . RPCResp $ resp
+  = either pureErrEnvelope pureSuccEnvelope (LSP.scriptCompile req)
 
-scriptsCompileRaw :: Monad m => Text -> m (RPCResponse LSP.RespScript)
-scriptsCompileRaw body
-  = case LSP.scriptCompileRaw body of
-      Left err -> pure . RPCRespError . RPCLSPErr $ err
-      Right script -> pure  . RPCResp $ script
+scriptsCompileRaw :: Text -> Handler (Envelope '[LSPErr] LSP.RespScript)
+scriptsCompileRaw req
+  = either pureErrEnvelope pureSuccEnvelope (LSP.scriptCompileRaw req)
 
-scriptsParse :: Monad m => LSP.ReqScript -> m (RPCResponse LSP.RespScript)
+scriptsParse :: LSP.ReqScript -> Handler (Envelope '[LSPErr] LSP.RespScript)
 scriptsParse req
- = case LSP.scriptParse req of
-     Left err -> pure $ RPCRespError . RPCLSPErr $ err
-     Right script -> pure $ RPCResp script
+  = either pureErrEnvelope pureSuccEnvelope (LSP.scriptParse req)
 
 --------------------
 -- Methods
 --------------------
 
-type MethodsCompileRaw resp = "raw" :> ReqBody '[PlainText] Text :> Post '[JSON] (resp LSP.RespMethod)
-type MethodsCompile resp = ReqBody '[JSON] LSP.ReqMethod :> Post '[JSON] (resp LSP.RespMethod)
+type MethodsCompileRaw = "raw" :> Throws LSPErr :> ReqBody '[PlainText] Text :> Post '[JSON] (LSP.RespMethod)
+type MethodsCompile = Throws LSPErr :> ReqBody '[JSON] LSP.ReqMethod :> Post '[JSON] (LSP.RespMethod)
 
-type MethodsAPI resp = "methods" :>
- ("compile" :> (MethodsCompile resp :<|> MethodsCompileRaw resp))
+type MethodsAPI = "methods" :>
+ ("compile" :> (MethodsCompile :<|> MethodsCompileRaw))
 
-methodCompileRaw :: Monad m => Text -> m (RPCResponse LSP.RespMethod)
-methodCompileRaw text
-  = case LSP.methodCompileRaw text of
-      Left err -> pure . RPCRespError . RPCLSPErr $ err
-      Right method -> pure . RPCResp $ method
+methodCompileRaw :: Text -> Handler (Envelope '[LSPErr] LSP.RespMethod)
+methodCompileRaw req
+  = either pureErrEnvelope pureSuccEnvelope (LSP.methodCompileRaw req)
 
-methodCompile :: Monad m => LSP.ReqMethod -> m (RPCResponse LSP.RespMethod)
+methodCompile :: LSP.ReqMethod -> Handler (Envelope '[LSPErr] LSP.RespMethod)
 methodCompile req
-  = case LSP.methodCompile req of
-        Left err -> pure . RPCRespError . RPCLSPErr $ err
-        Right method -> pure . RPCResp $ method
+  = either pureErrEnvelope pureSuccEnvelope (LSP.methodCompile req)
 
 --------------------
 -- Defs
 --------------------
 
-type DefsCompileRaw resp = "raw" :> ReqBody '[PlainText] Text :> Post '[JSON] (resp LSP.RespDef)
-type DefsCompile resp = ReqBody '[JSON] LSP.ReqDef :> Post '[JSON] (resp LSP.RespDef)
+type DefsCompileRaw = "raw" :> Throws LSPErr :> ReqBody '[PlainText] Text :> Post '[JSON] (LSP.RespDef)
+type DefsCompile = Throws LSPErr :> ReqBody '[JSON] LSP.ReqDef :> Post '[JSON] (LSP.RespDef)
 
-type DefsAPI resp = "defs" :>
-  ("compile" :> (DefsCompile resp :<|> DefsCompileRaw resp))
+type DefsAPI = "defs" :>
+  ("compile" :> (DefsCompile :<|> DefsCompileRaw))
 
-defsCompileRaw :: Monad m => Text -> m (RPCResponse LSP.RespDef)
-defsCompileRaw text = case LSP.defCompileRaw text of
-  Left err -> pure . RPCRespError . RPCLSPErr $ err
-  Right defn -> pure . RPCResp $ defn
+defsCompileRaw :: Text -> Handler (Envelope '[LSPErr] LSP.RespDef)
+defsCompileRaw req
+  = either pureErrEnvelope pureSuccEnvelope (LSP.defCompileRaw req)
 
-defsCompile :: Monad m => LSP.ReqDef -> m (RPCResponse LSP.RespDef)
-defsCompile req = case LSP.defCompile req of
-  Left err -> pure . RPCRespError . RPCLSPErr $ err
-  Right defn -> pure . RPCResp $ defn
+defsCompile :: LSP.ReqDef -> Handler (Envelope '[LSPErr] LSP.RespDef)
+defsCompile req
+    = either pureErrEnvelope pureSuccEnvelope (LSP.defCompile req)
 
 ----------------------
 -- Server
 ----------------------
 
-fclProxyAPI :: Proxy (FCLAPI RPCResponse)
+instance ErrStatus LSPErr where
+  toErrStatus _ = toEnum 400
+
+instance (ErrStatus err, HasSwagger sub) => HasSwagger (Throws err :> sub)
+  where
+    toSwagger _ =
+      toSwagger (Proxy :: Proxy sub) &
+        setResponse
+          (fromEnum $ toErrStatus (witness :: err))
+          (pure mempty)
+
+type FCLAPI = ScriptsAPI :<|> MethodsAPI :<|> DefsAPI
+
+type API = SwaggerSchemaUI "swagger-ui" "swagger.json" :<|> FCLAPI
+
+fclProxyAPI :: Proxy FCLAPI
 fclProxyAPI = Proxy
 
 api :: Proxy API
 api = Proxy
 
-fclServer :: Monad m => ServerT (FCLAPI RPCResponse) m
-fclServer = scripts :<|> methods :<|> defs
+fclServer :: Server FCLAPI
+fclServer = (scripts :<|> methods :<|> defs)
   where
     scripts = (scriptsCompile :<|> scriptsCompileRaw) :<|> scriptsParse
     methods =  methodCompile :<|> methodCompileRaw
     defs = defsCompile :<|> defsCompileRaw
 
-runHttpFclAsHandler :: (m a -> ExceptT ServantErr IO a) -> m a -> Handler a
-runHttpFclAsHandler runner app  = Handler (runner app)
-
-appToServer :: Server API
-appToServer =
-  swaggerSchemaUIServer (toSwagger fclProxyAPI)
-    :<|> (hoistServer fclProxyAPI (runHttpFclAsHandler (flip runReaderT Config . runApp)) fclServer)
+appServer :: Server API
+appServer =
+  swaggerSchemaUIServer (toSwagger fclProxyAPI) :<|> fclServer
 
 runHttpFcl :: IO ()
 runHttpFcl = do
   let port = 8080
   putText $ "Running on port " <> show port
-  run port . customCors . serve api $ appToServer
+  run port . customCors . serve api $ appServer
   where
     customCors = cors (const $ Just (simpleCorsResourcePolicy  { corsRequestHeaders = ["Accept", "Accept-Language", "Content-Language", "Content-Type"] }))
-
----------------------
--- Arbitrary
----------------------
-
-instance Arbitrary a => Arbitrary (RPCResponse a) where
-  arbitrary = oneof
-    [ RPCResp <$> arbitrary
-    , RPCRespError <$> arbitrary
-    ]
-
-instance Arbitrary RPCResponseError where
-  arbitrary = RPCLSPErr <$> arbitrary
