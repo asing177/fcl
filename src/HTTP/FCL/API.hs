@@ -73,7 +73,6 @@ instance ToJSON a => ToJSON (RPCResponse a) where
 instance ToSchema (RPCResponse LSP.RespScript) where
   declareNamedSchema _ = do
     rsp <- declareSchemaRef (Proxy :: Proxy LSP.RespScript)
-    rspOK <- declareSchemaRef (Proxy :: Proxy ())
     rspErr <- declareSchemaRef (Proxy :: Proxy RPCResponseError)
     pure $ NamedSchema (Just "RPCResponse Script")
       $ mempty { _schemaParamSchema = mempty { _paramSchemaType = SwaggerObject }
@@ -83,7 +82,6 @@ instance ToSchema (RPCResponse LSP.RespScript) where
 instance ToSchema (RPCResponse LSP.RespMethod) where
   declareNamedSchema _ = do
     rsp <- declareSchemaRef (Proxy :: Proxy LSP.RespMethod)
-    rspOK <- declareSchemaRef (Proxy :: Proxy ())
     rspErr <- declareSchemaRef (Proxy :: Proxy RPCResponseError)
     pure $ NamedSchema (Just "RPCResponse Method")
       $ mempty { _schemaParamSchema = mempty { _paramSchemaType = SwaggerObject }
@@ -93,7 +91,6 @@ instance ToSchema (RPCResponse LSP.RespMethod) where
 instance ToSchema (RPCResponse LSP.RespDef) where
   declareNamedSchema _ = do
     rsp <- declareSchemaRef (Proxy :: Proxy LSP.RespDef)
-    rspOK <- declareSchemaRef (Proxy :: Proxy ())
     rspErr <- declareSchemaRef (Proxy :: Proxy RPCResponseError)
     pure $ NamedSchema (Just "RPCResponse Def")
       $ mempty { _schemaParamSchema = mempty { _paramSchemaType = SwaggerObject }

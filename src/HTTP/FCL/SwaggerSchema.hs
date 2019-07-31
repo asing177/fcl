@@ -71,24 +71,22 @@ instance ToSchema TCollection where
   declareNamedSchema = genericDeclareNamedSchemaUnrestricted defaultSchemaOptions
 instance ToSchema Preconditions where
   declareNamedSchema _ = do
-    x <- declareSchemaRef (Proxy :: Proxy (Precondition, LExpr))
+    tup <- declareSchemaRef (Proxy :: Proxy [(Precondition, LExpr)])
     pure $ NamedSchema (Just "Preconditions")
-      $ mempty { _schemaParamSchema =
-                   mempty { _paramSchemaType = SwaggerArray
-                          -- , _paramSchemaItems = Just $ SwaggerItemsArray [x]
-                          }
+      $ mempty { _schemaParamSchema = mempty { _paramSchemaType = SwaggerArray }
+               , _schemaAllOf = Just [tup]
                }
 
 instance ToSchema Precondition where
   declareNamedSchema _ = do
-    return $ NamedSchema (Just "Precondition")
+    pure . NamedSchema (Just "Precondition")
       $ mempty { _schemaParamSchema = mempty { _paramSchemaType = SwaggerString } }
 
 instance ToSchema (Located Expr) where
   declareNamedSchema _ = do
     l <- declareSchemaRef (Proxy :: Proxy Loc)
     t <- declareSchemaRef (Proxy :: Proxy Expr)
-    pure $ NamedSchema (Just "Located Expr")
+    pure . NamedSchema (Just "Located Expr")
       $ mempty { _schemaParamSchema = mempty { _paramSchemaType = SwaggerObject }
                , _schemaProperties = fromList [("located", l), ("locVal", t)]
                , _schemaRequired = [ "located", "locVal"  ]
@@ -98,7 +96,7 @@ instance ToSchema (Located Lit) where
   declareNamedSchema _ = do
     l <- declareSchemaRef (Proxy :: Proxy Loc)
     t <- declareSchemaRef (Proxy :: Proxy Lit)
-    pure $ NamedSchema (Just "Located Lit")
+    pure . NamedSchema (Just "Located Lit")
       $ mempty { _schemaParamSchema = mempty { _paramSchemaType = SwaggerObject }
                , _schemaProperties = fromList [("located", l), ("locVal", t)]
                , _schemaRequired = [ "located", "locVal"  ]
