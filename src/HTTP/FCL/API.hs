@@ -13,6 +13,7 @@
 module HTTP.FCL.API
   ( FCLAPI
   , fclProxyAPI
+  , fclServer
   , runHttpFcl
   ) where
 
