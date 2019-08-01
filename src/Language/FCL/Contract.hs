@@ -77,6 +77,9 @@ data Contract = Contract
   , address          :: Address AContract     -- ^ Contract Address, derived during creation
   } deriving (Show, Generic, Serialize)
 
+instance Arbitrary Contract where
+  arbitrary = genericArbitraryU
+
 -- | Two Contracts are equal if their addresses are equal
 instance Eq Contract where
   (==) c c' = address c == address c'
@@ -112,6 +115,10 @@ callableMethods' wfs s =
 -- | Allowed callers of a method
 data PermittedCallers = Anyone | Restricted (Set (Address AAccount))
   deriving (Show, Generic)
+
+instance Arbitrary PermittedCallers where
+  arbitrary = genericArbitraryU
+
 instance ToJSON PermittedCallers where
   toJSON = callersJSON
 
@@ -131,6 +138,9 @@ callersJSON callers =
 -- access restriction expressions associated with contract methods.
 newtype CallableMethods = CallableMethods (Map.Map Name (PermittedCallers, [(Name, Type)]))
   deriving (Show, Generic)
+
+instance Arbitrary CallableMethods where
+  arbitrary = genericArbitraryU
 
 instance ToJSON CallableMethods where
   toJSON = callableMethodsJSON

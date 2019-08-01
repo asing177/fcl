@@ -20,14 +20,6 @@ import qualified Language.FCL.Encoding as Encoding
 
 import Test.Reference as Reference
 
-instance Arbitrary PubKey where
-  arbitrary = arbitrary >>= \(Positive d) ->
-    pure $ fst (new' d)
-
-instance Arbitrary PrivateKey where
-  arbitrary = arbitrary >>= \(Positive d) ->
-    pure $ snd (new' d)
-
 keyTests :: TestTree
 keyTests =
   testGroup "Key Tests"

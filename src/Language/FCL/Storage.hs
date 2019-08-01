@@ -47,6 +47,8 @@ import Data.Aeson.Types (typeMismatch, toJSONKeyText)
 import qualified Data.Aeson as A
 import qualified Data.Map as Map
 
+import Test.QuickCheck
+
 -------------------------------------------------------------------------------
 -- Types
 -------------------------------------------------------------------------------
@@ -54,10 +56,16 @@ import qualified Data.Map as Map
 newtype Key = Key { unKey :: Text }
   deriving (Eq, Show, Generic, Ord, IsString)
 
+instance Arbitrary Key where
+  arbitrary = Key <$> arbitrary
+
 type Storage = Map.Map Key Value
 
 newtype GlobalStorage = GlobalStorage { unGlobalStorage :: Storage }
   deriving (Eq, Show, Generic, Hash.Hashable)
+
+instance Arbitrary GlobalStorage where
+  arbitrary = GlobalStorage <$> arbitrary
 
 instance Semigroup GlobalStorage where
   (GlobalStorage m1) <> (GlobalStorage m2) = GlobalStorage (m1 <> m2)
