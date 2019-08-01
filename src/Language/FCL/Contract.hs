@@ -58,6 +58,9 @@ import Data.Aeson (ToJSON(..), (.=), (.:))
 import Data.Aeson.Types (typeMismatch)
 import qualified Data.Aeson as A
 
+import Test.QuickCheck
+import Generic.Random
+
 -------------------------------------------------------------------------------
 -- Contracts
 -------------------------------------------------------------------------------
@@ -143,6 +146,9 @@ data InvalidMethodName
   = MethodDoesNotExist Name
   | MethodNotCallable  Name WorkflowState
   deriving (Eq, Show, Generic, Serialize)
+
+instance Arbitrary InvalidMethodName where
+  arbitrary = genericArbitraryU
 
 -- | Looks up a method with a given name in a Contract, taking into account the
 -- current contract state. I.e. if a contract is in "terminal" state, no methods

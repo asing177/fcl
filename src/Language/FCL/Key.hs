@@ -8,6 +8,7 @@ Cryptography.
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE BangPatterns #-}
+{-# LANGUAGE TypeApplications #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 {-# OPTIONS_GHC -fno-warn-incomplete-uni-patterns #-}
 
@@ -172,6 +173,7 @@ import Crypto.Cipher.Types (Cipher(..), BlockCipher(..), IV, makeIV, blockSize)
 import System.Directory (doesFileExist)
 import System.Posix.Files (setFileMode, ownerReadMode)
 
+import Test.QuickCheck (Arbitrary(..), oneof)
 import qualified Language.FCL.Hash as Hash
 
 -------------------------------------------------------------------------------
@@ -680,6 +682,12 @@ data InvalidSignature
   | SignatureSplittingFail ByteString
   deriving (Show, Eq, Generic, S.Serialize)
 
+instance Arbitrary InvalidSignature where
+  arbitrary = oneof
+    [ InvalidSignature <$> (ECDSA.Signature <$> arbitrary <*> arbitrary) <*> (toS <$> arbitrary @Text)
+    , DecodeSignatureFail <$> (toS <$> arbitrary @Text)
+    , SignatureSplittingFail <$> (toS <$> arbitrary @Text)
+    ]
 -- XXX Wrap ECDSA.Signature in newtype to prevent orphan instances
 instance S.Serialize ECDSA.Signature where
   put = S.put . encodeSig

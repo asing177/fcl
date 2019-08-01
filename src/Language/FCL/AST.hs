@@ -107,6 +107,7 @@ import Prelude (show, Show(..))
 import Test.QuickCheck hiding (listOf)
 import qualified Test.QuickCheck as Q
 import Test.QuickCheck.Instances.Text ()
+import Generic.Random
 import Control.Monad (fail)
 
 import Numeric.Lossless.Number
@@ -379,6 +380,9 @@ data TCollection
   = TMap Type Type  -- ^ Type of FCL Maps
   | TSet Type       -- ^ Type of FCL Sets
   deriving (Eq, Ord, Show, Generic, Serialize, FromJSON, ToJSON, Hash.Hashable)
+
+instance Arbitrary TCollection where
+  arbitrary = genericArbitraryU
 
 -- | The required numeric precision @p@ to ensure non-lossy arithmetic. This is
 -- tracked in the type of numbers, @TNum p@.
@@ -1217,6 +1221,12 @@ instance Arbitrary Expr where
   arbitrary = do
     n <- choose ((-5), 5)
     arbNonSeqExpr n
+
+instance Arbitrary Pattern where
+  arbitrary = genericArbitraryU
+
+instance Arbitrary BinOp where
+  arbitrary = genericArbitraryU
 
 arbNumLogicExpr :: Int -> Gen Expr
 arbNumLogicExpr n

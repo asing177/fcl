@@ -51,6 +51,7 @@ dependencies:
   # Quickcheck
   - QuickCheck
   - quickcheck-instances
+  - generic-random
 
   # Http
   - wai

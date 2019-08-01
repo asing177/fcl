@@ -16,6 +16,8 @@ module Language.FCL.Error (
 import Protolude hiding (Overflow, Underflow, DivideByZero)
 
 import Data.Serialize (Serialize)
+import Test.QuickCheck
+import Generic.Random
 
 import Language.FCL.Address
 import Language.FCL.Pretty hiding ((<>))
@@ -47,6 +49,9 @@ data EvalFail
   | PrecNotSatBefore Method DateTime DateTime
   | PrecNotSatCaller Method (Set (Address AAccount)) (Address AAccount)
   deriving (Eq, Show, Generic, Serialize)
+
+instance Arbitrary EvalFail where
+  arbitrary = genericArbitraryU
 
 instance Pretty EvalFail where
   ppr e = case e of
