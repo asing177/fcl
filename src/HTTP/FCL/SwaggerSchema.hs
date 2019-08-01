@@ -42,13 +42,7 @@ import Numeric.Lossless.Number
 import qualified Language.FCL.LanguageServerProtocol as LSP
 
 instance ToSchema Key.Signature where
-  declareNamedSchema _ = do
-    i <- declareSchemaRef (Proxy :: Proxy Integer)
-    pure $ NamedSchema (Just "Signature")
-      $ mempty { _schemaParamSchema = mempty { _paramSchemaType = SwaggerObject }
-               , _schemaProperties = fromList [("sign_r", i), ("sign_s", i)]
-               , _schemaRequired = [ "sign_r", "sign_s"  ]
-               }
+  declareNamedSchema _ = simpleStringSchema "Signature"
 
 instance ToSchema EvalFail where
   declareNamedSchema = genericDeclareNamedSchemaUnrestricted defaultSchemaOptions
@@ -57,7 +51,10 @@ instance ToSchema Contract
 instance ToSchema InvalidMethodName
 instance ToSchema GlobalStorage
 instance ToSchema Key
-instance ToSchema Metadata
+instance ToSchema Metadata where
+  declareNamedSchema _ =
+    pure $ NamedSchema (Just "Metadata") (toSchema (Proxy :: Proxy (Map Text Text)))
+
 instance ToSchema CallableMethods
 instance ToSchema PermittedCallers where
   declareNamedSchema = genericDeclareNamedSchemaUnrestricted defaultSchemaOptions
@@ -280,7 +277,10 @@ instance ToSchema InvalidSignature where
                                             ,("SignatureSplittingFail", t)
                                             ]
              }
-instance ToSchema Balance
+instance ToSchema Balance where
+  declareNamedSchema _ =
+    pure $ NamedSchema (Just "Balance") (toSchema (Proxy :: Proxy Decimal))
+
 instance ToSchema Number
 instance ToSchema (Ratio Integer) where
   declareNamedSchema _ = do
@@ -292,13 +292,8 @@ instance ToSchema (Ratio Integer) where
              }
 
 instance ToSchema (Hash Encoding.Base16ByteString) where
-  declareNamedSchema _ = do
-    b <- declareSchemaRef (Proxy :: Proxy Encoding.Base16ByteString)
-    pure . NamedSchema (Just "Hash Base16ByteString") $
-      mempty { _schemaParamSchema = mempty { _paramSchemaType = SwaggerObject }
-             , _schemaProperties = fromList [("hash", b)]
-             , _schemaRequired = ["hash"]
-             }
+  declareNamedSchema _ = simpleStringSchema "Hash Base16ByteString"
+
 instance ToSchema Encoding.Base16ByteString where
   declareNamedSchema _ = simpleStringSchema "Base16ByteString"
 
