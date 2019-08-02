@@ -15,6 +15,7 @@ import qualified Test.Storage              as Storage
 import qualified Test.Workflow.Compilation as Workflow
 import qualified Test.Workflow.Soundness   as Workflow
 import qualified Test.Swagger              as Swagger
+import qualified Test.Encoding             as Encoding
 
 -------------------------------------------------------------------------------
 -- test Suite
@@ -57,6 +58,8 @@ suite
 
     -- Confirming the soundness checking algorithm's correctness on safely constructed workflows
     , Workflow.soundnessTests
+
+    , Encoding.encodingTests
     ]
 
 -------------------------------------------------------------------------------
