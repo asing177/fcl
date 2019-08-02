@@ -14,9 +14,9 @@ module Language.FCL.Undefinedness (
 import Protolude
 
 import Algebra.Lattice
-   ( Lattice, BoundedLattice
+   ( Lattice
    , MeetSemiLattice, JoinSemiLattice
-   , BoundedJoinSemiLattice(..), BoundedMeetSemiLattice(..)
+   , BoundedMeetSemiLattice(..)
    , (/\), (\/), meets
    )
 import Language.FCL.AST hiding (Transition(..))
@@ -48,8 +48,15 @@ undefinednessAnalysis script = do
       [] -> Right allSuccesses
       errs@(_:_) -> Left errs
   where
+    mkInitialMarking :: a -> Map Place a
     mkInitialMarking = Map.singleton PlaceStart
+
+    genMethodUndefEnv :: ColorTransition UndefinednessEnv
     genMethodUndefEnv = ColorTransition checkMethodUnsafe
+
+    checkMethodUnsafe :: Method ->
+                         (UndefinednessEnv -> UndefinednessEnv) ->
+                         Map (Set Place) [UndefinednessEnv -> UndefinednessEnv]
     checkMethodUnsafe method = either panic identity . checkMethod method
 
 -------------------------------------------------------------------------------
@@ -310,17 +317,14 @@ instance JoinSemiLattice IsInitialized where
   Uninitialized \/ Uninitialized = Uninitialized
   Initialized   \/ Uninitialized = Initialized
   Uninitialized \/ Initialized   = Initialized
+  (Error sloc)  \/ (Error sloc') = Error (sloc `Set.intersection` sloc')
   (Error _)     \/ isInit        = isInit
   isInit        \/ (Error _)     = isInit
-
-instance BoundedJoinSemiLattice IsInitialized where
-  bottom = Error mempty
 
 instance BoundedMeetSemiLattice IsInitialized where
   top = Initialized
 
 instance Lattice IsInitialized where
-instance BoundedLattice IsInitialized where
 
 instance Pretty IsInitialized where
   ppr = \case
