@@ -22,6 +22,7 @@ import Language.FCL.Prim
 import Language.FCL.Hash
 import Language.FCL.Address
 import Language.FCL.Key as Key
+import Language.FCL.Time (Timestamp)
 import Language.FCL.Asset
 import Language.FCL.Contract
 import Language.FCL.Parser as Parser
@@ -47,15 +48,88 @@ instance ToSchema Key.Signature where
 instance ToSchema EvalFail where
   declareNamedSchema = genericDeclareNamedSchemaUnrestricted defaultSchemaOptions
 
-instance ToSchema Contract
+instance ToSchema AST.Value where
+  declareNamedSchema _ = do
+    n <- declareSchemaRef @Number Proxy
+    b <- declareSchemaRef @Bool Proxy
+    aa <- declareSchemaRef @(Address AAccount) Proxy
+    as <- declareSchemaRef @(Address AAsset) Proxy
+    ac <- declareSchemaRef @(Address AContract) Proxy
+    t <- declareSchemaRef @Text Proxy
+    ii <- declareSchemaRef @(Integer, Integer) Proxy
+    d <- declareSchemaRef @DateTime Proxy
+    tm <- declareSchemaRef @TimeDelta Proxy
+    ws <- declareSchemaRef @WorkflowState Proxy
+    mvv <- declareSchemaRef @(Map Value Value) Proxy
+    sv <- declareSchemaRef @(Set Value) Proxy
+    nu <- declareSchemaRef @NameUpper Proxy
+    vs <- declareSchemaRef @[Value] Proxy
+    empt <- declareSchemaRef @() Proxy
+    pure . NamedSchema (Just "Value") $
+      mempty { _schemaParamSchema = mempty { _paramSchemaType = SwaggerObject }
+             , _schemaProperties =
+                 fromList [("VNum", n)
+                          ,("VBool", b)
+                          ,("VAccount", aa)
+                          ,("VAsset", as)
+                          ,("VContract", ac)
+                          ,("VText", t)
+                          ,("VSig", ii)
+                          ,("VVoid", empt)
+                          ,("VDateTime", d)
+                          ,("VTimeDelta", tm)
+                          ,("VState", ws)
+                          ,("VMap", mvv)
+                          ,("VSet", sv)
+                          ,("VUndefined", empt)
+                          ,("VConstr", Inline $ mempty
+                                        { _schemaParamSchema = mempty { _paramSchemaType = SwaggerArray
+                                                                      , _paramSchemaItems = Just $ SwaggerItemsArray [nu, vs]
+                                                                      }
+                                        })
+                          ]
+             }
+
+instance ToSchema Contract where
+  declareNamedSchema _ = do
+    time <- declareSchemaRef @Timestamp Proxy
+    t <- declareSchemaRef @Text Proxy
+    gs <- declareSchemaRef @Storage Proxy
+    m <- declareSchemaRef @[Name] Proxy
+    w <- declareSchemaRef @WorkflowState Proxy
+    aa <- declareSchemaRef @(Address AAccount) Proxy
+    ac <- declareSchemaRef @(Address AContract) Proxy
+    pure . NamedSchema (Just "Contract")
+      $ mempty { _schemaParamSchema = mempty { _paramSchemaType = SwaggerObject }
+               , _schemaProperties = fromList [ ("timestamp", time)
+                                              , ("script", t)
+                                              , ("storage", gs)
+                                              , ("state", w)
+                                              , ("methods", m)
+                                              , ("owner", aa)
+                                              , ("address", ac)
+                                              ]
+               , _schemaRequired = [ "timestamp", "script", "storage", "methods", "owner", "address"  ]
+               }
+
 instance ToSchema InvalidMethodName
-instance ToSchema GlobalStorage
-instance ToSchema Key
+instance ToSchema GlobalStorage where
+  declareNamedSchema _ =
+    pure $ NamedSchema (Just "GlobalStorage") (toSchema (Proxy :: Proxy Storage))
+
+instance ToSchema Key where
+  declareNamedSchema _ = simpleStringSchema "Key"
 instance ToSchema Metadata where
   declareNamedSchema _ =
     pure $ NamedSchema (Just "Metadata") (toSchema (Proxy :: Proxy (Map Text Text)))
 
-instance ToSchema CallableMethods
+instance ToSchema CallableMethods where
+  declareNamedSchema _ =
+    pure $ NamedSchema (Just "CallableMethods")
+    $ mempty { _schemaParamSchema = mempty { _paramSchemaType = SwaggerArray } }
+    -- TODO: Find out error: "Unknown schema" when the following code is uncommented.
+    -- (toSchema (Proxy :: Proxy (Map Name (PermittedCallers, [(Name, Type)]))))
+
 instance ToSchema PermittedCallers where
   declareNamedSchema = genericDeclareNamedSchemaUnrestricted defaultSchemaOptions
 
@@ -82,20 +156,20 @@ instance ToSchema Precondition where
 instance ToSchema (Located Expr) where
   declareNamedSchema _ = do
     l <- declareSchemaRef (Proxy :: Proxy Loc)
-    t <- declareSchemaRef (Proxy :: Proxy Expr)
+    e <- declareSchemaRef (Proxy :: Proxy Expr)
     pure . NamedSchema (Just "Located Expr")
       $ mempty { _schemaParamSchema = mempty { _paramSchemaType = SwaggerObject }
-               , _schemaProperties = fromList [("located", l), ("locVal", t)]
+               , _schemaProperties = fromList [("located", l), ("locVal", e)]
                , _schemaRequired = [ "located", "locVal"  ]
                }
 
 instance ToSchema (Located Lit) where
   declareNamedSchema _ = do
-    l <- declareSchemaRef (Proxy :: Proxy Loc)
-    t <- declareSchemaRef (Proxy :: Proxy Lit)
+    loc <- declareSchemaRef (Proxy :: Proxy Loc)
+    lit <- declareSchemaRef (Proxy :: Proxy Lit)
     pure . NamedSchema (Just "Located Lit")
       $ mempty { _schemaParamSchema = mempty { _paramSchemaType = SwaggerObject }
-               , _schemaProperties = fromList [("located", l), ("locVal", t)]
+               , _schemaProperties = fromList [("located", loc), ("locVal", lit)]
                , _schemaRequired = [ "located", "locVal"  ]
                }
 
@@ -113,19 +187,19 @@ instance ToSchema (Located Name) where
 instance ToSchema (Located AST.Pattern) where
   declareNamedSchema _ = do
     l <- declareSchemaRef (Proxy :: Proxy Loc)
-    t <- declareSchemaRef (Proxy :: Proxy AST.Pattern)
+    p <- declareSchemaRef (Proxy :: Proxy AST.Pattern)
     pure $ NamedSchema (Just "Located")
       $ mempty { _schemaParamSchema = mempty { _paramSchemaType = SwaggerObject }
-               , _schemaProperties = fromList [("located", l), ("locVal", t)]
+               , _schemaProperties = fromList [("located", l), ("locVal", p)]
                , _schemaRequired = [ "located", "locVal"  ]
                }
 instance ToSchema (Located NameUpper) where
   declareNamedSchema _ = do
     l <- declareSchemaRef (Proxy :: Proxy Loc)
-    t <- declareSchemaRef (Proxy :: Proxy NameUpper)
+    n <- declareSchemaRef (Proxy :: Proxy NameUpper)
     pure $ NamedSchema (Just "Located NameUpper")
       $ mempty { _schemaParamSchema = mempty { _paramSchemaType = SwaggerObject }
-               , _schemaProperties = fromList [("located", l), ("locVal", t)]
+               , _schemaProperties = fromList [("located", l), ("locVal", n)]
                , _schemaRequired = [ "located", "locVal"  ]
                }
 instance ToSchema (Located BinOp) where
@@ -141,10 +215,10 @@ instance ToSchema (Located BinOp) where
 instance ToSchema (Located UnOp) where
   declareNamedSchema _ = do
     l <- declareSchemaRef (Proxy :: Proxy Loc)
-    t <- declareSchemaRef (Proxy :: Proxy UnOp)
+    u <- declareSchemaRef (Proxy :: Proxy UnOp)
     pure $ NamedSchema (Just "Located UnOp")
       $ mempty { _schemaParamSchema = mempty { _paramSchemaType = SwaggerObject }
-               , _schemaProperties = fromList [("located", l), ("locVal", t)]
+               , _schemaProperties = fromList [("located", l), ("locVal", u)]
                , _schemaRequired = [ "located", "locVal"  ]
                }
 
@@ -259,8 +333,7 @@ instance ToSchema Sig
 instance ToSchema Effects
 instance ToSchema Effect
 instance ToSchema Warning
-instance ToSchema Value where
-  declareNamedSchema = genericDeclareNamedSchemaUnrestricted defaultSchemaOptions
+
 
 instance ToSchema InvalidSignature where
   declareNamedSchema _ = do

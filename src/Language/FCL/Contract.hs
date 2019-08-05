@@ -71,11 +71,49 @@ data Contract = Contract
   { timestamp        :: Timestamp             -- ^ Timestamp of issuance
   , script           :: Script                -- ^ Underlying contract logic
   , globalStorage    :: GlobalStorage         -- ^ Initial state of the contract
-  , methods          :: [Name]         -- ^ Public methods
+  , methods          :: [Name]                -- ^ Public methods
   , state            :: WorkflowState         -- ^ State of Contract
   , owner            :: Address AAccount      -- ^ Creator of the contract
   , address          :: Address AContract     -- ^ Contract Address, derived during creation
   } deriving (Show, Generic, Serialize)
+
+instance A.ToJSON Contract where
+  toJSON Contract{..} = A.object
+    [ "timestamp"     .= timestamp
+    , "script"        .= Pretty.prettyPrint script
+    , "storage"       .= globalStorage
+    , "methods"       .= methods
+    , "state"         .= state
+    , "owner"         .= owner
+    , "address"       .= address
+    ]
+
+instance A.FromJSON Contract where
+  parseJSON = \case
+      A.Object v ->
+        Contract
+          <$> v .: "timestamp"
+          <*> (parseScriptJSON =<< v .: "script")
+          <*> v .: "storage"
+          <*> v .: "methods"
+          <*> (parseWorkflowStateJSON =<< v .: "state")
+          <*> v .: "owner"
+          <*> v .: "address"
+      invalid -> typeMismatch "Contract" invalid
+    where
+      parseScriptJSON script =
+        case Parser.parseScript script of
+          Left err     -> fail $ show err
+          Right script -> pure script
+
+      parseWorkflowStateJSON inp =
+        case Parser.parseWorkflowState inp of
+          Left err -> fail $ show err
+          Right wfs -> pure wfs
+
+instance B.Binary Contract where
+  put = Utils.putBinaryViaSerialize
+  get = Utils.getBinaryViaSerialize
 
 instance Arbitrary Contract where
   arbitrary = genericArbitraryU
@@ -123,7 +161,7 @@ instance ToJSON PermittedCallers where
   toJSON = callersJSON
 
 -- | Create a JSON value returning the sorted list of addresses by hash. This is
--- done instead of using the ToJSON instance for Address such that integration
+-- done instead of using the ToJSON instance for Address so that integration
 -- tests can pass; They expect an ordered list of addresses.
 callersJSON :: PermittedCallers -> A.Value
 callersJSON callers =
@@ -137,13 +175,13 @@ callersJSON callers =
 -- | Datatype used by Eval.hs to report callable methods after evaluating the
 -- access restriction expressions associated with contract methods.
 newtype CallableMethods = CallableMethods (Map.Map Name (PermittedCallers, [(Name, Type)]))
-  deriving (Show, Generic)
+  deriving (Show, Generic, ToJSON)
 
 instance Arbitrary CallableMethods where
   arbitrary = genericArbitraryU
 
-instance ToJSON CallableMethods where
-  toJSON = callableMethodsJSON
+-- instance ToJSON CallableMethods where
+--   toJSON = callableMethodsJSON
 
 callableMethodsJSON :: CallableMethods -> A.Value
 callableMethodsJSON (CallableMethods m) = toJSON
@@ -177,46 +215,3 @@ lookupContractMethod nm c =
 instance Pretty.Pretty InvalidMethodName where
   ppr (MethodDoesNotExist nm) = "Method does not exist:" <+> ppr nm
   ppr (MethodNotCallable nm state) = "Method" <+> ppr nm <+> "not callable in current state:" <+> ppr state
-
--------------------------------------------------------------------------------
--- Serialization
--------------------------------------------------------------------------------
-
-instance A.ToJSON Contract where
-  toJSON Contract{..} = A.object
-    [ "timestamp"     .= timestamp
-    , "script"        .= Pretty.prettyPrint script
-    , "storage"       .= globalStorage
-    , "methods"       .= methods
-    , "state"         .= state
-    , "owner"         .= owner
-    , "address"       .= address
-    ]
-
-
-instance A.FromJSON Contract where
-  parseJSON = \case
-      A.Object v ->
-        Contract
-          <$> v .: "timestamp"
-          <*> (parseScriptJSON =<< v .: "script")
-          <*> v .: "storage"
-          <*> v .: "methods"
-          <*> (parseWorkflowStateJSON =<< v .: "state")
-          <*> v .: "owner"
-          <*> v .: "address"
-      invalid -> typeMismatch "Contract" invalid
-    where
-      parseScriptJSON script =
-        case Parser.parseScript script of
-          Left err     -> fail $ show err
-          Right script -> pure script
-
-      parseWorkflowStateJSON inp =
-        case Parser.parseWorkflowState inp of
-          Left err -> fail $ show err
-          Right wfs -> pure wfs
-
-instance B.Binary Contract where
-  put = Utils.putBinaryViaSerialize
-  get = Utils.getBinaryViaSerialize

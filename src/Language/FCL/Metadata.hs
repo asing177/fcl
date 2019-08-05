@@ -96,4 +96,6 @@ instance B.Binary Metadata where
 instance Arbitrary Metadata where
   arbitrary = Metadata . Map.fromList <$> listOf arbitraryPairs
     where
-      arbitraryPairs = (,) <$> arbitrary <*> arbitrary
+      arbitraryPairs = (,) <$> alphaNum <*> alphaNum
+      alphaNum :: Gen Text
+      alphaNum = toS <$> (listOf . elements $ ['A'..'Z'] <> ['a'..'z'] <> ['0'..'9'])

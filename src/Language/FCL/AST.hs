@@ -361,6 +361,16 @@ data Value
   | VConstr NameUpper [Value]      -- ^ Constructor
   deriving (Eq, Ord, Show, Generic, Serialize, Hash.Hashable)
 
+instance ToJSONKey Value where
+
+instance ToJSON Value where
+  toJSON = genericToJSON (defaultOptions { sumEncoding = ObjectWithSingleField })
+
+instance FromJSON Value where
+  parseJSON = genericParseJSON (defaultOptions { sumEncoding = ObjectWithSingleField })
+
+instance FromJSONKey Value where
+
 -- | Type variables used in inference
 data TVar
   = TV  Text -- ^ General type variable
@@ -1282,7 +1292,7 @@ arbLExpr n = oneof . map addLoc $
   [ arbNonSeqExpr n, arbSeqExpr n ]
 
 arbSmallList :: Arbitrary a => Gen [a]
-arbSmallList = arbitrary `suchThat` (\x -> length x < 10)
+arbSmallList = arbitrary `suchThat` (\x -> length x < 5)
 
 arbTake :: Int -> Gen [a] -> Gen [a]
 arbTake n arb = arb `suchThat` (\x -> length x < n)
