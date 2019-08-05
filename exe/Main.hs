@@ -118,7 +118,7 @@ driverScript cmd
     Format scriptFile -> do
       res <- Compile.formatScript scriptFile
       case res of
-        Left err -> putStrLn err
+        Left err -> die err
         Right script -> putStrLn script
 
     -- graph
@@ -128,7 +128,7 @@ driverScript cmd
     -- compile
     CompileScript scriptFile -> do
       Compile.compileFile scriptFile >>= \case
-        Left err -> putText err
+        Left err -> die err
         Right checked -> do
           putText . Pretty.prettyPrint $ checked
 
@@ -142,7 +142,7 @@ driverScript cmd
       putText ""
       case errs of
         [] -> Utils.putGreen $ Pretty.prettyPrint errs
-        (_:_) -> Utils.putRed $ Pretty.prettyPrint errs -- don't fail
+        (_:_) -> die $ Pretty.prettyPrint errs
 
     ReachabilityGraph scriptFile -> do
       ast <- Parser.parseFile scriptFile
@@ -155,7 +155,7 @@ driverScript cmd
       putText ""
       case errs of
         [] -> Utils.putGreen $ Pretty.prettyPrint errs
-        (_:_) -> Utils.putRed $ Pretty.prettyPrint errs -- don't fail
+        (_:_) -> die $ Pretty.prettyPrint errs
 
 
 
