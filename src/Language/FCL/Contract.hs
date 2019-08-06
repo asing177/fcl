@@ -175,13 +175,13 @@ callersJSON callers =
 -- | Datatype used by Eval.hs to report callable methods after evaluating the
 -- access restriction expressions associated with contract methods.
 newtype CallableMethods = CallableMethods (Map.Map Name (PermittedCallers, [(Name, Type)]))
-  deriving (Show, Generic, ToJSON)
+  deriving (Show, Generic)
 
 instance Arbitrary CallableMethods where
   arbitrary = genericArbitraryU
 
--- instance ToJSON CallableMethods where
---   toJSON = callableMethodsJSON
+instance ToJSON CallableMethods where
+  toJSON = callableMethodsJSON
 
 callableMethodsJSON :: CallableMethods -> A.Value
 callableMethodsJSON (CallableMethods m) = toJSON
