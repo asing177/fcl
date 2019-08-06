@@ -45,8 +45,8 @@ import qualified Language.FCL.LanguageServerProtocol as LSP
 -- Helper functions
 -------------------------
 
-simpleStringSchema :: Text -> NamedSchema
-simpleStringSchema name = NamedSchema (Just name)
+stringNamedSchema :: Text -> NamedSchema
+stringNamedSchema name = NamedSchema (Just name)
   $ mempty { _schemaParamSchema = mempty { _paramSchemaType = SwaggerString } }
 
 objectNamedSchema :: Text -> [(Text, Referenced Schema)] -> Bool -> NamedSchema
@@ -79,7 +79,7 @@ nullSchema = mempty { _schemaParamSchema = mempty { _paramSchemaType = SwaggerNu
 ------------------------------
 
 instance ToSchema Key.Signature where
-  declareNamedSchema _ = pure $ simpleStringSchema "Signature"
+  declareNamedSchema _ = pure $ stringNamedSchema "Signature"
 
 instance ToSchema EvalFail where
   declareNamedSchema = genericDeclareNamedSchemaUnrestricted defaultSchemaOptions
@@ -148,7 +148,7 @@ instance ToSchema GlobalStorage where
     pure $ NamedSchema (Just "GlobalStorage") (toSchema (Proxy :: Proxy Storage))
 
 instance ToSchema Key where
-  declareNamedSchema _ = pure $ simpleStringSchema "Key"
+  declareNamedSchema _ = pure $ stringNamedSchema "Key"
 instance ToSchema Metadata where
   declareNamedSchema _ =
     pure $ NamedSchema (Just "Metadata") (toSchema (Proxy :: Proxy (Map Text Text)))
@@ -171,7 +171,7 @@ instance ToSchema PermittedCallers where
 
 instance ToSchema Def
 instance ToSchema Type where
-  declareNamedSchema _ = pure $ simpleStringSchema "Type"
+  declareNamedSchema _ = pure $ stringNamedSchema "Type"
 instance ToSchema NumPrecision where
   declareNamedSchema = genericDeclareNamedSchemaUnrestricted defaultSchemaOptions
 instance ToSchema TCollection where
@@ -185,7 +185,7 @@ instance ToSchema Preconditions where
                }
 
 instance ToSchema Precondition where
-  declareNamedSchema _ = pure $ simpleStringSchema "Precondition"
+  declareNamedSchema _ = pure $ stringNamedSchema "Precondition"
 
 instance ToSchema (Located Expr) where
   declareNamedSchema _ = do
@@ -247,7 +247,7 @@ instance ToSchema CollPrimOp
 instance ToSchema ADTDef
 instance ToSchema ADTConstr
 instance ToSchema Name where
-  declareNamedSchema _ = pure $ simpleStringSchema "Name"
+  declareNamedSchema _ = pure $ stringNamedSchema "Name"
 
 instance ToSchema TVar
 
@@ -256,7 +256,7 @@ instance ToSchema Script
 instance ToSchema Helper
 instance ToSchema Transition
 instance ToSchema WorkflowState where
-  declareNamedSchema _ = pure $ simpleStringSchema "WorkflowState"
+  declareNamedSchema _ = pure $ stringNamedSchema "WorkflowState"
 
 instance ToSchema Place where
   declareNamedSchema = genericDeclareNamedSchemaUnrestricted defaultSchemaOptions
@@ -265,7 +265,7 @@ instance ToSchema Arg
 
 instance ToSchema Decimal
 instance ToSchema DateTime where
-  declareNamedSchema _ = pure $ simpleStringSchema "DateTime"
+  declareNamedSchema _ = pure $ stringNamedSchema "DateTime"
 
 instance ToSchema TimeDelta
 instance ToSchema NameUpper
@@ -359,16 +359,16 @@ instance ToSchema (Ratio Integer) where
     pure $ objectNamedSchema "Ratio Integer" [("numerator", i), ("denominator", i)] True
 
 instance ToSchema (Hash Encoding.Base16ByteString) where
-  declareNamedSchema _ = pure $ simpleStringSchema "Hash Base16ByteString"
+  declareNamedSchema _ = pure $ stringNamedSchema "Hash Base16ByteString"
 
 instance ToSchema Encoding.Base16ByteString where
-  declareNamedSchema _ = pure $ simpleStringSchema "Base16ByteString"
+  declareNamedSchema _ = pure $ stringNamedSchema "Base16ByteString"
 
 instance ToSchema Encoding.Base64ByteString where
-  declareNamedSchema _ = pure $ simpleStringSchema "Base64ByteString"
+  declareNamedSchema _ = pure $ stringNamedSchema "Base64ByteString"
 
 instance ToSchema Encoding.Base64PByteString where
-  declareNamedSchema _ = pure $ simpleStringSchema "Base64PByteString"
+  declareNamedSchema _ = pure $ stringNamedSchema "Base64PByteString"
 
 instance ToSchema Encoding.Base58ByteString where
-  declareNamedSchema _ = pure $ simpleStringSchema "Base58ByteString"
+  declareNamedSchema _ = pure $ stringNamedSchema "Base58ByteString"
