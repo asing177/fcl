@@ -9,14 +9,16 @@ import Algebra.Lattice ((/\), (\/))
 import Test.Tasty
 import Test.Tasty.QuickCheck
 
+import Language.FCL.AST (Loc())
 import Language.FCL.Undefinedness
 
+-- QUESTION: Why do we only generate empty errors?
 instance Arbitrary IsInitialized where
-  arbitrary = oneof . fmap pure
-    $ [ Initialized
-      , Uninitialized
-      , Error mempty
-      ]
+  arbitrary = oneof
+    [ pure Initialized
+    , pure Uninitialized
+    , Error <$> (scale (max 3) $ arbitrary @(Set Loc))
+    ]
 
 commutes :: Eq a => (a -> a -> a) -> a -> a -> Bool
 commutes op x y
@@ -48,17 +50,24 @@ boundedSemilattice
   :: (Show a, Eq a, Arbitrary a)
   => TestName -> (a -> a -> a) -> a -> TestTree
 boundedSemilattice testName op bound = testGroup testName
+  [ semilattice testName op bound
+  , testProperty "boundedness" $ isBounded op bound
+  ]
+
+semilattice
+  :: (Show a, Eq a, Arbitrary a)
+  => TestName -> (a -> a -> a) -> a -> TestTree
+semilattice testName op bound = testGroup testName
   [ testProperty "commutativity" $ commutes op
   , testProperty "associativity" $ associates op
   , testProperty "idempotency" $ idempotates op
-  , testProperty "boundedness" $ isBounded op bound
   ]
 
 undefinednessTests :: TestTree
 undefinednessTests
   = testGroup "Undefinedness tests"
     [ boundedSemilattice "IsInitialized is a bounded meet semilattice)" (/\) Initialized
-    , boundedSemilattice "IsInitialized is a bounded join semilattice)" (\/) (Error mempty)
+    , semilattice "IsInitialized is a join semilattice)" (\/) (Error mempty)
     , testProperty "IsInitialized has join-meet-absorption" $ absorbs @IsInitialized (\/) (/\)
     , testProperty "IsInitialized has meet-join-absorption" $ absorbs @IsInitialized (/\) (\/)
     ]
