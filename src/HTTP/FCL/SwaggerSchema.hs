@@ -155,7 +155,8 @@ instance ToSchema Metadata where
 
 instance ToSchema CallableMethods where
   declareNamedSchema _ = do
-    m <- declareSchemaRef @(PermittedCallers, [(Name, Type)]) Proxy
+    -- Use Text instead of Type because of the custom JSON instance of PermittedCallers
+    m <- declareSchemaRef @(PermittedCallers, [(Name, Text)]) Proxy
     pure $ NamedSchema (Just "CallableMethods")
       $ mempty { _schemaParamSchema = mempty { _paramSchemaType = SwaggerObject }
                , _schemaAdditionalProperties = Just $ AdditionalPropertiesSchema m
@@ -171,7 +172,7 @@ instance ToSchema PermittedCallers where
 
 instance ToSchema Def
 instance ToSchema Type where
-  declareNamedSchema _ = pure $ stringNamedSchema "Type"
+  declareNamedSchema = genericDeclareNamedSchemaUnrestricted defaultSchemaOptions
 instance ToSchema NumPrecision where
   declareNamedSchema = genericDeclareNamedSchemaUnrestricted defaultSchemaOptions
 instance ToSchema TCollection where
