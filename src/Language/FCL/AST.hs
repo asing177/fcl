@@ -107,6 +107,7 @@ import Prelude (show, Show(..))
 import Test.QuickCheck hiding (listOf)
 import qualified Test.QuickCheck as Q
 import Test.QuickCheck.Instances.Text ()
+import Generic.Random
 import Control.Monad (fail)
 
 import Numeric.Lossless.Number
@@ -360,6 +361,16 @@ data Value
   | VConstr NameUpper [Value]      -- ^ Constructor
   deriving (Eq, Ord, Show, Generic, Serialize, Hash.Hashable)
 
+instance ToJSONKey Value where
+
+instance ToJSON Value where
+  toJSON = genericToJSON (defaultOptions { sumEncoding = ObjectWithSingleField })
+
+instance FromJSON Value where
+  parseJSON = genericParseJSON (defaultOptions { sumEncoding = ObjectWithSingleField })
+
+instance FromJSONKey Value where
+
 -- | Type variables used in inference
 data TVar
   = TV  Text -- ^ General type variable
@@ -379,6 +390,9 @@ data TCollection
   = TMap Type Type  -- ^ Type of FCL Maps
   | TSet Type       -- ^ Type of FCL Sets
   deriving (Eq, Ord, Show, Generic, Serialize, FromJSON, ToJSON, Hash.Hashable)
+
+instance Arbitrary TCollection where
+  arbitrary = genericArbitraryU
 
 -- | The required numeric precision @p@ to ensure non-lossy arithmetic. This is
 -- tracked in the type of numbers, @TNum p@.
@@ -1218,6 +1232,12 @@ instance Arbitrary Expr where
     n <- choose ((-5), 5)
     arbNonSeqExpr n
 
+instance Arbitrary Pattern where
+  arbitrary = genericArbitraryU
+
+instance Arbitrary BinOp where
+  arbitrary = genericArbitraryU
+
 arbNumLogicExpr :: Int -> Gen Expr
 arbNumLogicExpr n
   | n <= 0
@@ -1272,7 +1292,7 @@ arbLExpr n = oneof . map addLoc $
   [ arbNonSeqExpr n, arbSeqExpr n ]
 
 arbSmallList :: Arbitrary a => Gen [a]
-arbSmallList = arbitrary `suchThat` (\x -> length x < 10)
+arbSmallList = arbitrary `suchThat` (\x -> length x < 5)
 
 arbTake :: Int -> Gen [a] -> Gen [a]
 arbTake n arb = arb `suchThat` (\x -> length x < n)

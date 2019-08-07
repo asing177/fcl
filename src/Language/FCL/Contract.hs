@@ -58,6 +58,9 @@ import Data.Aeson (ToJSON(..), (.=), (.:))
 import Data.Aeson.Types (typeMismatch)
 import qualified Data.Aeson as A
 
+import Test.QuickCheck
+import Generic.Random
+
 -------------------------------------------------------------------------------
 -- Contracts
 -------------------------------------------------------------------------------
@@ -68,11 +71,52 @@ data Contract = Contract
   { timestamp        :: Timestamp             -- ^ Timestamp of issuance
   , script           :: Script                -- ^ Underlying contract logic
   , globalStorage    :: GlobalStorage         -- ^ Initial state of the contract
-  , methods          :: [Name]         -- ^ Public methods
+  , methods          :: [Name]                -- ^ Public methods
   , state            :: WorkflowState         -- ^ State of Contract
   , owner            :: Address AAccount      -- ^ Creator of the contract
   , address          :: Address AContract     -- ^ Contract Address, derived during creation
   } deriving (Show, Generic, Serialize)
+
+instance A.ToJSON Contract where
+  toJSON Contract{..} = A.object
+    [ "timestamp"     .= timestamp
+    , "script"        .= Pretty.prettyPrint script
+    , "storage"       .= globalStorage
+    , "methods"       .= methods
+    , "state"         .= state
+    , "owner"         .= owner
+    , "address"       .= address
+    ]
+
+instance A.FromJSON Contract where
+  parseJSON = \case
+      A.Object v ->
+        Contract
+          <$> v .: "timestamp"
+          <*> (parseScriptJSON =<< v .: "script")
+          <*> v .: "storage"
+          <*> v .: "methods"
+          <*> (parseWorkflowStateJSON =<< v .: "state")
+          <*> v .: "owner"
+          <*> v .: "address"
+      invalid -> typeMismatch "Contract" invalid
+    where
+      parseScriptJSON script =
+        case Parser.parseScript script of
+          Left err     -> fail $ show err
+          Right script -> pure script
+
+      parseWorkflowStateJSON inp =
+        case Parser.parseWorkflowState inp of
+          Left err -> fail $ show err
+          Right wfs -> pure wfs
+
+instance B.Binary Contract where
+  put = Utils.putBinaryViaSerialize
+  get = Utils.getBinaryViaSerialize
+
+instance Arbitrary Contract where
+  arbitrary = genericArbitraryU
 
 -- | Two Contracts are equal if their addresses are equal
 instance Eq Contract where
@@ -108,12 +152,16 @@ callableMethods' wfs s =
 
 -- | Allowed callers of a method
 data PermittedCallers = Anyone | Restricted (Set (Address AAccount))
+  deriving (Show, Generic)
+
+instance Arbitrary PermittedCallers where
+  arbitrary = genericArbitraryU
 
 instance ToJSON PermittedCallers where
   toJSON = callersJSON
 
 -- | Create a JSON value returning the sorted list of addresses by hash. This is
--- done instead of using the ToJSON instance for Address such that integration
+-- done instead of using the ToJSON instance for Address so that integration
 -- tests can pass; They expect an ordered list of addresses.
 callersJSON :: PermittedCallers -> A.Value
 callersJSON callers =
@@ -127,6 +175,11 @@ callersJSON callers =
 -- | Datatype used by Eval.hs to report callable methods after evaluating the
 -- access restriction expressions associated with contract methods.
 newtype CallableMethods = CallableMethods (Map.Map Name (PermittedCallers, [(Name, Type)]))
+  deriving (Show, Generic)
+
+instance Arbitrary CallableMethods where
+  arbitrary = genericArbitraryU
+
 instance ToJSON CallableMethods where
   toJSON = callableMethodsJSON
 
@@ -141,6 +194,9 @@ data InvalidMethodName
   = MethodDoesNotExist Name
   | MethodNotCallable  Name WorkflowState
   deriving (Eq, Show, Generic, Serialize)
+
+instance Arbitrary InvalidMethodName where
+  arbitrary = genericArbitraryU
 
 -- | Looks up a method with a given name in a Contract, taking into account the
 -- current contract state. I.e. if a contract is in "terminal" state, no methods
@@ -159,46 +215,3 @@ lookupContractMethod nm c =
 instance Pretty.Pretty InvalidMethodName where
   ppr (MethodDoesNotExist nm) = "Method does not exist:" <+> ppr nm
   ppr (MethodNotCallable nm state) = "Method" <+> ppr nm <+> "not callable in current state:" <+> ppr state
-
--------------------------------------------------------------------------------
--- Serialization
--------------------------------------------------------------------------------
-
-instance A.ToJSON Contract where
-  toJSON Contract{..} = A.object
-    [ "timestamp"     .= timestamp
-    , "script"        .= Pretty.prettyPrint script
-    , "storage"       .= globalStorage
-    , "methods"       .= methods
-    , "state"         .= state
-    , "owner"         .= owner
-    , "address"       .= address
-    ]
-
-
-instance A.FromJSON Contract where
-  parseJSON = \case
-      A.Object v ->
-        Contract
-          <$> v .: "timestamp"
-          <*> (parseScriptJSON =<< v .: "script")
-          <*> v .: "storage"
-          <*> v .: "methods"
-          <*> (parseWorkflowStateJSON =<< v .: "state")
-          <*> v .: "owner"
-          <*> v .: "address"
-      invalid -> typeMismatch "Contract" invalid
-    where
-      parseScriptJSON script =
-        case Parser.parseScript script of
-          Left err     -> fail $ show err
-          Right script -> pure script
-
-      parseWorkflowStateJSON inp =
-        case Parser.parseWorkflowState inp of
-          Left err -> fail $ show err
-          Right wfs -> pure wfs
-
-instance B.Binary Contract where
-  put = Utils.putBinaryViaSerialize
-  get = Utils.getBinaryViaSerialize

@@ -8,6 +8,7 @@ Cryptography.
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE BangPatterns #-}
+{-# LANGUAGE TypeApplications #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 {-# OPTIONS_GHC -fno-warn-incomplete-uni-patterns #-}
 
@@ -30,6 +31,7 @@ module Language.FCL.Key (
   signS,
   signWith,
   signSWith,
+  signGen,
   verify,
   InvalidSignature(..),
 
@@ -172,6 +174,7 @@ import Crypto.Cipher.Types (Cipher(..), BlockCipher(..), IV, makeIV, blockSize)
 import System.Directory (doesFileExist)
 import System.Posix.Files (setFileMode, ownerReadMode)
 
+import Test.QuickCheck hiding (generate)
 import qualified Language.FCL.Hash as Hash
 
 -------------------------------------------------------------------------------
@@ -191,6 +194,14 @@ import qualified Language.FCL.Hash as Hash
 -- > Pub1 + Pub2 = (x1 + x2 (mod n)) G
 newtype PubKey = PubKey ECDSA.PublicKey
   deriving (Show, Eq, Generic)
+
+instance Arbitrary PubKey where
+  arbitrary = arbitrary >>= \(Positive d) ->
+    pure $ fst (new' d)
+
+instance Arbitrary ECDSA.PrivateKey where
+  arbitrary = arbitrary >>= \(Positive d) ->
+    pure $ snd (new' d)
 
 instance Hash.Hashable PubKey where
   toHash  = Hash.toHash . extractPoint
@@ -270,6 +281,21 @@ sign priv msg = do
     Nothing -> sign priv msg
 
     Just sig -> return sig
+  where
+    n = ECC.ecc_n (ECC.common_curve sec_p256k1)
+
+-- | Generate signature in the Gen monad
+signGen
+  :: ECDSA.PrivateKey
+  -> ByteString
+  -> Gen ECDSA.Signature
+signGen priv msg = do
+  k <- arbitrary `suchThat` (\x -> x >= 1 && x <= (n - 1))
+  if validKeypairKPrecondition priv k msg
+    then signGen priv msg
+    else case ECDSA.signWith k priv SHA3_256 msg of
+           Nothing -> signGen priv msg
+           Just sig -> pure sig
   where
     n = ECC.ecc_n (ECC.common_curve sec_p256k1)
 
@@ -680,6 +706,12 @@ data InvalidSignature
   | SignatureSplittingFail ByteString
   deriving (Show, Eq, Generic, S.Serialize)
 
+instance Arbitrary InvalidSignature where
+  arbitrary = oneof
+    [ InvalidSignature <$> (ECDSA.Signature <$> arbitrary <*> arbitrary) <*> (toS <$> arbitrary @Text)
+    , DecodeSignatureFail <$> (toS <$> arbitrary @Text)
+    , SignatureSplittingFail <$> (toS <$> arbitrary @Text)
+    ]
 -- XXX Wrap ECDSA.Signature in newtype to prevent orphan instances
 instance S.Serialize ECDSA.Signature where
   put = S.put . encodeSig

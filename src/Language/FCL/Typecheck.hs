@@ -50,7 +50,8 @@ import Language.FCL.Pretty hiding ((<>))
 import qualified Language.FCL.Token as Token (case_)
 import Language.FCL.Utils ((?), zipWith3M_)
 
--- import Control.Exception (assert)
+import Test.QuickCheck
+import Generic.Random
 import Control.Monad.State.Strict (modify')
 import Data.Aeson as A hiding (Value)
 import qualified Data.List as List
@@ -124,11 +125,17 @@ data TypeErrInfo
   | ExpectedField { tyErrTyName :: Name }
   deriving (Eq, Show, Generic, Serialize, A.FromJSON, A.ToJSON)
 
+instance Arbitrary TypeErrInfo where
+  arbitrary = genericArbitraryU
+
 -- | Type error
 data TypeError = TypeError
   { errInfo :: TypeErrInfo
   , errLoc  :: Loc
   } deriving (Eq, Show, Generic, Serialize, A.FromJSON, A.ToJSON)
+
+instance Arbitrary TypeError where
+  arbitrary = TypeError <$> arbitrary <*> arbitrary
 
 instance Ord TypeError where
   compare te1 te2 = compare (errLoc te1) (errLoc te2)
@@ -176,12 +183,18 @@ data TypeOrigin
   | FromRecordAccess { tyOrigField :: Name, tyOrigTyName :: Name }
   deriving (Eq, Ord, Show, Generic, Serialize, A.FromJSON, A.ToJSON)
 
+instance Arbitrary TypeOrigin where
+  arbitrary = genericArbitraryU
+
 -- | Type error metadata
 data TypeInfo = TypeInfo
   { ttype :: Type        -- ^ What type
   , torig :: TypeOrigin  -- ^ Where did it come from
   , tloc  :: Loc         -- ^ Where is it located
   } deriving (Show, Eq, Ord, Generic, Serialize, A.FromJSON, A.ToJSON)
+
+instance Arbitrary TypeInfo where
+  arbitrary = genericArbitraryU
 
 tContractInfo, tBoolInfo, tAccountInfo, tDatetimeInfo, tDeltaInfo, tMsgInfo :: TypeOrigin -> Loc -> TypeInfo
 tContractInfo = TypeInfo TContract
@@ -229,6 +242,9 @@ emptyInferState = InferState 0 mempty mempty mempty emptyContext
 
 data TMeta = Global | Temp | FuncArg | HelperFunc | PatternVar
   deriving (Show, Eq, Ord, Generic, Serialize, A.FromJSON, A.ToJSON)
+
+instance Arbitrary TMeta where
+  arbitrary = genericArbitraryU
 
 instance Pretty TMeta where
   ppr = \case
