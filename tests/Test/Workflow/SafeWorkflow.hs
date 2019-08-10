@@ -86,33 +86,41 @@ data SafeWorkflow
   | Atom
   deriving (Eq, Ord, Show, Generic, NFData)
 
--- TODO: redefine tehse using record pattern synonyms: https://gitlab.haskell.org/ghc/ghc/wikis/pattern-synonyms/record-pattern-synonyms
+-- TODO: redefine these using record pattern synonyms: https://gitlab.haskell.org/ghc/ghc/wikis/pattern-synonyms/record-pattern-synonyms
 
 -- | XOR with two branches.
+pattern XOR :: SafeWorkflow -> SafeWorkflow -> SafeWorkflow
 pattern XOR lhs rhs <- GenACF' (M.toList -> [(GACFArrow Entry Exit, [lhs, rhs])])
   where XOR lhs rhs  = GenACF' (M.fromList  [(GACFArrow Entry Exit, [lhs, rhs])])
 
 -- | XOR with three branches.
+pattern XOR3 :: SafeWorkflow -> SafeWorkflow -> SafeWorkflow -> SafeWorkflow
 pattern XOR3 a b c   = XOR a (XOR b c)
 
 -- | XOR with unidirectional communication between branches.
+pattern GenXOR :: SafeWorkflow -> SafeWorkflow -> SafeWorkflow -> SafeWorkflow -> SafeWorkflow -> SafeWorkflow
 pattern GenXOR lhsIn lhsOut rhsIn rhsOut lhsToRhs <- GenACF' (M.toList -> [(GACFArrow Entry (P 1), [lhsIn]), (GACFArrow (P 1) Exit, [lhsOut]), (GACFArrow Entry (P 2), [rhsIn]), (GACFArrow (P 2) Exit, [rhsOut]), (GACFArrow (P 1) (P 2), [lhsToRhs])])
   where GenXOR lhsIn lhsOut rhsIn rhsOut lhsToRhs =  GenACF' (M.fromList  [(GACFArrow Entry (P 1), [lhsIn]), (GACFArrow (P 1) Exit, [lhsOut]), (GACFArrow Entry (P 2), [rhsIn]), (GACFArrow (P 2) Exit, [rhsOut]), (GACFArrow (P 1) (P 2), [lhsToRhs])])
 
 -- | Sequencing two safe workflows.
+pattern Seq :: SafeWorkflow -> SafeWorkflow -> SafeWorkflow
 pattern Seq lhs rhs <- GenACF' (M.toList -> [(GACFArrow Entry (P 1), [lhs]), (GACFArrow (P 1) Exit, [rhs])])
   where Seq lhs rhs =  GenACF' (M.fromList  [(GACFArrow Entry (P 1), [lhs]), (GACFArrow (P 1) Exit, [rhs])])
 
 -- | Unidirectional pattern general acyclic control-flow.
+pattern GenACF :: Map GACFArrow [SafeWorkflow] -> SafeWorkflow
 pattern GenACF m <- GenACF' m
 
 -- | AND with two branches.
+pattern AND2 :: SafeWorkflow -> SafeWorkflow -> SafeWorkflow
 pattern AND2 lhs rhs = AND (lhs :| [rhs])
 
 -- | Simple loop with exit only from the head.
+pattern SimpleLoop :: SafeWorkflow -> SafeWorkflow -> SafeWorkflow
 pattern SimpleLoop loop exit = GenLoop Nothing exit loop
 
 -- | Loop with exit from the body.
+pattern Loop :: SafeWorkflow -> SafeWorkflow -> SafeWorkflow -> SafeWorkflow
 pattern Loop loopIn exit loopOut = GenLoop (Just loopIn) exit loopOut
 
 xorLhs :: SafeWorkflow -> SafeWorkflow
