@@ -6,6 +6,11 @@
 module Test.Workflow.SafeWorkflow
   ( SafeWorkflow(Atom, AND, GenLoop)
 
+  , andBranches
+
+  , mkGenACF
+  , unsafeMkGenACF
+
   , pattern XOR
   , pattern XOR3
   , pattern GenXOR
