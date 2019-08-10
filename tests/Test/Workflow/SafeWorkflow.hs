@@ -4,7 +4,7 @@
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE ViewPatterns #-}
 module Test.Workflow.SafeWorkflow
-  ( SafeWorkflow(..)
+  ( SafeWorkflow(Atom, AND, GenLoop)
 
   , pattern XOR
   , pattern XOR3
@@ -26,8 +26,8 @@ module Test.Workflow.SafeWorkflow
 
   , constructTransitions
 
-  , SWArrow(..)
-  , SWPlace(..)
+  , GACFArrow(..)
+  , GACFPlace(..)
   ) where
 
 import Protolude
@@ -56,12 +56,13 @@ import Language.FCL.Orphans()
 -- NOTE: safe workflows are always progressive, you can't jump into a loop (loops are isolated)
 --       GenXOR allowed this, but GenACF does not
 
-data SWPlace = Entry  -- ^ Entry point to this sub-workflow.
-             | P Int  -- ^ Labelled intermediate place.
-             | Exit   -- ^ Exit point rom this sub-workflow.
+-- | An ordered place in a general acyclic control-flow.
+data GACFPlace = Entry  -- ^ Entry point to the general acyclic control-flow. Precedes every other place.
+               | P Int  -- ^ Labelled intermediate place. Its ordering is defined by its integer label.
+               | Exit   -- ^ Exit point from the general acyclic control-flow. Succeeds every other place.
   deriving (Eq, Ord, Show, Generic, NFData, Arbitrary) -- TODO: remove Arbitrary
 
-data SWArrow = SWArrow SWPlace SWPlace
+data GACFArrow = GACFArrow GACFPlace GACFPlace
   deriving (Eq, Ord, Show, Generic, NFData, Arbitrary) -- TODO: remove Arbitrary
 
 -- | Workflow nets that are sound by construction. We only allow these _safe_ workflow nets
@@ -79,29 +80,40 @@ data SafeWorkflow
             , gLoopOut  :: SafeWorkflow           -- ^ Seconds half of the body of the loop
             }
   -- | Generalized acyclic control-flow.
-  | GenACF { gACFMap :: Map SWArrow [SafeWorkflow]
-           }
+  | GenACF' { gACFMap :: Map GACFArrow [SafeWorkflow]
+            }
   -- | Atom representing a single transition.
   | Atom
   deriving (Eq, Ord, Show, Generic, NFData)
 
 -- TODO: redefine tehse using record pattern synonyms: https://gitlab.haskell.org/ghc/ghc/wikis/pattern-synonyms/record-pattern-synonyms
+
 -- | XOR with two branches.
-pattern XOR lhs rhs <- GenACF (M.toList -> [(SWArrow Entry Exit, [lhs, rhs])])
-  where XOR lhs rhs  = GenACF (M.fromList  [(SWArrow Entry Exit, [lhs, rhs])])
+pattern XOR lhs rhs <- GenACF' (M.toList -> [(GACFArrow Entry Exit, [lhs, rhs])])
+  where XOR lhs rhs  = GenACF' (M.fromList  [(GACFArrow Entry Exit, [lhs, rhs])])
+
 -- | XOR with three branches.
 pattern XOR3 a b c   = XOR a (XOR b c)
+
 -- | XOR with unidirectional communication between branches.
-pattern GenXOR lhsIn lhsOut rhsIn rhsOut lhsToRhs <- GenACF (M.toList -> [(SWArrow Entry (P 1), [lhsIn]), (SWArrow (P 1) Exit, [lhsOut]), (SWArrow Entry (P 2), [rhsIn]), (SWArrow (P 2) Exit, [rhsOut]), (SWArrow (P 1) (P 2), [lhsToRhs])])
-  where GenXOR lhsIn lhsOut rhsIn rhsOut lhsToRhs =  GenACF (M.fromList  [(SWArrow Entry (P 1), [lhsIn]), (SWArrow (P 1) Exit, [lhsOut]), (SWArrow Entry (P 2), [rhsIn]), (SWArrow (P 2) Exit, [rhsOut]), (SWArrow (P 1) (P 2), [lhsToRhs])])
+pattern GenXOR lhsIn lhsOut rhsIn rhsOut lhsToRhs <- GenACF' (M.toList -> [(GACFArrow Entry (P 1), [lhsIn]), (GACFArrow (P 1) Exit, [lhsOut]), (GACFArrow Entry (P 2), [rhsIn]), (GACFArrow (P 2) Exit, [rhsOut]), (GACFArrow (P 1) (P 2), [lhsToRhs])])
+  where GenXOR lhsIn lhsOut rhsIn rhsOut lhsToRhs =  GenACF' (M.fromList  [(GACFArrow Entry (P 1), [lhsIn]), (GACFArrow (P 1) Exit, [lhsOut]), (GACFArrow Entry (P 2), [rhsIn]), (GACFArrow (P 2) Exit, [rhsOut]), (GACFArrow (P 1) (P 2), [lhsToRhs])])
+
+-- | Sequencing two safe workflows.
+pattern Seq lhs rhs <- GenACF' (M.toList -> [(GACFArrow Entry (P 1), [lhs]), (GACFArrow (P 1) Exit, [rhs])])
+  where Seq lhs rhs =  GenACF' (M.fromList  [(GACFArrow Entry (P 1), [lhs]), (GACFArrow (P 1) Exit, [rhs])])
+
+-- | Unidirectional pattern general acyclic control-flow.
+pattern GenACF m <- GenACF' m
+
 -- | AND with two branches.
-pattern Seq lhs rhs <- GenACF (M.toList -> [(SWArrow Entry (P 1), [lhs]), (SWArrow (P 1) Exit, [rhs])])
-  where Seq lhs rhs =  GenACF (M.fromList  [(SWArrow Entry (P 1), [lhs]), (SWArrow (P 1) Exit, [rhs])])
 pattern AND2 lhs rhs = AND (lhs :| [rhs])
+
 -- | Simple loop with exit only from the head.
-pattern SimpleLoop loop   exit         = GenLoop Nothing       exit loop
+pattern SimpleLoop loop exit = GenLoop Nothing exit loop
+
 -- | Loop with exit from the body.
-pattern Loop       loopIn exit loopOut = GenLoop (Just loopIn) exit loopOut
+pattern Loop loopIn exit loopOut = GenLoop (Just loopIn) exit loopOut
 
 xorLhs :: SafeWorkflow -> SafeWorkflow
 xorLhs (XOR lhs _) = lhs
@@ -130,9 +142,29 @@ seqLhs (Seq lhs _) = lhs
 seqRhs :: SafeWorkflow -> SafeWorkflow
 seqRhs (Seq _ rhs) = rhs
 
-isIntermediate :: SWPlace -> Bool
+isIntermediate :: GACFPlace -> Bool
 isIntermediate (P _) = True
 isIntermediate _     = False
+
+-- | Collects all the invalid arrows in a general acyclic control-flow (non-recursive).
+-- An arrow is invalid if it loops back to the same place,
+-- or goes back to a place preceeding the source place.
+invalidArrows :: [GACFArrow] -> [GACFArrow]
+invalidArrows acfArrows = filter isInvalid acfArrows where
+  isInvalid :: GACFArrow -> Bool
+  isInvalid (GACFArrow from to) = from >= to
+
+mkGenACF :: Map GACFArrow [SafeWorkflow] -> Either [GACFArrow] SafeWorkflow
+mkGenACF acfMap = case invalidArrows acfArrows of
+  [] -> Right $ GenACF' acfMap
+  xs -> Left xs
+  where
+    acfArrows :: [GACFArrow]
+    acfArrows = map fst . M.toList $ acfMap
+
+unsafeMkGenACF :: Map GACFArrow [SafeWorkflow] -> SafeWorkflow
+unsafeMkGenACF = either mkError identity . mkGenACF where
+  mkError arrows = panic $ "unsafeMkGenACF: The following arrows are invalid: " <> show arrows
 
 -- | Make a workflow state from a `Name`.
 singletonWfState :: Name -> WorkflowState
@@ -174,19 +206,18 @@ constructTransitionsM start end (Loop gLoopIn exit gLoopOut) = do
   constructTransitionsM start inBetween gLoopIn
   constructTransitionsM inBetween end   exit
   constructTransitionsM inBetween start gLoopOut
-constructTransitionsM start end (GenACF acf) = do
-  let acfList = M.toList acf
+constructTransitionsM start end (GenACF (M.toList -> acfList)) = do
+  let acfArrows = map fst acfList
       acfPlaces = S.fromList
                 . filter isIntermediate
-                . concatMap (\(SWArrow x y) -> [x,y])
-                . map fst
-                $ acfList
+                . concatMap (\(GACFArrow x y) -> [x,y])
+                $ acfArrows
   stateMap <- sequence $ M.fromSet (const genWfState) acfPlaces
-  let getState :: SWPlace -> WorkflowState
+  let getState :: GACFPlace -> WorkflowState
       getState Entry = start
       getState Exit  = end
       getState p     = fromMaybe (panic $ "constructTransitionsM: Place " <> show p <> " is not present in state map.") $ M.lookup p stateMap
-  forM_ acfList $ \(SWArrow from to, swfs) -> do
+  forM_ acfList $ \(GACFArrow from to, swfs) -> do
     let from' = getState from
         to'   = getState to
     mapM_ (constructTransitionsM from' to') swfs
