@@ -5,11 +5,29 @@
 {-# LANGUAGE ViewPatterns #-}
 module Test.Workflow.SafeWorkflow
   ( SafeWorkflow(..)
+
+  , pattern XOR
   , pattern XOR3
+  , pattern GenXOR
   , pattern AND2
+  , pattern Seq
   , pattern SimpleLoop
   , pattern Loop
+
+  , xorLhs
+  , xorRhs
+  , gXorLhsIn
+  , gXorLhsOut
+  , gXorRhsIn
+  , gXorRhsOut
+  , gXorLhsToRhs
+  , seqLhs
+  , seqRhs
+
   , constructTransitions
+
+  , SWArrow(..)
+  , SWPlace(..)
   ) where
 
 import Protolude
@@ -35,9 +53,8 @@ import Language.FCL.Orphans()
 
 -- NOTE: can't return back to different places from a loop (eg.: novation.s)
 -- NOTE: syncronisation points are always singleton states (places) (eg.: novation.s)
--- NOTE: there is a loop hidden inside GenXOR
--- NOTE: GenXOR lhsIn lhsOut rhsIn rhsOut Nothing Nothing is equivalent to
---       XOR (Seq lhsIn lhsOut) (Seq rhsIn rhsOut)
+-- NOTE: safe workflows are always progressive, you can't jump into a loop (loops are isolated)
+--       GenXOR allowed this, but GenACF does not
 
 data SWPlace = Entry  -- ^ Entry point to this sub-workflow.
              | P Int  -- ^ Labelled intermediate place.
@@ -62,28 +79,56 @@ data SafeWorkflow
             , gLoopOut  :: SafeWorkflow           -- ^ Seconds half of the body of the loop
             }
   -- | Generalized acyclic control-flow.
-  | GenACF { gACFMap :: Map SWArrow SafeWorkflow
+  | GenACF { gACFMap :: Map SWArrow [SafeWorkflow]
            }
   -- | Atom representing a single transition.
   | Atom
   deriving (Eq, Ord, Show, Generic, NFData)
 
+-- TODO: redefine tehse using record pattern synonyms: https://gitlab.haskell.org/ghc/ghc/wikis/pattern-synonyms/record-pattern-synonyms
 -- | XOR with two branches.
-pattern XOR lhs rhs <- GenACF (M.toList -> [(SWArrow Entry Exit, lhs), (SWArrow Entry Exit, rhs)])
-  where XOR lhs rhs  = GenACF (M.fromList  [(SWArrow Entry Exit, lhs), (SWArrow Entry Exit, rhs)])
+pattern XOR lhs rhs <- GenACF (M.toList -> [(SWArrow Entry Exit, [lhs, rhs])])
+  where XOR lhs rhs  = GenACF (M.fromList  [(SWArrow Entry Exit, [lhs, rhs])])
 -- | XOR with three branches.
 pattern XOR3 a b c   = XOR a (XOR b c)
 -- | XOR with unidirectional communication between branches.
-pattern GenXOR lhsIn lhsOut rhsIn rhsOut lhsToRhs <- GenACF (M.toList -> [(SWArrow Entry (P 1), lhsIn), (SWArrow (P 1) Exit, lhsOut), (SWArrow Entry (P 2), rhsIn), (SWArrow (P 2) Exit, rhsOut), (SWArrow (P 1) (P 2), lhsToRhs)])
-  where GenXOR lhsIn lhsOut rhsIn rhsOut lhsToRhs =  GenACF (M.fromList  [(SWArrow Entry (P 1), lhsIn), (SWArrow (P 1) Exit, lhsOut), (SWArrow Entry (P 2), rhsIn), (SWArrow (P 2) Exit, rhsOut), (SWArrow (P 1) (P 2), lhsToRhs)])
+pattern GenXOR lhsIn lhsOut rhsIn rhsOut lhsToRhs <- GenACF (M.toList -> [(SWArrow Entry (P 1), [lhsIn]), (SWArrow (P 1) Exit, [lhsOut]), (SWArrow Entry (P 2), [rhsIn]), (SWArrow (P 2) Exit, [rhsOut]), (SWArrow (P 1) (P 2), [lhsToRhs])])
+  where GenXOR lhsIn lhsOut rhsIn rhsOut lhsToRhs =  GenACF (M.fromList  [(SWArrow Entry (P 1), [lhsIn]), (SWArrow (P 1) Exit, [lhsOut]), (SWArrow Entry (P 2), [rhsIn]), (SWArrow (P 2) Exit, [rhsOut]), (SWArrow (P 1) (P 2), [lhsToRhs])])
 -- | AND with two branches.
-pattern Seq lhs rhs <- GenACF (M.toList -> [(SWArrow Entry (P 1), lhs), (SWArrow (P 1) Exit, rhs)])
-  where Seq lhs rhs =  GenACF (M.fromList  [(SWArrow Entry (P 1), lhs), (SWArrow (P 1) Exit, rhs)])
+pattern Seq lhs rhs <- GenACF (M.toList -> [(SWArrow Entry (P 1), [lhs]), (SWArrow (P 1) Exit, [rhs])])
+  where Seq lhs rhs =  GenACF (M.fromList  [(SWArrow Entry (P 1), [lhs]), (SWArrow (P 1) Exit, [rhs])])
 pattern AND2 lhs rhs = AND (lhs :| [rhs])
 -- | Simple loop with exit only from the head.
 pattern SimpleLoop loop   exit         = GenLoop Nothing       exit loop
 -- | Loop with exit from the body.
 pattern Loop       loopIn exit loopOut = GenLoop (Just loopIn) exit loopOut
+
+xorLhs :: SafeWorkflow -> SafeWorkflow
+xorLhs (XOR lhs _) = lhs
+
+xorRhs :: SafeWorkflow -> SafeWorkflow
+xorRhs (XOR _ rhs) = rhs
+
+gXorLhsIn :: SafeWorkflow -> SafeWorkflow
+gXorLhsIn (GenXOR lhsIn _ _ _ _) = lhsIn
+
+gXorLhsOut :: SafeWorkflow -> SafeWorkflow
+gXorLhsOut (GenXOR _ lhsOut _ _ _) = lhsOut
+
+gXorRhsIn :: SafeWorkflow -> SafeWorkflow
+gXorRhsIn (GenXOR _ _ rhsIn _ _) = rhsIn
+
+gXorRhsOut :: SafeWorkflow -> SafeWorkflow
+gXorRhsOut (GenXOR _ _ _ rhsOut _) = rhsOut
+
+gXorLhsToRhs :: SafeWorkflow -> SafeWorkflow
+gXorLhsToRhs (GenXOR _ _ _ _ lhsToRhs) = lhsToRhs
+
+seqLhs :: SafeWorkflow -> SafeWorkflow
+seqLhs (Seq lhs _) = lhs
+
+seqRhs :: SafeWorkflow -> SafeWorkflow
+seqRhs (Seq _ rhs) = rhs
 
 isIntermediate :: SWPlace -> Bool
 isIntermediate (P _) = True
@@ -141,10 +186,10 @@ constructTransitionsM start end (GenACF acf) = do
       getState Entry = start
       getState Exit  = end
       getState p     = fromMaybe (panic $ "constructTransitionsM: Place " <> show p <> " is not present in state map.") $ M.lookup p stateMap
-  forM_ acfList $ \(SWArrow from to, swf) -> do
+  forM_ acfList $ \(SWArrow from to, swfs) -> do
     let from' = getState from
         to'   = getState to
-    constructTransitionsM from' to' swf
+    mapM_ (constructTransitionsM from' to') swfs
 constructTransitionsM start end Atom = do
   tell [Arrow start end]
 
