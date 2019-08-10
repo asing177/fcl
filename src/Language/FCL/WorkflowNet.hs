@@ -144,6 +144,7 @@ fireUnsafe
   -> Transition a
   -> Marking a
 fireUnsafe marking (Transition f _ inputs outputs) =
+    -- NOTE: these are disjoint maps --> \/ is just a union
     Map.fromSet outputToken outputs \/ remainingMarkings
   where
     remainingMarkings :: Marking a
@@ -166,6 +167,8 @@ fireUnsafe marking (Transition f _ inputs outputs) =
     outputToken :: Place -> Token a
     outputToken = const (f inputEnv)
 
+-- | Fires all the enabled transitions independently,
+-- and returns the resulting markings.
 fireEnabledTransitions
   :: (Ord a, JoinSemiLattice a)
   => Marking a
