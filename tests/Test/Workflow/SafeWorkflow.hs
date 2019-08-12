@@ -33,6 +33,9 @@ module Test.Workflow.SafeWorkflow
 
   , GACFArrow(..)
   , GACFPlace(..)
+
+  -- TODO: remove this
+  , sizedGenACFMap
   ) where
 
 import Protolude
@@ -41,7 +44,7 @@ import Data.Maybe (fromJust)
 import Data.Set (Set(..))
 import Data.Map (Map(..))
 import Data.List.NonEmpty (NonEmpty(..))
-import Data.List (nub)
+import Data.List (nub, last)
 
 import qualified Data.Set as S
 import qualified Data.Map as M
@@ -54,6 +57,7 @@ import Test.QuickCheck hiding (Gen)
 import qualified Test.QuickCheck as QC
 
 import Language.FCL.AST
+import Language.FCL.Pretty (ppr, (<+>), Pretty)
 import Language.FCL.Orphans()
 
 -- NOTE: can't return back to different places from a loop (eg.: novation.s)
@@ -65,10 +69,10 @@ import Language.FCL.Orphans()
 data GACFPlace = Entry  -- ^ Entry point to the general acyclic control-flow. Precedes every other place.
                | P Int  -- ^ Labelled intermediate place. Its ordering is defined by its integer label.
                | Exit   -- ^ Exit point from the general acyclic control-flow. Succeeds every other place.
-  deriving (Eq, Ord, Show, Generic, NFData, Arbitrary) -- TODO: remove Arbitrary
+  deriving (Eq, Ord, Show, Generic, NFData)
 
 data GACFArrow = GACFArrow GACFPlace GACFPlace
-  deriving (Eq, Ord, Show, Generic, NFData, Arbitrary) -- TODO: remove Arbitrary
+  deriving (Eq, Ord, Show, Generic, NFData)
 
 -- | Workflow nets that are sound by construction. We only allow these _safe_ workflow nets
 -- to be constructed in very specific ways in order to make soundness verification automatic.
@@ -159,6 +163,9 @@ isIntermediate :: GACFPlace -> Bool
 isIntermediate (P _) = True
 isIntermediate _     = False
 
+gACFPlaces :: Map GACFArrow a -> Set GACFPlace
+gACFPlaces = S.fromList . concatMap (\(GACFArrow x y) -> [x,y]) . M.keys
+
 -- | Collects all the invalid arrows in a general acyclic control-flow (non-recursive).
 -- An arrow is invalid if it loops back to the same place,
 -- or goes back to a place preceeding the source place.
@@ -237,6 +244,34 @@ constructTransitionsM start end (GenACF (M.toList -> acfList)) = do
 constructTransitionsM start end Atom = do
   tell [Arrow start end]
 
+instance Pretty GACFPlace where
+  ppr Entry = "Entry"
+  ppr Exit  = "Exit"
+  ppr (P n) = "P" <+> ppr n
+
+instance Arbitrary GACFPlace where
+  arbitrary = oneof
+    [ pure Entry
+    , P <$> arbitrary
+    , pure Exit
+    ]
+
+  shrink _ = []
+
+instance Arbitrary GACFArrow where
+  arbitrary = do
+    from <- arbitrary @GACFPlace
+    to   <- arbitrary @GACFPlace `suchThat` (\to -> from < to)
+    pure $ GACFArrow from to
+
+  shrink (GACFArrow from@(P _) to@(P _)) =
+    [ GACFArrow Entry Exit
+    , GACFArrow from  Exit
+    , GACFArrow to    Exit
+    , GACFArrow Entry to
+    , GACFArrow Entry from
+    ]
+
 -- TODO: add genACF generation
 instance Arbitrary SafeWorkflow where
   arbitrary = sized genSWFNet where
@@ -248,15 +283,6 @@ instance Arbitrary SafeWorkflow where
     genSWFNet n | 3 < n && n <= 4 = maxComplexity 4
     genSWFNet n | 4 < n           = maxComplexity 5
     genSWFNet n = panic $ "Negative value for SafeWorkflow generation: " <> show n
-
-    partitionThen :: Int -> Int -> ([Int] -> QC.Gen a) -> QC.Gen a
-    partitionThen n k g = do
-      let partitions = filter ((==k) . length) $ partitionInt n
-      case partitions of
-        [] -> panic $ "partitionThen: Couldn't partition " <> show n <> " into " <> show k <> " integers"
-        _  -> do
-          aPartition <- elements partitions
-          g aPartition
 
     maxComplexity :: Int -> QC.Gen SafeWorkflow
     maxComplexity n = oneof $ take n (allComplexities n)
@@ -314,9 +340,127 @@ instance Arbitrary SafeWorkflow where
         xs <- mapM genSWFNet ps
         pure $ NE.fromList xs
 
-    partitionInt d = go d d where
-      go _  0  = [[]]
-      go !h !n = [ a:as | a<-[1..min n h], as <- go a (n-a) ]
-
   shrink x@AND{..} = Atom : genericShrink x
   shrink x = genericShrink x
+
+partitionThen :: Int -> Int -> ([Int] -> QC.Gen a) -> QC.Gen a
+partitionThen n k g = do
+  let partitions = filter ((==k) . length) $ partitionInt n
+  case partitions of
+    [] -> panic $ "partitionThen: Couldn't partition " <> show n <> " into " <> show k <> " integers"
+    _  -> do
+      aPartition <- elements partitions
+      g aPartition
+
+partitionInt :: Int -> [[Int]]
+partitionInt d = go d d where
+  go _  0  = [[]]
+  go !h !n = [ a:as | a<-[1..min n h], as <- go a (n-a) ]
+
+sizedGenACFMap :: Int -> QC.Gen (Map GACFArrow [SafeWorkflow])
+sizedGenACFMap size = do
+  -- NOTE: number of new places in the spine
+  spineLength <- frequency
+    [ (30, pure 0)
+    , (25, pure 1)
+    , (20, pure 2)
+    , (10, pure 3)
+    , (5,  pure 4)
+    , (3,  pure 5)
+    , (3,  pure 6)
+    , (2,  pure 7)
+    , (2,  pure 8)
+    ]
+  let spineLength' = min (size-1) spineLength -- NOTE: length of spine can't be larger than the size (size ~ no. transitions)
+      spineLabels  = map (*10^10) [1..spineLength']
+      spinePlaces  = [Entry] ++ map P spineLabels ++ [Exit]
+      spineArrows  = zipWith GACFArrow spinePlaces (drop 1 spinePlaces)
+
+  -- NOTE: there will be at least `spineLength' + 1` workflows in the spine
+  --       and there can be at most `size` workflows together with the extensions
+  numPartitions <- choose (spineLength' + 1, size)
+
+  partitionThen size numPartitions $ \partition -> do
+    let spineSizes     = take (spineLength' + 1) partition
+        extensionSizes = drop (spineLength' + 1) partition
+    spineSwfs <- forM spineSizes $ \s -> do
+      swf <- resize s (arbitrary @SafeWorkflow)
+      pure [swf]
+    let acfMap = M.fromList $ zip spineArrows spineSwfs
+    foldM (flip extendGACFMap) acfMap extensionSizes
+
+-- | Extend a GACF with either a direct arrow or a new place.
+extendGACFMap :: Int -> Map GACFArrow [SafeWorkflow] -> QC.Gen (Map GACFArrow [SafeWorkflow])
+extendGACFMap size acfMap
+  | size <= 1 = extendGACFMapWithArrow size acfMap
+  | otherwise = oneof [ extendGACFMapWithArrow size acfMap
+                      , extendGACFMapWithPlace size acfMap
+                      ]
+
+-- | Extends a GACF with a direct arrow.
+extendGACFMapWithArrow :: Int -> Map GACFArrow [SafeWorkflow] -> QC.Gen (Map GACFArrow [SafeWorkflow])
+extendGACFMapWithArrow size acfMap = do
+  let places = S.toList $ gACFPlaces acfMap
+  x   <- elements places `suchThat` (\x -> x /= Exit)
+  y   <- elements places `suchThat` (\y -> x < y)
+  swf <- resize size (arbitrary @SafeWorkflow)
+  pure $ M.insert (GACFArrow x y) [swf] acfMap
+
+-- NOTE: will only generate GACFs with single branched transitions
+-- those single branches can contain other workflows (such as XORs, loops, ANDs and even other GenACFs)
+-- so we don't lose generality
+-- | Extends a GACF with a new place and two arrows connecting the place to the other parts of the GACF.
+extendGACFMapWithPlace :: Int -> Map GACFArrow [SafeWorkflow] -> QC.Gen (Map GACFArrow [SafeWorkflow])
+extendGACFMapWithPlace size acfMap = do
+  let places = S.toList $ gACFPlaces acfMap
+  from <- elements places `suchThat` (\from -> from /= Exit)
+  to   <- elements places `suchThat` (\to   -> to   /= Entry && canFitBetween from to && from < to)
+  p    <- between 0 maxBound from to -- NOTE: this can crash if to == Exit and many values have been generated around maxBounds
+
+  -- TODO: refactor this using choose
+  (swf1, swf2) <- partitionThen size 2 $ \partition ->
+    case partition of
+      [k1, k2] -> do
+        swf1 <- resize k1 (arbitrary @SafeWorkflow)
+        swf2 <- resize k2 (arbitrary @SafeWorkflow)
+        pure (swf1, swf2)
+      _ -> panic $ show size <> " was not partitioned into 2 components"
+
+  -- TODO: replace Atoms
+  pure $ acfMap <> M.fromList
+    [ (GACFArrow from p, [swf1])
+    , (GACFArrow p   to, [swf2])
+    ]
+
+canFitBetween :: GACFPlace -> GACFPlace -> Bool
+canFitBetween from to
+  | from == to = False
+canFitBetween Entry _ = True
+canFitBetween _ Exit  = True
+canFitBetween (P from) (P to) = not $ hasIncorrectBounds from to
+
+-- | Generates a new GACF place between two other places with
+-- respect to some inclusive bounds. The additional bounds are just
+-- for the sake generality.
+between :: Int -> Int -> GACFPlace -> GACFPlace -> QC.Gen GACFPlace
+between lo hi _ _
+  | hasIncorrectBounds lo hi = panic $ boundError lo hi
+between _ _ Entry Entry = panic $ boundError Entry Entry
+between _ _ Exit Exit   = panic $ boundError Exit  Exit
+between lo hi Entry Exit =
+  P <$> choose (lo, hi)
+between lo _ Entry (P high)
+  | hasIncorrectBounds lo high = panic $ boundError lo high
+  | otherwise = P <$> choose (lo, high-1)
+between _ _ (P low) (P high)
+  | hasIncorrectBounds low high = panic $ boundError low high
+  | otherwise = P <$> choose (low+1, high-1)
+between _ hi (P low) Exit
+  | hasIncorrectBounds low hi = panic $ boundError low hi
+  | otherwise = P <$> choose (low+1, hi)
+
+boundError :: (Pretty a, Pretty b) => a -> b -> Text
+boundError lo hi = show $ "between: Can't generate new place in between" <+> ppr lo <+> "and" <+> ppr hi
+
+hasIncorrectBounds :: Int -> Int -> Bool
+hasIncorrectBounds lo hi = abs (hi - lo) < 2
