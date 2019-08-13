@@ -2,6 +2,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE GADTs #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 
 module Language.FCL.WorkflowNet (
   Token,
@@ -16,7 +17,7 @@ module Language.FCL.WorkflowNet (
 
 import Protolude
 
-import Algebra.Lattice (BoundedJoinSemiLattice(..), (\/), joins)
+import Algebra.Lattice (JoinSemiLattice(..), (\/), joins1)
 
 import Language.FCL.AST hiding (Transition)
 
@@ -80,7 +81,7 @@ type TransitionMap a =
 -- may occur when branching logic occurs in the body of the method.
 data ColorTransition a where
   ColorTransition
-    :: BoundedJoinSemiLattice a
+    :: JoinSemiLattice a
     => (Method -> (a -> a) -> Map (Set Place) [(a -> a)])
     -> ColorTransition a
 
@@ -102,7 +103,7 @@ createWorkflowNet s im ct =
 
 -- | Insert a method's transitions into the Workflow Net representation
 insertMethodTransitions
-  :: a                 -- ^ Input token mark of the initial state
+  :: forall a. a       -- ^ Input token mark of the initial state
   -> ColorTransition a -- ^ The way to generate a mapping of output places to transformations
   -> WorkflowNet a     -- ^ The Workflow Net to insert the transition into
   -> Method            -- ^ The method being inserted
@@ -115,15 +116,19 @@ insertMethodTransitions initial (ColorTransition colorizer) wfn method =
         outputPlaces
         (transitions wfn)
   where
+    methodName :: Name
     methodName = locVal $ Language.FCL.AST.methodName method
 
+    inputPlaces :: Set Place
     inputPlaces = places . methodInputPlaces $ method
+
+    outputPlaces :: Map (Set Place) [(a -> a)]
     outputPlaces = colorizer method (initial \/)
 
 -- | A transition fires iff:
 --     - The input places are a subset of the current WFN marking
 fire
-  :: BoundedJoinSemiLattice a
+  :: JoinSemiLattice a
   => Marking a
   -> Transition a
   -> Maybe (Marking a)
@@ -134,11 +139,12 @@ fire marking t@(Transition _ _ inputPlaces outputPlaces)
 
 -- | Warning: does not check if transition is enabled or not
 fireUnsafe
-  :: forall a. BoundedJoinSemiLattice a
+  :: forall a. JoinSemiLattice a
   => Marking a
   -> Transition a
   -> Marking a
 fireUnsafe marking (Transition f _ inputs outputs) =
+    -- NOTE: these are disjoint maps --> \/ is just a union
     Map.fromSet outputToken outputs \/ remainingMarkings
   where
     remainingMarkings :: Marking a
@@ -153,16 +159,18 @@ fireUnsafe marking (Transition f _ inputs outputs) =
     inputEnv :: Token a
     inputEnv =
         case Map.elems (marking `Map.restrictKeys` inputs) of
-          [] -> panic "WorkflowNet is not sound"
-          toks@(_:_) -> joins toks
+          []   -> panic "WorkflowNet is not sound"
+          t:ts -> joins1 (t :| ts)
 
     -- Combine the joins of the input token values with the transformation
     -- function derived from the method body
     outputToken :: Place -> Token a
     outputToken = const (f inputEnv)
 
+-- | Fires all the enabled transitions independently,
+-- and returns the resulting markings.
 fireEnabledTransitions
-  :: (Ord a, BoundedJoinSemiLattice a)
+  :: (Ord a, JoinSemiLattice a)
   => Marking a
   -> WorkflowNet a
   -> Set (Marking a)

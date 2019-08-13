@@ -12,7 +12,6 @@ import Test.Tasty.QuickCheck
 import Language.FCL.AST (Loc())
 import Language.FCL.Undefinedness
 
--- QUESTION: Why do we only generate empty errors?
 instance Arbitrary IsInitialized where
   arbitrary = oneof
     [ pure Initialized
@@ -66,8 +65,8 @@ semilattice testName op bound = testGroup testName
 undefinednessTests :: TestTree
 undefinednessTests
   = testGroup "Undefinedness tests"
-    [ boundedSemilattice "IsInitialized is a bounded meet semilattice)" (/\) Initialized
-    , semilattice "IsInitialized is a join semilattice)" (\/) (Error mempty)
+    [ semilattice "IsInitialized is a join semilattice)" (\/) (Error mempty)
+    , boundedSemilattice "IsInitialized is a bounded meet semilattice)" (/\) Initialized
     , testProperty "IsInitialized has join-meet-absorption" $ absorbs @IsInitialized (\/) (/\)
     , testProperty "IsInitialized has meet-join-absorption" $ absorbs @IsInitialized (/\) (\/)
     ]
