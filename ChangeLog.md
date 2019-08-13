@@ -2,7 +2,7 @@
 
 ## 0.2
 
-
+* Bugfix for undefinedness analysis
 * Removed "soundness checking" for safe workflows, implemented safe workflow recognition algorithm (split-and-merge analysis)
 * More property-based tests for soundness checking and split-and-merge analysis
 * Generalisation of graphviz generation algorithm
