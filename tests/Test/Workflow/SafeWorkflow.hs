@@ -272,7 +272,6 @@ instance Arbitrary GACFArrow where
     , GACFArrow Entry from
     ]
 
--- TODO: add genACF generation
 instance Arbitrary SafeWorkflow where
   arbitrary = sized genSWFNet where
     -- | Sized `SafeWorkflow generation
@@ -281,14 +280,15 @@ instance Arbitrary SafeWorkflow where
     genSWFNet n | 1 < n && n <= 2 = maxComplexity 2
     genSWFNet n | 2 < n && n <= 3 = maxComplexity 3
     genSWFNet n | 3 < n && n <= 4 = maxComplexity 4
-    genSWFNet n | 4 < n           = maxComplexity 5
+    genSWFNet n | 4 < n && n <= 5 = maxComplexity 5
+    genSWFNet n | 5 < n           = unsafeMkGenACF <$> sizedGenACFMap n
     genSWFNet n = panic $ "Negative value for SafeWorkflow generation: " <> show n
 
     maxComplexity :: Int -> QC.Gen SafeWorkflow
     maxComplexity n = oneof $ take n (allComplexities n)
 
     allComplexities :: Int -> [QC.Gen SafeWorkflow]
-    allComplexities n = [ atom, complexity2 n, complexity3 n, complexity4 n, complexity5 n ]
+    allComplexities n = [ atom, complexity2 n, complexity3 n, complexity4 n, complexity5 n, complexity6 n ]
 
     atom :: QC.Gen SafeWorkflow
     atom = pure Atom
@@ -325,13 +325,11 @@ instance Arbitrary SafeWorkflow where
       case partition of
         [k1,k2,k3,k4,k5] -> oneof
           [ AND <$> someSWFNets (n-2) 3
-          , GenXOR <$> genSWFNet k1
-                   <*> genSWFNet k2
-                   <*> genSWFNet k3
-                   <*> genSWFNet k4
-                   <*> genSWFNet k5
           ]
         _ -> panic $ show n <> " was not partitioned into 5 components"
+
+    complexity6 :: Int -> QC.Gen SafeWorkflow
+    complexity6 n = unsafeMkGenACF <$> sizedGenACFMap n
 
     -- | Generates `SafeWorkflow`s of summed size `n`.
     someSWFNets :: Int -> Int -> QC.Gen (NonEmpty SafeWorkflow)
@@ -417,16 +415,12 @@ extendGACFMapWithPlace size acfMap = do
   to   <- elements places `suchThat` (\to   -> to   /= Entry && canFitBetween from to && from < to)
   p    <- between 0 maxBound from to -- NOTE: this can crash if to == Exit and many values have been generated around maxBounds
 
-  -- TODO: refactor this using choose
-  (swf1, swf2) <- partitionThen size 2 $ \partition ->
-    case partition of
-      [k1, k2] -> do
-        swf1 <- resize k1 (arbitrary @SafeWorkflow)
-        swf2 <- resize k2 (arbitrary @SafeWorkflow)
-        pure (swf1, swf2)
-      _ -> panic $ show size <> " was not partitioned into 2 components"
+  k1 <- choose (1,size-1)
+  let k2 = size - k1
 
-  -- TODO: replace Atoms
+  swf1 <- resize k1 (arbitrary @SafeWorkflow)
+  swf2 <- resize k2 (arbitrary @SafeWorkflow)
+
   pure $ acfMap <> M.fromList
     [ (GACFArrow from p, [swf1])
     , (GACFArrow p   to, [swf2])
