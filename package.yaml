@@ -118,6 +118,7 @@ library:
     -fwarn-missing-fields
     -fwarn-missing-methods
     -fwarn-missing-signatures
+    -fwarn-missing-pattern-synonym-signatures
     -fwarn-noncanonical-monad-instances
     -fwarn-unused-imports
     -fwarn-unused-pattern-binds
@@ -132,6 +133,8 @@ library:
     -Wmissing-export-lists
 
   exposed-modules:
+    - Data.List.List2
+
     - Language.FCL.Contract
     - Language.FCL.AST
     - Language.FCL.Delta
@@ -152,7 +155,11 @@ library:
     - Language.FCL.Undefinedness
     - Language.FCL.Effect
     - Language.FCL.WorkflowNet
-    - Language.FCL.ReachabilityGraph
+    - Language.FCL.Reachability.Definitions
+    - Language.FCL.Reachability.General
+    - Language.FCL.Reachability.Utils
+    - Language.FCL.Reachability.SplitAndMerge
+    - Language.FCL.Reachability.StructuredTransition
     - Language.FCL.Analysis
     - Language.FCL.Graphviz
     - Language.FCL.Hash

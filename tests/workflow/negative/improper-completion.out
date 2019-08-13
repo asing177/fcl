@@ -1,4 +1,6 @@
 Workflow soundness errors:
-• One-boundedness violation at merge-site.
-  When merging the results of two AND branches, more specifically '{terminal}' and '{terminal}',
-  the resulting state contained some places more than once: '{terminal}'
+• Improper completion. Applying 'transition {a} -> {terminal}' to state '{a,b}' would result in the new state '{b
+                                                                                                               ,terminal}' where the terminal place is reached while other places are still active.
+• Improper completion. Applying 'transition {b} -> {terminal}' to state '{a,b}' would result in the new state '{a
+                                                                                                               ,terminal}' where the terminal place is reached while other places are still active.
+• Dead-end state: '{a,b}'.

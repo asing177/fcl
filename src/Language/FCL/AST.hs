@@ -191,7 +191,7 @@ instance FromJSON ADTConstr where
 
 -- | Variable names
 newtype Name = Name { unName :: Text }
-  deriving (Eq, Show, Ord, Generic, B.Binary, Serialize, FromJSONKey, ToJSONKey, Hash.Hashable)
+  deriving (Eq, Show, Ord, Generic, B.Binary, Serialize, FromJSONKey, ToJSONKey, Hash.Hashable, NFData)
 
 instance ToJSON Name where
   toJSON (Name nm) = toJSON nm
@@ -994,7 +994,7 @@ data Place
   = PlaceStart
   | Place { placeName :: Name }
   | PlaceEnd
-  deriving (Eq, Ord, Show, Generic, Serialize, FromJSONKey, ToJSONKey, Hash.Hashable)
+  deriving (Eq, Ord, Show, Generic, Serialize, FromJSONKey, ToJSONKey, Hash.Hashable, NFData)
 
 instance ToJSON Place where
   toJSON = genericToJSON (defaultOptions { sumEncoding = ObjectWithSingleField })
@@ -1019,7 +1019,7 @@ startState = WorkflowState $ Set.singleton PlaceStart
 endState = WorkflowState $ Set.singleton PlaceEnd
 
 newtype WorkflowState = WorkflowState { places :: Set Place }
-  deriving (Eq, Ord, Show, Generic, Serialize, Hash.Hashable)
+  deriving (Eq, Ord, Show, Generic, Serialize, Hash.Hashable, NFData)
 
 instance Semigroup WorkflowState where
   (<>) (WorkflowState xs) (WorkflowState ys) = WorkflowState (xs <> ys)
@@ -1042,7 +1042,7 @@ instance FromJSON WorkflowState where
 
 data Transition
   = Arrow WorkflowState WorkflowState
-  deriving (Eq, Ord, Show, Generic, Serialize, Hash.Hashable)
+  deriving (Eq, Ord, Show, Generic, Serialize, Hash.Hashable, NFData)
 
 instance ToJSON Transition where
   toJSON = genericToJSON (defaultOptions { sumEncoding = ObjectWithSingleField })

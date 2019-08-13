@@ -1,0 +1,48 @@
+digraph workflow {
+edge [color="#000000"]
+graph [bgcolor=transparent]
+
+
+initial [shape=point; width=0.3; style=filled; color="#0e64ce"; label=""]
+aliceDid [shape=ellipse; fontname="Arial"; fontsize=16; style=filled; color=black; fillcolor=white;]
+aliceDoing [shape=ellipse; fontname="Arial"; fontsize=16; style=filled; color=black; fillcolor=white;]
+aliceJoined [shape=ellipse; fontname="Arial"; fontsize=16; style=filled; color=black; fillcolor=white;]
+aliceJoining [shape=ellipse; fontname="Arial"; fontsize=16; style=filled; color=black; fillcolor=white;]
+aliceNovating [shape=ellipse; fontname="Arial"; fontsize=16; style=filled; color=black; fillcolor=white;]
+bobDid [shape=ellipse; fontname="Arial"; fontsize=16; style=filled; color=black; fillcolor=white;]
+bobDoing [shape=ellipse; fontname="Arial"; fontsize=16; style=filled; color=black; fillcolor=white;]
+bobJoined [shape=ellipse; fontname="Arial"; fontsize=16; style=filled; color=black; fillcolor=white;]
+bobJoining [shape=ellipse; fontname="Arial"; fontsize=16; style=filled; color=black; fillcolor=white;]
+bobNovating [shape=ellipse; fontname="Arial"; fontsize=16; style=filled; color=black; fillcolor=white;]
+terminal [shape=point; width=0.3; peripheries=2; style=filled; color="#d11010"; label=""]
+
+1[label=<<FONT POINT-SIZE="16">join</FONT><FONT POINT-SIZE="10" COLOR="blue"> <BR/>roles: deployer()</FONT>>shape=box; fontname="Arial"; style=filled; color=black; fillcolor=gray75;]
+2[label=<<FONT POINT-SIZE="16">joinAlice</FONT><FONT POINT-SIZE="10" COLOR="blue"> </FONT>>shape=box; fontname="Arial"; style=filled; color=black; fillcolor=gray75;]
+3[label=<<FONT POINT-SIZE="16">joinBob</FONT><FONT POINT-SIZE="10" COLOR="blue"> </FONT>>shape=box; fontname="Arial"; style=filled; color=black; fillcolor=gray75;]
+4[label=<<FONT POINT-SIZE="16">begin</FONT><FONT POINT-SIZE="10" COLOR="blue"> <BR/>roles: {alice,bob}</FONT>>shape=box; fontname="Arial"; style=filled; color=black; fillcolor=gray75;]
+5[label=<<FONT POINT-SIZE="16">doAlice</FONT><FONT POINT-SIZE="10" COLOR="blue"> <BR/>roles: alice</FONT>>shape=box; fontname="Arial"; style=filled; color=black; fillcolor=gray75;]
+6[label=<<FONT POINT-SIZE="16">doBob</FONT><FONT POINT-SIZE="10" COLOR="blue"> <BR/>roles: bob</FONT>>shape=box; fontname="Arial"; style=filled; color=black; fillcolor=gray75;]
+7[label=<<FONT POINT-SIZE="16">novate</FONT><FONT POINT-SIZE="10" COLOR="blue"> <BR/>roles: deployer()</FONT>>shape=box; fontname="Arial"; style=filled; color=black; fillcolor=gray75;]
+8[label=<<FONT POINT-SIZE="16">novateAlice</FONT><FONT POINT-SIZE="10" COLOR="blue"> </FONT>>shape=box; fontname="Arial"; style=filled; color=black; fillcolor=gray75;]
+9[label=<<FONT POINT-SIZE="16">novateBob</FONT><FONT POINT-SIZE="10" COLOR="blue"> </FONT>>shape=box; fontname="Arial"; style=filled; color=black; fillcolor=gray75;]
+10[label=<<FONT POINT-SIZE="16">end</FONT><FONT POINT-SIZE="10" COLOR="blue"> <BR/>roles: {alice,bob}</FONT>>shape=box; fontname="Arial"; style=filled; color=black; fillcolor=gray75;]
+
+initial -> 1 ; 1 -> {aliceJoining, bobJoining}
+aliceJoining -> 2 ; 2 -> aliceJoined
+bobJoining -> 3 ; 3 -> bobJoined
+{aliceJoined, bobJoined} -> 4 ; 4 -> {aliceDoing, bobDoing}
+aliceDoing -> 5 ; 5 -> aliceDid
+bobDoing -> 6 ; 6 -> bobDid
+{aliceDid, bobDid} -> 7 ; 7 -> {aliceNovating, bobNovating}
+aliceNovating -> 8 ; 8 -> aliceJoined
+bobNovating -> 9 ; 9 -> bobJoined
+{aliceDid, bobDid} -> 10 ; 10 -> terminal
+
+{rank=same aliceDid bobDid}
+{rank=same aliceDoing bobDoing}
+{rank=same aliceJoined bobJoined}
+{rank=same aliceJoining bobJoining}
+{rank=same aliceNovating bobNovating}
+
+
+}
