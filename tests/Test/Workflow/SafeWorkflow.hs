@@ -310,7 +310,6 @@ instance Arbitrary SafeWorkflow where
       case partition of
         [k1,k2,k3] -> oneof
           [ Loop <$> genSWFNet k1 <*> genSWFNet k2 <*> genSWFNet k3
-          , XOR3 <$> genSWFNet k1 <*> genSWFNet k2 <*> genSWFNet k3
           ]
         _ -> panic $ show n <> " was not partitioned into 3 components"
 
