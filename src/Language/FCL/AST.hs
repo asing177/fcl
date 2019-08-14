@@ -1040,15 +1040,10 @@ instance FromJSON WorkflowState where
          ("{", "}") -> WorkflowState . Set.fromList . fmap (makePlace . Name . T.strip) . T.splitOn (T.pack ",") . T.dropEnd 1 . T.drop 1 $ t
          _ -> WorkflowState . Set.fromList . fmap (makePlace . Name . T.strip) . T.splitOn (T.pack ",") $ t
 
-data Transition
-  = Arrow WorkflowState WorkflowState
-  deriving (Eq, Ord, Show, Generic, Serialize, Hash.Hashable)
-
-instance ToJSON Transition where
-  toJSON = genericToJSON (defaultOptions { sumEncoding = ObjectWithSingleField })
-
-instance FromJSON Transition where
-  parseJSON = genericParseJSON (defaultOptions { sumEncoding = ObjectWithSingleField })
+data Transition = Arrow
+  { tFrom :: WorkflowState
+  , tTo :: WorkflowState
+  } deriving (Eq, Ord, Show, Generic, Serialize, Hash.Hashable, ToJSON, FromJSON)
 
 instance Pretty Transition where
   ppr (Arrow from to) = token Token.transition <+> ppr from <+> token Token.rarrow <+> ppr to
