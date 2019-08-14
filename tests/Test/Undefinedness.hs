@@ -65,8 +65,8 @@ semilattice testName op bound = testGroup testName
 undefinednessTests :: TestTree
 undefinednessTests
   = testGroup "Undefinedness tests"
-    [ semilattice "IsInitialized is a join semilattice)" (\/) (Error mempty)
-    , boundedSemilattice "IsInitialized is a bounded meet semilattice)" (/\) Initialized
+    [ semilattice "IsInitialized is a join semilattice" (\/) (Error mempty)
+    , boundedSemilattice "IsInitialized is a bounded meet semilattice" (/\) Initialized
     , testProperty "IsInitialized has join-meet-absorption" $ absorbs @IsInitialized (\/) (/\)
     , testProperty "IsInitialized has meet-join-absorption" $ absorbs @IsInitialized (/\) (\/)
     ]
