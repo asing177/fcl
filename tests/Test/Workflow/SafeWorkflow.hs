@@ -1,4 +1,5 @@
 {-# LANGUAGE PatternSynonyms #-}
+{-# LANGUAGE OverloadedLists #-}
 {-# LANGUAGE DeriveGeneric, DeriveAnyClass #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE BangPatterns #-}
@@ -33,22 +34,20 @@ module Test.Workflow.SafeWorkflow
 
   , GACFArrow(..)
   , GACFPlace(..)
-
-  -- TODO: remove this
-  , sizedGenACFMap
   ) where
 
 import Protolude
 
+import qualified GHC.Exts as GHC (IsList(..))
+
 import Data.Maybe (fromJust)
 import Data.Set (Set(..))
 import Data.Map (Map(..))
-import Data.List.NonEmpty (NonEmpty(..))
 import Data.List (nub, last)
+import Data.List.List2 (List2(..), pattern AsList)
 
 import qualified Data.Set as S
 import qualified Data.Map as M
-import qualified Data.List.NonEmpty as NE
 
 import Control.Monad.Gen
 import Control.Monad.Writer
@@ -77,10 +76,8 @@ data GACFArrow = GACFArrow GACFPlace GACFPlace
 -- | Workflow nets that are sound by construction. We only allow these _safe_ workflow nets
 -- to be constructed in very specific ways in order to make soundness verification automatic.
 data SafeWorkflow
-  -- TODO: should be List2 instead
-  -- TODO: branc in the comment
   -- | AND splitting into multiple workflows.
-  = AND { andBranches :: NonEmpty SafeWorkflow    -- ^ At least one branc
+  = AND { andBranches :: List2 SafeWorkflow    -- ^ At least one branch
         }
   -- | Looping construct with option to exit from both the body of the loop and the head of the loop.
   -- If the first half of the body is empty, we exit from head, otherwise exit from the body.
@@ -95,7 +92,8 @@ data SafeWorkflow
   | Atom
   deriving (Eq, Ord, Show, Generic, NFData)
 
--- TODO: redefine these using record pattern synonyms: https://gitlab.haskell.org/ghc/ghc/wikis/pattern-synonyms/record-pattern-synonyms
+-- TODO: redefine these using record pattern synonyms (once they are available)
+-- https://gitlab.haskell.org/ghc/ghc/wikis/pattern-synonyms/record-pattern-synonyms
 
 -- | XOR with two branches.
 pattern XOR :: SafeWorkflow -> SafeWorkflow -> SafeWorkflow
@@ -122,7 +120,8 @@ pattern GenACF m <- GenACF' m
 
 -- | AND with two branches.
 pattern AND2 :: SafeWorkflow -> SafeWorkflow -> SafeWorkflow
-pattern AND2 lhs rhs = AND (lhs :| [rhs])
+pattern AND2 lhs rhs <- AND (AsList [lhs,rhs])
+  where AND2 lhs rhs = AND [lhs,rhs]
 
 -- | Simple loop with exit only from the head.
 pattern SimpleLoop :: SafeWorkflow -> SafeWorkflow -> SafeWorkflow
@@ -207,7 +206,7 @@ constructTransitions = runGen . execWriterT . constructTransitionsM startState e
 -- based on the stucture of `swf`.
 constructTransitionsM :: WorkflowState -> WorkflowState -> SafeWorkflow -> (WriterT [Transition] (Gen Integer)) ()
 constructTransitionsM start end (AND branches) = do
-  inOuts <- forM (NE.toList branches) $ \br -> do
+  inOuts <- forM (GHC.toList branches) $ \br -> do
     inSt  <- genWfState
     outSt <- genWfState
     constructTransitionsM inSt outSt br
@@ -332,11 +331,11 @@ instance Arbitrary SafeWorkflow where
     complexity6 n = unsafeMkGenACF <$> sizedGenACFMap n
 
     -- | Generates `SafeWorkflow`s of summed size `n`.
-    someSWFNets :: Int -> Int -> QC.Gen (NonEmpty SafeWorkflow)
+    someSWFNets :: Int -> Int -> QC.Gen (List2 SafeWorkflow)
     someSWFNets n k =
       partitionThen n k $ \ps -> do
         xs <- mapM genSWFNet ps
-        pure $ NE.fromList xs
+        pure $ GHC.fromList xs
 
   shrink x@AND{..} = Atom : genericShrink x
   shrink x = genericShrink x

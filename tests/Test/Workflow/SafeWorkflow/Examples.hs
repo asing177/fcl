@@ -1,4 +1,5 @@
 {-# LANGUAGE PatternSynonyms #-}
+{-# LANGUAGE OverloadedLists #-}
 module Test.Workflow.SafeWorkflow.Examples
   ( namedBasicNets
   , namedExampleNets
@@ -9,7 +10,7 @@ module Test.Workflow.SafeWorkflow.Examples
 
 import Protolude
 
-import Data.List.NonEmpty (NonEmpty(..))
+import qualified Data.List.List2 as L2
 import qualified Data.Set as S
 
 import Language.FCL.AST (Name(..), Place(..), WorkflowState(..), Transition(..), makeWorkflowState, startState, endState, wfUnion)
@@ -30,7 +31,7 @@ namedBasicNets =
     , XOR Atom (XOR Atom Atom)
     )
   , ( "AND"
-    , AND (Atom :| [Atom, Atom])
+    , AND [Atom, Atom, Atom]
     )
   , ( "Seq"
     , Seq Atom Atom
@@ -59,10 +60,10 @@ namedExampleNets =
     ,  XOR Atom (Loop Atom Atom (XOR Atom Atom))
     )
   , ( "concurrent"
-    ,  AND (Atom :| [Atom])
+    ,  AND [Atom, Atom]
     )
   , ( "amendment"
-    ,  Seq (AND (Atom :| [Atom])) (SimpleLoop (XOR (Seq Atom Atom) Atom) Atom)
+    ,  Seq (AND [Atom, Atom]) (SimpleLoop (XOR (Seq Atom Atom) Atom) Atom)
     )
   , ( "graph"
     ,  Seq (XOR (Seq Atom Atom) (Seq Atom Atom)) Atom
@@ -98,7 +99,7 @@ namedArbitraryNets = zipWith (\id net -> ("arbitrary-" <> show id, net)) [0..] a
 arbitraryNets :: [SafeWorkflow]
 arbitraryNets =
   [ Atom
-  , XOR (AND {andBranches = Atom :| [Atom]}) (XOR Atom Atom)
+  , XOR (AND [Atom, Atom]) (XOR Atom Atom)
   -- NOTE: cannot be expressed with GenACF
   -- , Seq {seqLhs = GenLoop {gLoopIn = Nothing, gLoopExit = GenLoop {gLoopIn = Just Atom, gLoopExit = Atom, gLoopOut = Atom}, gLoopOut = GenXOR {gXorLhsIn = Atom, gXorLhsOut = Atom, gXorRhsIn = Atom, gXorRhsOut = Atom, gXorMToRhs = Just Atom, gXorMToLhs = Just Atom}}, seqRhs = XOR {xorLhs = GenLoop {gLoopIn = Just Atom, gLoopExit = Atom, gLoopOut = Atom}, xorRhs = GenLoop {gLoopIn = Just Atom, gLoopExit = Atom, gLoopOut = Atom}}}
   -- TODO: reenable this
