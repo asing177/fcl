@@ -66,14 +66,20 @@ import Language.FCL.Orphans()
 --       GenXOR allowed this, but ACF does not
 
 -- | An ordered place in a general acyclic control-flow.
-data ACFPlace = Entry  -- ^ Entry point to the general acyclic control-flow. Precedes every other place.
-               | P Int  -- ^ Labelled intermediate place. Its ordering is defined by its integer label.
-               | Exit   -- ^ Exit point from the general acyclic control-flow. Succeeds every other place.
+data ACFPlace = Entry  -- ^ Entry point to the acyclic control-flow. Precedes every other place.
+              | P Int  -- ^ Labelled intermediate place. Its ordering is defined by its integer label.
+              | Exit   -- ^ Exit point from the acyclic control-flow. Succeeds every other place.
   deriving (Eq, Ord, Show, Generic, NFData)
 
+-- | An arrow between two places in an acyclic control-flow.
+-- The first component is always strictly less than the second component.
 data ACFArrow = ACFArrow ACFPlace ACFPlace
   deriving (Eq, Ord, Show, Generic, NFData)
 
+-- | A mapping describing the structure of an acyclic control-flow.
+-- It maps arrows to a non-empty list of safe workflows. An arrow represents
+-- the possible ways to transition from a given state to another one. If the list
+-- is not singleton, it represents an XOR-split, multiple ways to exectute the transition.
 type ACFMap = Map ACFArrow (NonEmpty SafeWorkflow)
 
 -- | Workflow nets that are sound by construction. We only allow these _safe_ workflow nets
@@ -88,7 +94,7 @@ data SafeWorkflow
             , gLoopExit :: SafeWorkflow           -- ^ Exit from the loop
             , gLoopOut  :: SafeWorkflow           -- ^ Seconds half of the body of the loop
             }
-  -- | Generalized acyclic control-flow.
+  -- | Acyclic control-flow.
   | ACF' { gACFMap :: ACFMap
             }
   -- | Atom representing a single transition.
@@ -161,11 +167,13 @@ seqLhs (Seq lhs _) = lhs
 seqRhs :: SafeWorkflow -> SafeWorkflow
 seqRhs (Seq _ rhs) = rhs
 
+-- | Is an ACF place intermediate (not `Entry` nor `Exit`).
 isIntermediate :: ACFPlace -> Bool
 isIntermediate (P _) = True
 isIntermediate _     = False
 
-gACFPlaces :: Map ACFArrow a -> Set ACFPlace
+-- | Gather the places from an ACF map.
+gACFPlaces :: ACFMap -> Set ACFPlace
 gACFPlaces = S.fromList . concatMap (\(ACFArrow x y) -> [x,y]) . M.keys
 
 -- | Collects all the invalid arrows in a general acyclic control-flow (non-recursive).
@@ -176,6 +184,8 @@ invalidArrows acfArrows = filter isInvalid acfArrows where
   isInvalid :: ACFArrow -> Bool
   isInvalid (ACFArrow from to) = from >= to
 
+-- | Safe smart constructor for ACFs. Returns a safe workflow
+-- if the ACF is correct, or the list of invalid arrows if it is not.
 mkACF :: ACFMap -> Either [ACFArrow] SafeWorkflow
 mkACF acfMap = case invalidArrows acfArrows of
   [] -> Right $ ACF' acfMap
@@ -184,6 +194,8 @@ mkACF acfMap = case invalidArrows acfArrows of
     acfArrows :: [ACFArrow]
     acfArrows = map fst . M.toList $ acfMap
 
+-- | Unsafe smart constructor for ACFs. Returns a safe workflow
+-- if the ACF is correct, crashes if it is not.
 unsafeMkACF :: ACFMap -> SafeWorkflow
 unsafeMkACF = either mkError identity . mkACF where
   mkError arrows = panic $ "unsafeMkACF: The following arrows are invalid: " <> show arrows
@@ -342,6 +354,9 @@ instance Arbitrary SafeWorkflow where
   shrink x@AND{..} = Atom : genericShrink x
   shrink x = genericShrink x
 
+-- | `paritionThen n k gen` picks a random partition of `n` containing exactly `k` number of elements where `1 < k <= n`,
+-- then runs a generators with the partition. Used for sized generation of safe workflows.
+-- The initial size is partitioned into some other sizes used for generating the subworkflows.
 partitionThen :: Int -> Int -> ([Int] -> QC.Gen a) -> QC.Gen a
 partitionThen n k g = do
   let partitions = filter ((==k) . length) $ partitionInt n
@@ -351,11 +366,14 @@ partitionThen n k g = do
       aPartition <- elements partitions
       g aPartition
 
+-- | `partitionInt n k` partitions the integer `n` into `k` number of integers
+-- in all possible ways where `1 < k <= n`.
 partitionInt :: Int -> [[Int]]
 partitionInt d = go d d where
   go _  0  = [[]]
   go !h !n = [ a:as | a<-[1..min n h], as <- go a (n-a) ]
 
+-- | Sized generation of acyclic control-flow map.
 sizedACFMap :: Int -> QC.Gen ACFMap
 sizedACFMap size = do
   -- NOTE: number of new places in the spine
@@ -388,7 +406,11 @@ sizedACFMap size = do
     let acfMap = M.fromList $ zip spineArrows spineSwfs
     foldM (flip extendACFMap) acfMap extensionSizes
 
--- | Extend a ACF with either a direct arrow or a new place.
+-- | Extends an ACF with either a direct arrow or a new place.
+-- This will only generate ACFs with single branched transitions.
+-- However, those single branches can contain other workflows suchs as loops, ANDs and even other ACFs.
+-- Some special cases of ACF generation are hard-coded (eg.: XOR, Seq) which guarantees that we will have
+-- XOR-splits, so we don't lose generality.
 extendACFMap :: Int -> ACFMap -> QC.Gen ACFMap
 extendACFMap size acfMap
   | size <= 1 = extendACFMapWithArrow size acfMap
@@ -405,10 +427,7 @@ extendACFMapWithArrow size acfMap = do
   swf <- resize size (arbitrary @SafeWorkflow)
   pure $ M.insert (ACFArrow x y) [swf] acfMap
 
--- NOTE: will only generate ACFs with single branched transitions
--- those single branches can contain other workflows (such as XORs, loops, ANDs and even other ACFs)
--- so we don't lose generality
--- | Extends a ACF with a new place and two arrows connecting the place to the other parts of the ACF.
+-- | Extends an ACF with a new place and two arrows connecting the place to the other parts of the ACF.
 extendACFMapWithPlace :: Int -> ACFMap -> QC.Gen ACFMap
 extendACFMapWithPlace size acfMap = do
   let places = S.toList $ gACFPlaces acfMap
@@ -427,6 +446,7 @@ extendACFMapWithPlace size acfMap = do
     , (ACFArrow p   to, [swf2])
     ]
 
+-- | Checks whether two given places can accomodate and additional place in-between.
 canFitBetween :: ACFPlace -> ACFPlace -> Bool
 canFitBetween from to
   | from == to = False
@@ -457,5 +477,7 @@ between _ hi (P low) Exit
 boundError :: (Pretty a, Pretty b) => a -> b -> Text
 boundError lo hi = show $ "between: Can't generate new place in between" <+> ppr lo <+> "and" <+> ppr hi
 
+-- | Given two integers `n` and `k` checks whether `|n - k| < 2`.
+-- Used for determining whetehr two ACF places can accomodate an additional place in-between.
 hasIncorrectBounds :: Int -> Int -> Bool
 hasIncorrectBounds lo hi = abs (hi - lo) < 2
