@@ -9,8 +9,8 @@ module Test.Workflow.SafeWorkflow
 
   , andBranches
 
-  , mkGenACF
-  , unsafeMkGenACF
+  , mkACF
+  , unsafeMkACF
 
   , pattern XOR
   , pattern XOR3
@@ -32,8 +32,8 @@ module Test.Workflow.SafeWorkflow
 
   , constructTransitions
 
-  , GACFArrow(..)
-  , GACFPlace(..)
+  , ACFArrow(..)
+  , ACFPlace(..)
   ) where
 
 import Protolude
@@ -45,6 +45,7 @@ import Data.Set (Set(..))
 import Data.Map (Map(..))
 import Data.List (nub, last)
 import Data.List.List2 (List2(..), pattern AsList)
+import Data.List.NonEmpty (NonEmpty(..))
 
 import qualified Data.Set as S
 import qualified Data.Map as M
@@ -62,16 +63,18 @@ import Language.FCL.Orphans()
 -- NOTE: can't return back to different places from a loop (eg.: novation.s)
 -- NOTE: syncronisation points are always singleton states (places) (eg.: novation.s)
 -- NOTE: safe workflows are always progressive, you can't jump into a loop (loops are isolated)
---       GenXOR allowed this, but GenACF does not
+--       GenXOR allowed this, but ACF does not
 
 -- | An ordered place in a general acyclic control-flow.
-data GACFPlace = Entry  -- ^ Entry point to the general acyclic control-flow. Precedes every other place.
+data ACFPlace = Entry  -- ^ Entry point to the general acyclic control-flow. Precedes every other place.
                | P Int  -- ^ Labelled intermediate place. Its ordering is defined by its integer label.
                | Exit   -- ^ Exit point from the general acyclic control-flow. Succeeds every other place.
   deriving (Eq, Ord, Show, Generic, NFData)
 
-data GACFArrow = GACFArrow GACFPlace GACFPlace
+data ACFArrow = ACFArrow ACFPlace ACFPlace
   deriving (Eq, Ord, Show, Generic, NFData)
+
+type ACFMap = Map ACFArrow (NonEmpty SafeWorkflow)
 
 -- | Workflow nets that are sound by construction. We only allow these _safe_ workflow nets
 -- to be constructed in very specific ways in order to make soundness verification automatic.
@@ -86,7 +89,7 @@ data SafeWorkflow
             , gLoopOut  :: SafeWorkflow           -- ^ Seconds half of the body of the loop
             }
   -- | Generalized acyclic control-flow.
-  | GenACF' { gACFMap :: Map GACFArrow [SafeWorkflow]
+  | ACF' { gACFMap :: ACFMap
             }
   -- | Atom representing a single transition.
   | Atom
@@ -97,8 +100,8 @@ data SafeWorkflow
 
 -- | XOR with two branches.
 pattern XOR :: SafeWorkflow -> SafeWorkflow -> SafeWorkflow
-pattern XOR lhs rhs <- GenACF' (M.toList -> [(GACFArrow Entry Exit, [lhs, rhs])])
-  where XOR lhs rhs  = GenACF' (M.fromList  [(GACFArrow Entry Exit, [lhs, rhs])])
+pattern XOR lhs rhs <- ACF' (M.toList -> [(ACFArrow Entry Exit, [lhs, rhs])])
+  where XOR lhs rhs  = ACF' (M.fromList  [(ACFArrow Entry Exit, [lhs, rhs])])
 
 -- | XOR with three branches.
 pattern XOR3 :: SafeWorkflow -> SafeWorkflow -> SafeWorkflow -> SafeWorkflow
@@ -106,17 +109,17 @@ pattern XOR3 a b c   = XOR a (XOR b c)
 
 -- | XOR with unidirectional communication between branches.
 pattern GenXOR :: SafeWorkflow -> SafeWorkflow -> SafeWorkflow -> SafeWorkflow -> SafeWorkflow -> SafeWorkflow
-pattern GenXOR lhsIn lhsOut rhsIn rhsOut lhsToRhs <- GenACF' (M.toList -> [(GACFArrow Entry (P 1), [lhsIn]), (GACFArrow (P 1) Exit, [lhsOut]), (GACFArrow Entry (P 2), [rhsIn]), (GACFArrow (P 2) Exit, [rhsOut]), (GACFArrow (P 1) (P 2), [lhsToRhs])])
-  where GenXOR lhsIn lhsOut rhsIn rhsOut lhsToRhs =  GenACF' (M.fromList  [(GACFArrow Entry (P 1), [lhsIn]), (GACFArrow (P 1) Exit, [lhsOut]), (GACFArrow Entry (P 2), [rhsIn]), (GACFArrow (P 2) Exit, [rhsOut]), (GACFArrow (P 1) (P 2), [lhsToRhs])])
+pattern GenXOR lhsIn lhsOut rhsIn rhsOut lhsToRhs <- ACF' (M.toList -> [(ACFArrow Entry (P 1), [lhsIn]), (ACFArrow (P 1) Exit, [lhsOut]), (ACFArrow Entry (P 2), [rhsIn]), (ACFArrow (P 2) Exit, [rhsOut]), (ACFArrow (P 1) (P 2), [lhsToRhs])])
+  where GenXOR lhsIn lhsOut rhsIn rhsOut lhsToRhs =  ACF' (M.fromList  [(ACFArrow Entry (P 1), [lhsIn]), (ACFArrow (P 1) Exit, [lhsOut]), (ACFArrow Entry (P 2), [rhsIn]), (ACFArrow (P 2) Exit, [rhsOut]), (ACFArrow (P 1) (P 2), [lhsToRhs])])
 
 -- | Sequencing two safe workflows.
 pattern Seq :: SafeWorkflow -> SafeWorkflow -> SafeWorkflow
-pattern Seq lhs rhs <- GenACF' (M.toList -> [(GACFArrow Entry (P 1), [lhs]), (GACFArrow (P 1) Exit, [rhs])])
-  where Seq lhs rhs =  GenACF' (M.fromList  [(GACFArrow Entry (P 1), [lhs]), (GACFArrow (P 1) Exit, [rhs])])
+pattern Seq lhs rhs <- ACF' (M.toList -> [(ACFArrow Entry (P 1), [lhs]), (ACFArrow (P 1) Exit, [rhs])])
+  where Seq lhs rhs =  ACF' (M.fromList  [(ACFArrow Entry (P 1), [lhs]), (ACFArrow (P 1) Exit, [rhs])])
 
 -- | Unidirectional pattern general acyclic control-flow.
-pattern GenACF :: Map GACFArrow [SafeWorkflow] -> SafeWorkflow
-pattern GenACF m <- GenACF' m
+pattern ACF :: ACFMap -> SafeWorkflow
+pattern ACF m <- ACF' m
 
 -- | AND with two branches.
 pattern AND2 :: SafeWorkflow -> SafeWorkflow -> SafeWorkflow
@@ -158,32 +161,32 @@ seqLhs (Seq lhs _) = lhs
 seqRhs :: SafeWorkflow -> SafeWorkflow
 seqRhs (Seq _ rhs) = rhs
 
-isIntermediate :: GACFPlace -> Bool
+isIntermediate :: ACFPlace -> Bool
 isIntermediate (P _) = True
 isIntermediate _     = False
 
-gACFPlaces :: Map GACFArrow a -> Set GACFPlace
-gACFPlaces = S.fromList . concatMap (\(GACFArrow x y) -> [x,y]) . M.keys
+gACFPlaces :: Map ACFArrow a -> Set ACFPlace
+gACFPlaces = S.fromList . concatMap (\(ACFArrow x y) -> [x,y]) . M.keys
 
 -- | Collects all the invalid arrows in a general acyclic control-flow (non-recursive).
 -- An arrow is invalid if it loops back to the same place,
 -- or goes back to a place preceeding the source place.
-invalidArrows :: [GACFArrow] -> [GACFArrow]
+invalidArrows :: [ACFArrow] -> [ACFArrow]
 invalidArrows acfArrows = filter isInvalid acfArrows where
-  isInvalid :: GACFArrow -> Bool
-  isInvalid (GACFArrow from to) = from >= to
+  isInvalid :: ACFArrow -> Bool
+  isInvalid (ACFArrow from to) = from >= to
 
-mkGenACF :: Map GACFArrow [SafeWorkflow] -> Either [GACFArrow] SafeWorkflow
-mkGenACF acfMap = case invalidArrows acfArrows of
-  [] -> Right $ GenACF' acfMap
+mkACF :: ACFMap -> Either [ACFArrow] SafeWorkflow
+mkACF acfMap = case invalidArrows acfArrows of
+  [] -> Right $ ACF' acfMap
   xs -> Left xs
   where
-    acfArrows :: [GACFArrow]
+    acfArrows :: [ACFArrow]
     acfArrows = map fst . M.toList $ acfMap
 
-unsafeMkGenACF :: Map GACFArrow [SafeWorkflow] -> SafeWorkflow
-unsafeMkGenACF = either mkError identity . mkGenACF where
-  mkError arrows = panic $ "unsafeMkGenACF: The following arrows are invalid: " <> show arrows
+unsafeMkACF :: ACFMap -> SafeWorkflow
+unsafeMkACF = either mkError identity . mkACF where
+  mkError arrows = panic $ "unsafeMkACF: The following arrows are invalid: " <> show arrows
 
 -- | Make a workflow state from a `Name`.
 singletonWfState :: Name -> WorkflowState
@@ -225,30 +228,30 @@ constructTransitionsM start end (Loop gLoopIn exit gLoopOut) = do
   constructTransitionsM start inBetween gLoopIn
   constructTransitionsM inBetween end   exit
   constructTransitionsM inBetween start gLoopOut
-constructTransitionsM start end (GenACF (M.toList -> acfList)) = do
+constructTransitionsM start end (ACF (M.toList -> acfList)) = do
   let acfArrows = map fst acfList
       acfPlaces = S.fromList
                 . filter isIntermediate
-                . concatMap (\(GACFArrow x y) -> [x,y])
+                . concatMap (\(ACFArrow x y) -> [x,y])
                 $ acfArrows
   stateMap <- sequence $ M.fromSet (const genWfState) acfPlaces
-  let getState :: GACFPlace -> WorkflowState
+  let getState :: ACFPlace -> WorkflowState
       getState Entry = start
       getState Exit  = end
       getState p     = fromMaybe (panic $ "constructTransitionsM: Place " <> show p <> " is not present in state map.") $ M.lookup p stateMap
-  forM_ acfList $ \(GACFArrow from to, swfs) -> do
+  forM_ acfList $ \(ACFArrow from to, swfs) -> do
     let from' = getState from
         to'   = getState to
     mapM_ (constructTransitionsM from' to') swfs
 constructTransitionsM start end Atom = do
   tell [Arrow start end]
 
-instance Pretty GACFPlace where
+instance Pretty ACFPlace where
   ppr Entry = "Entry"
   ppr Exit  = "Exit"
   ppr (P n) = "P" <+> ppr n
 
-instance Arbitrary GACFPlace where
+instance Arbitrary ACFPlace where
   arbitrary = oneof
     [ pure Entry
     , P <$> arbitrary
@@ -257,18 +260,18 @@ instance Arbitrary GACFPlace where
 
   shrink _ = []
 
-instance Arbitrary GACFArrow where
+instance Arbitrary ACFArrow where
   arbitrary = do
-    from <- arbitrary @GACFPlace
-    to   <- arbitrary @GACFPlace `suchThat` (\to -> from < to)
-    pure $ GACFArrow from to
+    from <- arbitrary @ACFPlace
+    to   <- arbitrary @ACFPlace `suchThat` (\to -> from < to)
+    pure $ ACFArrow from to
 
-  shrink (GACFArrow from@(P _) to@(P _)) =
-    [ GACFArrow Entry Exit
-    , GACFArrow from  Exit
-    , GACFArrow to    Exit
-    , GACFArrow Entry to
-    , GACFArrow Entry from
+  shrink (ACFArrow from@(P _) to@(P _)) =
+    [ ACFArrow Entry Exit
+    , ACFArrow from  Exit
+    , ACFArrow to    Exit
+    , ACFArrow Entry to
+    , ACFArrow Entry from
     ]
 
 instance Arbitrary SafeWorkflow where
@@ -280,7 +283,7 @@ instance Arbitrary SafeWorkflow where
     genSWFNet n | 2 < n && n <= 3 = maxComplexity 3
     genSWFNet n | 3 < n && n <= 4 = maxComplexity 4
     genSWFNet n | 4 < n && n <= 5 = maxComplexity 5
-    genSWFNet n | 5 < n           = unsafeMkGenACF <$> sizedGenACFMap n
+    genSWFNet n | 5 < n           = unsafeMkACF <$> sizedACFMap n
     genSWFNet n = panic $ "Negative value for SafeWorkflow generation: " <> show n
 
     maxComplexity :: Int -> QC.Gen SafeWorkflow
@@ -328,7 +331,7 @@ instance Arbitrary SafeWorkflow where
         _ -> panic $ show n <> " was not partitioned into 5 components"
 
     complexity6 :: Int -> QC.Gen SafeWorkflow
-    complexity6 n = unsafeMkGenACF <$> sizedGenACFMap n
+    complexity6 n = unsafeMkACF <$> sizedACFMap n
 
     -- | Generates `SafeWorkflow`s of summed size `n`.
     someSWFNets :: Int -> Int -> QC.Gen (List2 SafeWorkflow)
@@ -354,8 +357,8 @@ partitionInt d = go d d where
   go _  0  = [[]]
   go !h !n = [ a:as | a<-[1..min n h], as <- go a (n-a) ]
 
-sizedGenACFMap :: Int -> QC.Gen (Map GACFArrow [SafeWorkflow])
-sizedGenACFMap size = do
+sizedACFMap :: Int -> QC.Gen ACFMap
+sizedACFMap size = do
   -- NOTE: number of new places in the spine
   spineLength <- frequency
     [ (30, pure 0)
@@ -371,7 +374,7 @@ sizedGenACFMap size = do
   let spineLength' = min (size-1) spineLength -- NOTE: length of spine can't be larger than the size (size ~ no. transitions)
       spineLabels  = map (*10^10) [1..spineLength']
       spinePlaces  = [Entry] ++ map P spineLabels ++ [Exit]
-      spineArrows  = zipWith GACFArrow spinePlaces (drop 1 spinePlaces)
+      spineArrows  = zipWith ACFArrow spinePlaces (drop 1 spinePlaces)
 
   -- NOTE: there will be at least `spineLength' + 1` workflows in the spine
   --       and there can be at most `size` workflows together with the extensions
@@ -384,31 +387,31 @@ sizedGenACFMap size = do
       swf <- resize s (arbitrary @SafeWorkflow)
       pure [swf]
     let acfMap = M.fromList $ zip spineArrows spineSwfs
-    foldM (flip extendGACFMap) acfMap extensionSizes
+    foldM (flip extendACFMap) acfMap extensionSizes
 
--- | Extend a GACF with either a direct arrow or a new place.
-extendGACFMap :: Int -> Map GACFArrow [SafeWorkflow] -> QC.Gen (Map GACFArrow [SafeWorkflow])
-extendGACFMap size acfMap
-  | size <= 1 = extendGACFMapWithArrow size acfMap
-  | otherwise = oneof [ extendGACFMapWithArrow size acfMap
-                      , extendGACFMapWithPlace size acfMap
+-- | Extend a ACF with either a direct arrow or a new place.
+extendACFMap :: Int -> ACFMap -> QC.Gen ACFMap
+extendACFMap size acfMap
+  | size <= 1 = extendACFMapWithArrow size acfMap
+  | otherwise = oneof [ extendACFMapWithArrow size acfMap
+                      , extendACFMapWithPlace size acfMap
                       ]
 
--- | Extends a GACF with a direct arrow.
-extendGACFMapWithArrow :: Int -> Map GACFArrow [SafeWorkflow] -> QC.Gen (Map GACFArrow [SafeWorkflow])
-extendGACFMapWithArrow size acfMap = do
+-- | Extends a ACF with a direct arrow.
+extendACFMapWithArrow :: Int -> ACFMap -> QC.Gen ACFMap
+extendACFMapWithArrow size acfMap = do
   let places = S.toList $ gACFPlaces acfMap
   x   <- elements places `suchThat` (\x -> x /= Exit)
   y   <- elements places `suchThat` (\y -> x < y)
   swf <- resize size (arbitrary @SafeWorkflow)
-  pure $ M.insert (GACFArrow x y) [swf] acfMap
+  pure $ M.insert (ACFArrow x y) [swf] acfMap
 
--- NOTE: will only generate GACFs with single branched transitions
--- those single branches can contain other workflows (such as XORs, loops, ANDs and even other GenACFs)
+-- NOTE: will only generate ACFs with single branched transitions
+-- those single branches can contain other workflows (such as XORs, loops, ANDs and even other ACFs)
 -- so we don't lose generality
--- | Extends a GACF with a new place and two arrows connecting the place to the other parts of the GACF.
-extendGACFMapWithPlace :: Int -> Map GACFArrow [SafeWorkflow] -> QC.Gen (Map GACFArrow [SafeWorkflow])
-extendGACFMapWithPlace size acfMap = do
+-- | Extends a ACF with a new place and two arrows connecting the place to the other parts of the ACF.
+extendACFMapWithPlace :: Int -> ACFMap -> QC.Gen ACFMap
+extendACFMapWithPlace size acfMap = do
   let places = S.toList $ gACFPlaces acfMap
   from <- elements places `suchThat` (\from -> from /= Exit)
   to   <- elements places `suchThat` (\to   -> to   /= Entry && canFitBetween from to && from < to)
@@ -421,21 +424,21 @@ extendGACFMapWithPlace size acfMap = do
   swf2 <- resize k2 (arbitrary @SafeWorkflow)
 
   pure $ acfMap <> M.fromList
-    [ (GACFArrow from p, [swf1])
-    , (GACFArrow p   to, [swf2])
+    [ (ACFArrow from p, [swf1])
+    , (ACFArrow p   to, [swf2])
     ]
 
-canFitBetween :: GACFPlace -> GACFPlace -> Bool
+canFitBetween :: ACFPlace -> ACFPlace -> Bool
 canFitBetween from to
   | from == to = False
 canFitBetween Entry _ = True
 canFitBetween _ Exit  = True
 canFitBetween (P from) (P to) = not $ hasIncorrectBounds from to
 
--- | Generates a new GACF place between two other places with
+-- | Generates a new ACF place between two other places with
 -- respect to some inclusive bounds. The additional bounds are just
 -- for the sake generality.
-between :: Int -> Int -> GACFPlace -> GACFPlace -> QC.Gen GACFPlace
+between :: Int -> Int -> ACFPlace -> ACFPlace -> QC.Gen ACFPlace
 between lo hi _ _
   | hasIncorrectBounds lo hi = panic $ boundError lo hi
 between _ _ Entry Entry = panic $ boundError Entry Entry
