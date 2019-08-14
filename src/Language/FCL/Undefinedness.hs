@@ -32,9 +32,6 @@ import qualified Data.Set as Set
 import Data.Text (unlines)
 
 
-
-type WorkflowState = Set Place
-
 -- Note: 'foldMap' is to be avoided, since the default behavior using the map
 -- monoid is to call a right-biased union. However, regarding the
 -- 'UndefinednessEnv' values, we want `unionWith (/\)` in every case.

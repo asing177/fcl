@@ -7,6 +7,7 @@
 module Language.FCL.WorkflowNet (
   Token,
   Marking,
+  WorkflowState,
   Transition(..),
   WorkflowNet(..),
   ColorTransition(..),
@@ -19,7 +20,7 @@ import Protolude
 
 import Algebra.Lattice (JoinSemiLattice(..), (\/), joins1)
 
-import Language.FCL.AST hiding (Transition)
+import Language.FCL.AST hiding (Transition, WorkflowState)
 
 import Data.Map (insertWith)
 import qualified Data.Map as Map
@@ -33,6 +34,9 @@ type Token a = a
 -- | A Marking is a mapping of places to tokens, designating a _state_ of the
 -- workflow net.
 type Marking a = Map Place (Token a)
+
+-- | A WorkflowState is a set of currently activated places.
+type WorkflowState = Set Place
 
 -- | A Transition is a transformation of a set of input places to a set of
 -- output places. Each of the set of input places must be marked by a token in
@@ -82,7 +86,7 @@ type TransitionMap a =
 data ColorTransition a where
   ColorTransition
     :: JoinSemiLattice a
-    => (Method -> (a -> a) -> Map (Set Place) [(a -> a)])
+    => (Method -> (a -> a) -> Map WorkflowState [(a -> a)])
     -> ColorTransition a
 
 -- | For Colored Workflow nets the 'a' represents the color. For non colored
@@ -191,9 +195,9 @@ enabledTransitions marking wfn =
     enabledTransitionsMap = Map.filterWithKey (checkSubset markedPlaces) (transitions wfn)
 
     -- Check if a transition's input places are a subset of the current marking
-    checkSubset :: Set Place -> (Name, Set Place) -> Map (Set Place) [(a -> a)] -> Bool
-    checkSubset markingPlaces (_, inputPlaces) _ =
-      inputPlaces `isSubsetOf` markingPlaces
+    checkSubset :: WorkflowState -> (Name, Set Place) -> Map (Set Place) [(a -> a)] -> Bool
+    checkSubset currentState (_, inputPlaces) _ =
+      inputPlaces `isSubsetOf` currentState
 
 getTransitions :: TransitionMap a -> [Transition a]
 getTransitions tmap = Map.foldMapWithKey toTransitions tmap
