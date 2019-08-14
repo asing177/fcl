@@ -127,7 +127,7 @@ insertMethodTransitions initial (ColorTransition colorizer) wfn method =
     inputPlaces = places . methodInputPlaces $ method
 
     outputPlaces :: Map (Set Place) [(a -> a)]
-    outputPlaces = colorizer method (initial \/)
+    outputPlaces = colorizer method identity -- QUESTION: can this be changed to identity? (all the tests PASS)
 
 -- | A transition fires iff:
 --     - The input places are a subset of the current WFN marking
