@@ -3,8 +3,9 @@ module Main where
 import qualified Data.Aeson.Encode.Pretty as A
 import Options.Applicative
 import Protolude
-import qualified Language.FCL.Reachability.General as FC (completeReachabilityGraph, pprReachabilityGraph)
+import qualified Language.FCL.Reachability.General as Reachability (completeReachabilityGraph, pprReachabilityGraph)
 import qualified Language.FCL.Analysis as Analysis (inferTransitions)
+import qualified Language.FCL.Undefinedness as Undefinedness (undefinednessAnalysis)
 import qualified Language.FCL.Compile as Compile
 import qualified Language.FCL.Graphviz as Graphviz
 import qualified Language.FCL.Parser as Parser (parseFile)
@@ -21,6 +22,7 @@ data ScriptCommand
   | Graph { file :: FilePath }
   | Transitions { file :: FilePath }
   | ReachabilityGraph { file :: FilePath }
+  | UndefinednessAnalysis { file :: FilePath }
   deriving (Eq, Ord, Show)
 
 -------------------------------------------------------------------------------
@@ -35,6 +37,7 @@ scriptParser =
   <|> scriptGraph
   <|> scriptTransitions
   <|> scriptReachabilityGraph
+  <|> scriptUndefinednessAnalysis
 
 scriptFormat :: Parser ScriptCommand
 scriptFormat = subparser $ command "format"
@@ -92,6 +95,14 @@ scriptReachabilityGraph = subparser $ command "reachability"
     scriptParser' :: Parser ScriptCommand
     scriptParser' = ReachabilityGraph <$> fileParser
 
+scriptUndefinednessAnalysis :: Parser ScriptCommand
+scriptUndefinednessAnalysis = subparser $ command "undefinedness"
+    (info (helper <*> scriptParser')
+    (progDesc "Run the undefinedness analysis"))
+  where
+    scriptParser' :: Parser ScriptCommand
+    scriptParser' = UndefinednessAnalysis <$> fileParser
+
 --------------------------------------------
 -- Parser Utils
 --------------------------------------------
@@ -147,16 +158,23 @@ driverScript cmd
     ReachabilityGraph scriptFile -> do
       ast <- Parser.parseFile scriptFile
       let transitions = S.fromList $ Analysis.inferTransitions ast
-          (errSet, rGraph) = FC.completeReachabilityGraph transitions
+          (errSet, rGraph) = Reachability.completeReachabilityGraph transitions
           errs = S.toList errSet
       putText "Reachability graph of the workflow net:"
       putText ""
-      putText $ show $ FC.pprReachabilityGraph rGraph
+      putText $ show $ Reachability.pprReachabilityGraph rGraph
       putText ""
       case errs of
         [] -> Utils.putGreen $ Pretty.prettyPrint errs
         (_:_) -> die $ Pretty.prettyPrint errs
 
+    UndefinednessAnalysis scriptFile -> do
+      ast <- Parser.parseFile scriptFile
+      let undefRes = Undefinedness.undefinednessAnalysis ast
+      case undefRes of
+        Right _ -> Utils.putGreen "The workflow has no undefinedness errors."
+        Left invalidStackTraces -> do
+          die $ show $ Pretty.ppr invalidStackTraces
 
 
 -------------------------------------------------------------------------------
