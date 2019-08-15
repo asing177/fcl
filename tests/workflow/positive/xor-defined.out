@@ -1,0 +1,5 @@
+ 
+Method arguments and effects:
+init1: () -> {write x}
+init2: () -> {write x}
+use: () -> {write via terminate, read x}

@@ -1,0 +1,7 @@
+ 
+Method arguments and effects:
+split: () -> {}
+init1: () -> {write x}
+join: () -> {}
+init2: () -> {write x}
+use: () -> {write via terminate, read x}

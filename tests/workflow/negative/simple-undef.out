@@ -1,0 +1,6 @@
+Variable "x" undefined at:
+  - line 6:7
+Variable "y" undefined at:
+  - line 6:3
+Stack trace leading up to error:
+   go : {initial} -> {terminal}

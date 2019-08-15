@@ -1,0 +1,7 @@
+Variable "x" undefined at:
+  - line 19:7
+Variable "y" undefined at:
+  - line 19:3
+Stack trace leading up to error:
+   noop : {initial} -> {commonState}
+   use : {commonState} -> {terminal}
