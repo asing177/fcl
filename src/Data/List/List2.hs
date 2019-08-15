@@ -3,7 +3,12 @@
 {-# LANGUAGE InstanceSigs #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE DeriveGeneric, DeriveAnyClass #-}
--- NOTE: This library is developed in a lazy manner. Feel free to add anything if you need it.
+{-|
+Module      : List2
+Description : Lists containing at least two elements.
+
+This library is developed in a lazy manner. Feel free to add anything if you need it.
+-}
 module Data.List.List2
   ( List2(..)
   , pattern AsList
