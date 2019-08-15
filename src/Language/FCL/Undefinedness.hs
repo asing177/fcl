@@ -3,7 +3,7 @@
 {-# LANGUAGE DeriveAnyClass #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
--- NOTE: path-insensitive analysis
+-- NOTE: Path-insensitive analysis (See checkStatement (... EIf ...))
 module Language.FCL.Undefinedness (
   InvalidStackTrace(..),
   IsInitialized(..),
@@ -36,6 +36,12 @@ import Data.Text (unlines)
 -- monoid is to call a right-biased union. However, regarding the
 -- 'UndefinednessEnv' values, we want `unionWith (/\)` in every case.
 
+-- | Undefinedness analysis determines whether a variable is always
+-- defined during the execution of the workflow. If there is at least one
+-- path/trace where it is uninitialized leading up to the use site,
+-- then the variable is considered undefined. Furthermore, if we assign
+-- an undefined variable to any other variable, the state of that other variable
+-- will be erroneous.
 undefinednessAnalysis
   :: Script
   -> Either [InvalidStackTrace] [ValidStackTrace]
@@ -209,14 +215,14 @@ generateStackTraces initialMarking wfn =
     genStackTraces visited marking
       | Set.member (Map.keysSet marking) visited = Set.singleton []
       | null fireableTransitions = Set.singleton []
-      | otherwise = foldMap fireTransition fireableTransitions
+      -- depth-first firing
+      | otherwise = foldMap recursivelyFireTransition fireableTransitions
       where
         fireableTransitions :: [Transition UndefinednessEnv]
         fireableTransitions = enabledTransitions marking wfn
 
-        -- TODO: misleading name, this has a recursive call back to the original function
-        fireTransition :: Transition UndefinednessEnv -> Set StackTrace
-        fireTransition t@(Transition _ nm _ _) =
+        recursivelyFireTransition :: Transition UndefinednessEnv -> Set StackTrace
+        recursivelyFireTransition t@(Transition _ nm _ _) =
           let resultState = fireUnsafe marking t
               newVisited = Set.insert (Map.keysSet marking) visited
            in Set.map (StackTraceItem nm marking resultState :)
@@ -242,6 +248,10 @@ validateStackTrace initMarking strace =
   where
     initValidStackTrace = ValidStackTrace [] initMarking
 
+    -- NOTE: basically just Either monad stuff
+    -- | If the trace is invalid, just return it.
+    -- if it is valid, but the current item contains errors,
+    -- then invalidate it, else continue exploring the valid trace.
     validateStackItem
       :: Either InvalidStackTrace ValidStackTrace
       -> StackTraceItem
@@ -403,7 +413,7 @@ checkStatement (Located _ (ESeq s0 s1)) mkEnv = do
     -- the cases where there is no transition performed
     sepBranches = Map.partitionWithKey $ \k _ -> not (Set.null k)
 
--- NOTE: path insensitive
+-- NOTE: Path insensitive, because it merges the result of both branches.
 checkStatement (Located _ (EIf c s0 s1)) mkEnv
   = do
   mkEnv' <- checkExpression c mkEnv

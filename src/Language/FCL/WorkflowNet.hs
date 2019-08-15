@@ -96,6 +96,12 @@ data WorkflowNet a = WorkflowNet
   { transitions :: TransitionMap a
   }
 
+-- | Creates a workflownet from a script. It infers the input places for each
+-- transition (method) in the script, then applies an abstract function to the method
+-- to determine the dataflow for each output state. The dataflow is represented by
+-- state-transofrming functions (possibly multiple due branching inside the method).
+-- The workflownet is just a data structure that contains these dataflow functions
+-- for each method.
 createWorkflowNet
   :: Script            -- ^ Initial Script
   -> a                 -- ^ Input token mark of the initial state
@@ -126,8 +132,16 @@ insertMethodTransitions initial (ColorTransition colorizer) wfn method =
     inputPlaces :: Set Place
     inputPlaces = places . methodInputPlaces $ method
 
+    -- | Calculates the dataflow functions for the output states.
     outputPlaces :: Map (Set Place) [(a -> a)]
-    outputPlaces = colorizer method identity -- QUESTION: can this be changed to identity? (all the tests PASS)
+    -- QUESTION: can this be changed to identity? (all the tests PASS)
+    -- ANSWER: `initial \/` means that the state cannot get any worse than the original state.  <-- invariant
+    --         `identity` would probably do as well, because in `fireUnsafe`
+    --         we are applying the function to the join of input results,
+    --         and since the results are always joined, the above invariant will always hold.
+    -- QUESTION: Should the invariant hold for every type of analysis or just for undefinedness?
+    -- ANSWER: It probably should due the monotonicity of dataflow analyses.
+    outputPlaces = colorizer method (initial \/)
 
 -- | A transition fires iff:
 --     - The input places are a subset of the current WFN marking
