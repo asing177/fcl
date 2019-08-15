@@ -42,6 +42,18 @@ import Data.Text (unlines)
 -- then the variable is considered undefined. Furthermore, if we assign
 -- an undefined variable to any other variable, the state of that other variable
 -- will be erroneous.
+--
+-- The algorithm also collect all the possible stack traces during the execution
+-- of the workflow. This allows for very precise error message generation
+-- but results in facotrial (!) time and space complexity.
+--
+-- The worst case is when we have an AND-split with `n` different branches.
+-- This results in `2^n` number of possible states (one for each branch).
+-- At the beginning we can choose from `n` different transitions,
+-- then after firing that transition, we still have `n-1`
+-- left to activate in the next step. Hence the factorial time complexity.
+-- Since we also want to store all these traces, the algortihm requires
+-- at least `n!` space to run.
 undefinednessAnalysis
   :: Script
   -> Either [InvalidStackTrace] [ValidStackTrace]
