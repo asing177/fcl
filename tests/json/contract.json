@@ -5,9 +5,8 @@
     "owner": "fwBVDsVh8SYQy98CzYpNPcbyTRczVUZ96HszhNRB8Ve",
     "storage": {
         "g": {
-            "VConstr": [
-                "Foo",
-                [
+            "VConstr": {
+                "vConstrParams": [
                     {
                         "VNum": {
                             "NumDecimal": {
@@ -24,8 +23,9 @@
                             }
                         }
                     }
-                ]
-            ]
+                ],
+                "vConstrName": "Foo"
+            }
         },
         "a": {
             "VNum": {

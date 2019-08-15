@@ -1,8 +1,7 @@
 {
     "g": {
-        "VConstr": [
-            "Foo",
-            [
+        "VConstr": {
+            "vConstrParams": [
                 {
                     "VNum": {
                         "NumDecimal": {
@@ -19,8 +18,9 @@
                         }
                     }
                 }
-            ]
-        ]
+            ],
+            "vConstrName": "Foo"
+        }
     },
     "a": {
         "VNum": {

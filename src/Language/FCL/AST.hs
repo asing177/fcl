@@ -358,7 +358,10 @@ data Value
   | VMap (Map Value Value)         -- ^ Map of values to values
   | VSet (Set Value)               -- ^ Set of values
   | VUndefined                     -- ^ Undefined
-  | VConstr NameUpper [Value]      -- ^ Constructor
+  | VConstr                        -- ^ Constructor
+    { vConstrName :: NameUpper
+    , vConstrParams :: [Value]
+    }
   deriving (Eq, Ord, Show, Generic, Serialize, Hash.Hashable)
 
 instance ToJSONKey Value where

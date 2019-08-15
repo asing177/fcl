@@ -1,15 +1,21 @@
 *** Deltas ***
-[ ModifyGlobal Name { unName = "t" } (VConstr (MkNameUpper "B") [])
+[ ModifyGlobal
+    Name { unName = "t" }
+    VConstr { vConstrName = MkNameUpper "B" , vConstrParams = [] }
 , ModifyGlobal Name { unName = "b" } (VBool False)
 , ModifyGlobal Name { unName = "i" } (VNum (NumDecimal 1))
-, ModifyGlobal Name { unName = "t" } (VConstr (MkNameUpper "A") [])
+, ModifyGlobal
+    Name { unName = "t" }
+    VConstr { vConstrName = MkNameUpper "A" , vConstrParams = [] }
 ]
 
 *** Globals ***
 fromList
   [ ( Key { unKey = "b" } , VBool False )
   , ( Key { unKey = "i" } , VNum (NumDecimal 1) )
-  , ( Key { unKey = "t" } , VConstr (MkNameUpper "A") [] )
+  , ( Key { unKey = "t" }
+    , VConstr { vConstrName = MkNameUpper "A" , vConstrParams = [] }
+    )
   , ( Key { unKey = "testAddr" }
     , VAccount (Address "fwBVDsVh8SYQy98CzYpNPcbyTRczVUZ96HszhNRB8Ve")
     )

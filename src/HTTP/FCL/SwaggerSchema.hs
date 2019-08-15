@@ -117,7 +117,8 @@ instance ToSchema AST.Value where
       ,("VMap", mvv)
       ,("VSet", sv)
       ,("VUndefined", empt)
-      ,("VConstr", Inline $ arraySchema (Just [nu, vs]))
+      ,("VConstr", Inline $
+         objectSchema ([("vConstrName", nu), ("vConstrParams", vs)]) True)
       ]
       False
 
