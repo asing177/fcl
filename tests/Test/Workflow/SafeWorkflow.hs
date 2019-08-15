@@ -8,6 +8,9 @@ module Test.Workflow.SafeWorkflow
   ( SafeWorkflow(Atom, AND, GenLoop)
 
   , andBranches
+  , gLoopIn
+  , gLoopOut
+  , gLoopExit
 
   , mkACF
   , unsafeMkACF
