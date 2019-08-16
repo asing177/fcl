@@ -1,4 +1,5 @@
 {-# LANGUAGE PatternSynonyms #-}
+{-# LANGUAGE OverloadedLists #-}
 module Test.Workflow.SafeWorkflow.Examples
   ( namedBasicNets
   , namedExampleNets
@@ -9,8 +10,11 @@ module Test.Workflow.SafeWorkflow.Examples
 
 import Protolude
 
-import Data.List.NonEmpty (NonEmpty(..))
+import Data.List.List2 (List2(..))
+
+import qualified Data.List.List2 as L2
 import qualified Data.Set as S
+import qualified Data.Map as M
 
 import Language.FCL.AST (Name(..), Place(..), WorkflowState(..), Transition(..), makeWorkflowState, startState, endState, wfUnion)
 
@@ -30,7 +34,7 @@ namedBasicNets =
     , XOR Atom (XOR Atom Atom)
     )
   , ( "AND"
-    , AND (Atom :| [Atom, Atom])
+    , AND [Atom, Atom, Atom]
     )
   , ( "Seq"
     , Seq Atom Atom
@@ -41,17 +45,11 @@ namedBasicNets =
   , ( "Loop"
     , Loop Atom Atom Atom
     )
-  , ( "completeGenXOR"
-    , GenXOR Atom Atom Atom Atom (Just Atom) (Just Atom)
-    )
   , ( "toRightGenXOR"
-    , GenXOR Atom Atom Atom Atom (Just Atom) Nothing
+    , GenXOR Atom Atom Atom Atom Atom
     )
   , ( "toLeftGenXOR"
-    , GenXOR Atom Atom Atom Atom Nothing (Just Atom)
-    )
-  , ( "simpleGenXOR"
-    , GenXOR Atom Atom Atom Atom Nothing Nothing
+    , GenXOR Atom Atom Atom Atom Atom
     )
   ]
 
@@ -65,10 +63,10 @@ namedExampleNets =
     ,  XOR Atom (Loop Atom Atom (XOR Atom Atom))
     )
   , ( "concurrent"
-    ,  AND (Atom :| [Atom])
+    ,  AND [Atom, Atom]
     )
   , ( "amendment"
-    ,  Seq (AND (Atom :| [Atom])) (SimpleLoop (XOR (Seq Atom Atom) Atom) Atom)
+    ,  Seq (AND [Atom, Atom]) (SimpleLoop (XOR (Seq Atom Atom) Atom) Atom)
     )
   , ( "graph"
     ,  Seq (XOR (Seq Atom Atom) (Seq Atom Atom)) Atom
@@ -86,11 +84,11 @@ namedExampleNets =
     , Seq Atom (XOR (Seq Atom (SimpleLoop (XOR3 Atom Atom Atom) (XOR (Seq Atom (XOR3 (Seq Atom Atom) (Seq Atom Atom) (Seq Atom Atom))) (Loop Atom (Seq Atom Atom) (XOR Atom (Seq Atom Atom)))))) Atom)
     )
   , ( "gas-forward-simple"
-    ,  Seq Atom (XOR (GenXOR Atom (SimpleLoop Atom Atom) Atom Atom (Just Atom) Nothing) Atom)
+    ,  Seq Atom (XOR (GenXOR Atom (SimpleLoop Atom Atom) Atom Atom Atom) Atom)
     )
   , ( "gas-forward"
     , let gasForwardNominationSubNet = SimpleLoop Atom (Seq (AND2 Atom (SimpleLoop Atom Atom)) (SimpleLoop Atom Atom)) in
-        Seq Atom (XOR (GenXOR Atom (SimpleLoop Atom Atom) Atom gasForwardNominationSubNet (Just Atom) Nothing) Atom)
+        Seq Atom (XOR (GenXOR Atom (SimpleLoop Atom Atom) Atom gasForwardNominationSubNet Atom) Atom)
     )
   ]
 
@@ -98,21 +96,20 @@ namedExampleNets =
 -- Some arbitrarily generated safe workflow nets --
 ---------------------------------------------------
 
+-- | Just some arbitrarily generated examples.
 namedArbitraryNets :: [([Char], SafeWorkflow)]
-namedArbitraryNets = zipWith (\id net -> ("arbitrary-" <> show id, net)) [0..] arbitraryNets
-
-arbitraryNets :: [SafeWorkflow]
-arbitraryNets =
+namedArbitraryNets = zipWith (\id net -> ("arbitrary-" <> show id, net)) [0..]
   [ Atom
-  , XOR {xorLhs = AND {andBranches = Atom :| [Atom]}, xorRhs = XOR {xorLhs = Atom, xorRhs = Atom}}
-  , Seq {seqLhs = GenLoop {gLoopIn = Nothing, gLoopExit = GenLoop {gLoopIn = Just Atom, gLoopExit = Atom, gLoopOut = Atom}, gLoopOut = GenXOR {gXorLhsIn = Atom, gXorLhsOut = Atom, gXorRhsIn = Atom, gXorRhsOut = Atom, gXorMToRhs = Just Atom, gXorMToLhs = Just Atom}}, seqRhs = XOR {xorLhs = GenLoop {gLoopIn = Just Atom, gLoopExit = Atom, gLoopOut = Atom}, xorRhs = GenLoop {gLoopIn = Just Atom, gLoopExit = Atom, gLoopOut = Atom}}}
-  , Seq {seqLhs = GenLoop {gLoopIn = Nothing, gLoopExit = XOR {xorLhs = Atom, xorRhs = XOR {xorLhs = Atom, xorRhs = Atom}}, gLoopOut = AND {andBranches = Atom :| [Atom]}}, seqRhs = AND {andBranches = GenLoop {gLoopIn = Nothing, gLoopExit = Atom, gLoopOut = Atom} :| [GenXOR {gXorLhsIn = Atom, gXorLhsOut = Atom, gXorRhsIn = Atom, gXorRhsOut = Atom, gXorMToRhs = Nothing, gXorMToLhs = Nothing},GenLoop {gLoopIn = Nothing, gLoopExit = Atom, gLoopOut = Atom}]}}
-  , GenLoop {gLoopIn = Nothing, gLoopExit = GenXOR {gXorLhsIn = Atom, gXorLhsOut = Atom, gXorRhsIn = Atom, gXorRhsOut = Atom, gXorMToRhs = Just Atom, gXorMToLhs = Nothing}, gLoopOut = GenLoop {gLoopIn = Nothing, gLoopExit = AND {andBranches = Atom :| [Atom,Atom,Atom]}, gLoopOut = GenLoop {gLoopIn = Nothing, gLoopExit = AND {andBranches = Atom :| [Atom,Atom]}, gLoopOut = GenLoop {gLoopIn = Nothing, gLoopExit = Atom, gLoopOut = Atom}}}}
-  , AND {andBranches = Seq {seqLhs = Seq {seqLhs = Atom, seqRhs = Atom}, seqRhs = XOR {xorLhs = Atom, xorRhs = XOR {xorLhs = Atom, xorRhs = Atom}}} :| [GenXOR {gXorLhsIn = Atom, gXorLhsOut = Atom, gXorRhsIn = Atom, gXorRhsOut = Atom, gXorMToRhs = Just Atom, gXorMToLhs = Just Atom},XOR {xorLhs = AND {andBranches = Atom :| [Atom]}, xorRhs = XOR {xorLhs = Seq {seqLhs = Atom, seqRhs = Atom}, xorRhs = Atom}}]}
-  , AND {andBranches = XOR {xorLhs = GenXOR {gXorLhsIn = Atom, gXorLhsOut = Atom, gXorRhsIn = Atom, gXorRhsOut = Atom, gXorMToRhs = Just Atom, gXorMToLhs = Just Atom}, xorRhs = GenLoop {gLoopIn = Just (GenLoop {gLoopIn = Just Atom, gLoopExit = Atom, gLoopOut = Atom}), gLoopExit = XOR {xorLhs = Atom, xorRhs = Atom}, gLoopOut = GenXOR {gXorLhsIn = Atom, gXorLhsOut = Atom, gXorRhsIn = Atom, gXorRhsOut = Atom, gXorMToRhs = Just Atom, gXorMToLhs = Just Atom}}} :| [XOR {xorLhs = GenXOR {gXorLhsIn = Atom, gXorLhsOut = Atom, gXorRhsIn = Atom, gXorRhsOut = Atom, gXorMToRhs = Just Atom, gXorMToLhs = Just Atom}, xorRhs = AND {andBranches = XOR {xorLhs = Atom, xorRhs = XOR {xorLhs = Atom, xorRhs = Atom}} :| [XOR {xorLhs = Atom, xorRhs = XOR {xorLhs = Atom, xorRhs = Atom}}]}}]}
-  , Seq {seqLhs = GenLoop {gLoopIn = Nothing, gLoopExit = GenLoop {gLoopIn = Just (AND {andBranches = Atom :| [Atom]}), gLoopExit = Atom, gLoopOut = Seq {seqLhs = Atom, seqRhs = Atom}}, gLoopOut = XOR {xorLhs = GenXOR {gXorLhsIn = Atom, gXorLhsOut = Atom, gXorRhsIn = Atom, gXorRhsOut = Atom, gXorMToRhs = Just Atom, gXorMToLhs = Just Atom}, xorRhs = Atom}}, seqRhs = XOR {xorLhs = Atom, xorRhs = XOR {xorLhs = XOR {xorLhs = Atom, xorRhs = XOR {xorLhs = Atom, xorRhs = Atom}}, xorRhs = XOR {xorLhs = Atom, xorRhs = XOR {xorLhs = Atom, xorRhs = Atom}}}}}
-  , XOR {xorLhs = GenLoop {gLoopIn = Nothing, gLoopExit = XOR {xorLhs = AND {andBranches = Seq {seqLhs = Atom, seqRhs = Atom} :| [Seq {seqLhs = Atom, seqRhs = Atom}]}, xorRhs = Seq {seqLhs = XOR {xorLhs = Atom, xorRhs = XOR {xorLhs = Atom, xorRhs = Atom}}, seqRhs = GenLoop {gLoopIn = Nothing, gLoopExit = Atom, gLoopOut = Atom}}}, gLoopOut = AND {andBranches = XOR {xorLhs = XOR {xorLhs = Atom, xorRhs = XOR {xorLhs = Atom, xorRhs = Atom}}, xorRhs = Atom} :| [Seq {seqLhs = XOR {xorLhs = Atom, xorRhs = XOR {xorLhs = Atom, xorRhs = Atom}}, seqRhs = AND {andBranches = Atom :| [Atom,Atom]}}]}}, xorRhs = XOR {xorLhs = Seq {seqLhs = Atom, seqRhs = AND {andBranches = Atom :| [Atom,Atom,Atom]}}, xorRhs = XOR {xorLhs = AND {andBranches = Atom :| [Atom,Atom,Atom,Atom]}, xorRhs = XOR {xorLhs = GenXOR {gXorLhsIn = Atom, gXorLhsOut = Atom, gXorRhsIn = Atom, gXorRhsOut = Atom, gXorMToRhs = Just Atom, gXorMToLhs = Just Atom}, xorRhs = GenLoop {gLoopIn = Just Atom, gLoopExit = Atom, gLoopOut = Atom}}}}}
-  , AND {andBranches = AND {andBranches = XOR {xorLhs = AND {andBranches = Atom :| [Atom]}, xorRhs = Atom} :| [XOR {xorLhs = Seq {seqLhs = AND {andBranches = Atom :| [Atom]}, seqRhs = XOR {xorLhs = Atom, xorRhs = XOR {xorLhs = Atom, xorRhs = Atom}}}, xorRhs = Atom}]} :| [XOR {xorLhs = GenXOR {gXorLhsIn = Atom, gXorLhsOut = Atom, gXorRhsIn = Atom, gXorRhsOut = Atom, gXorMToRhs = Just Atom, gXorMToLhs = Just Atom}, xorRhs = GenLoop {gLoopIn = Just (GenXOR {gXorLhsIn = Atom, gXorLhsOut = Atom, gXorRhsIn = Atom, gXorRhsOut = Atom, gXorMToRhs = Just Atom, gXorMToLhs = Nothing}), gLoopExit = XOR {xorLhs = Atom, xorRhs = XOR {xorLhs = Atom, xorRhs = Atom}}, gLoopOut = XOR {xorLhs = Atom, xorRhs = XOR {xorLhs = Atom, xorRhs = Atom}}}}]}
+  , unsafeMkACF $ M.fromList [(ACFArrow Entry (P 1),Atom :| []),(ACFArrow (P 1) Exit,Atom :| [])]
+  , unsafeMkACF $ M.fromList [(ACFArrow Entry Exit,Atom :| [])]
+  , unsafeMkACF $ M.fromList [(ACFArrow Entry (P 7391920812667194482),Atom :| []),(ACFArrow Entry Exit,Atom :| []),(ACFArrow (P 7391920812667194482) Exit,Atom :| [])]
+  , unsafeMkACF $ M.fromList [(ACFArrow Entry (P 10000000000),AND {andBranches = List2 Atom Atom []} :| []),(ACFArrow (P 10000000000) (P 20000000000),Atom :| []),(ACFArrow (P 20000000000) (P 30000000000),Atom :| []),(ACFArrow (P 30000000000) (P 40000000000),Atom :| []),(ACFArrow (P 40000000000) (P 50000000000),Atom :| []),(ACFArrow (P 50000000000) Exit,Atom :| [])]
+  , unsafeMkACF $ M.fromList [(ACFArrow Entry Exit,Atom :| [])]
+  , unsafeMkACF $ M.fromList [(ACFArrow Entry (P 10000000000),Atom :| []),(ACFArrow (P 10000000000) (P 20000000000),Atom :| []),(ACFArrow (P 20000000000) Exit,Atom :| [])]
+  , unsafeMkACF $ M.fromList [(ACFArrow Entry (P 10000000000),Atom :| []),(ACFArrow Entry (P 20000000000),Atom :| []),(ACFArrow Entry Exit,Atom :| []),(ACFArrow (P 10000000000) (P 20000000000),GenLoop {gLoopIn = Just Atom, gLoopExit = Atom, gLoopOut = Atom} :| []),(ACFArrow (P 20000000000) Exit,Atom :| [])]
+  , unsafeMkACF $ M.fromList [(ACFArrow Entry (P 10000000000),AND {andBranches = List2 Atom Atom []} :| []),(ACFArrow Entry Exit,Atom :| []),(ACFArrow (P 10000000000) (P 10093128181),Atom :| []),(ACFArrow (P 10000000000) (P 20000000000),GenLoop {gLoopIn = Nothing, gLoopExit = Atom, gLoopOut = Atom} :| []),(ACFArrow (P 10093128181) (P 30000000000),Atom :| []),(ACFArrow (P 20000000000) (P 30000000000),GenLoop {gLoopIn = Nothing, gLoopExit = Atom, gLoopOut = Atom} :| []),(ACFArrow (P 30000000000) Exit,Atom :| [])]
+  , unsafeMkACF $ M.fromList [(ACFArrow Entry Exit,Atom :| [])]
+  , unsafeMkACF $ M.fromList [(ACFArrow Entry (P 10000000000),Atom :| []),(ACFArrow Entry (P 20000000000),Atom :| []),(ACFArrow (P 10000000000) (P 20000000000),Atom :| []),(ACFArrow (P 10000000000) Exit,Atom :| []),(ACFArrow (P 20000000000) Exit,Atom :| [])]
   ]
 
 -- | Cases generated by QuickCheck that revealed bugs in the Split-and-Merge

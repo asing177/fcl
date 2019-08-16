@@ -2,7 +2,13 @@
 {-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE InstanceSigs #-}
 {-# LANGUAGE TypeFamilies #-}
--- NOTE: This library is developed in a lazy manner. Feel free to add anything if you need it.
+{-# LANGUAGE DeriveGeneric, DeriveAnyClass #-}
+{-|
+Module      : List2
+Description : Lists containing at least two elements.
+
+This library is developed in a lazy manner. Feel free to add anything if you need it.
+-}
 module Data.List.List2
   ( List2(..)
   , pattern AsList
@@ -13,8 +19,10 @@ import GHC.Exts (IsList(..))
 
 import qualified Data.Foldable as F
 
+import Test.QuickCheck
+
 data List2 a = List2 a a [a]
-  deriving (Eq, Ord, Show)
+  deriving (Eq, Ord, Show, Generic, NFData)
 
 instance IsList (List2 a) where
 
@@ -35,6 +43,10 @@ instance Foldable List2 where
 instance Functor List2 where
   fmap :: (a -> b) -> List2 a -> List2 b
   fmap f (List2 x y ys) = List2 (f x) (f y) (map f ys)
+
+instance Arbitrary a => Arbitrary (List2 a) where
+  arbitrary = List2 <$> arbitrary <*> arbitrary <*> arbitrary
+  shrink    = genericShrink
 
 -- | Pattern synonym to facilitate pattern matching
 -- without turning on `ViewPatterns` at the use-site
