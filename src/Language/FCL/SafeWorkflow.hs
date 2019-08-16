@@ -4,6 +4,7 @@
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE ViewPatterns #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 module Language.FCL.SafeWorkflow
   ( SafeWorkflow(Atom, AND, GenLoop)
 
@@ -81,25 +82,29 @@ data ACFArrow = ACFArrow ACFPlace ACFPlace
 -- It maps arrows to a non-empty list of safe workflows. An arrow represents
 -- the possible ways to transition from a given state to another one. If the list
 -- is not singleton, it represents an XOR-split, multiple ways to exectute the transition.
-type ACFMap = Map ACFArrow (NonEmpty SafeWorkflow)
+type ACFMap a = Map ACFArrow (NonEmpty (SafeWorkflow a))
 
 -- | Workflow nets that are sound by construction. We only allow these _safe_ workflow nets
 -- to be constructed in very specific ways in order to make soundness verification automatic.
-data SafeWorkflow
+-- The transitions in safe workflows can be annotated by any desired information.
+data SafeWorkflow a
   -- | AND splitting into multiple workflows.
-  = AND { andBranches :: List2 SafeWorkflow    -- ^ At least one branch
+  = AND { splitAnnot  :: a                            -- ^ Annotation for the AND-split transition
+        , joinAnnot   :: a                            -- ^ Annotation for the AND-join transition
+        , andBranches :: List2 (SafeWorkflow a)       -- ^ At least one branch
         }
   -- | Looping construct with option to exit from both the body of the loop and the head of the loop.
   -- If the first half of the body is empty, we exit from head, otherwise exit from the body.
-  | GenLoop { gLoopIn   :: Maybe SafeWorkflow     -- ^ First half of the body of the loop
-            , gLoopExit :: SafeWorkflow           -- ^ Exit from the loop
-            , gLoopOut  :: SafeWorkflow           -- ^ Seconds half of the body of the loop
+  | GenLoop { gLoopIn   :: Maybe (SafeWorkflow a)     -- ^ First half of the body of the loop
+            , gLoopExit :: (SafeWorkflow a)           -- ^ Exit from the loop
+            , gLoopOut  :: (SafeWorkflow a)           -- ^ Seconds half of the body of the loop
             }
   -- | Acyclic control-flow.
-  | ACF' { acfMap :: ACFMap
+  | ACF' { acfMap :: ACFMap a
          }
   -- | Atom representing a single transition.
-  | Atom
+  | Atom { getAnnot :: a                              -- ^ Annotation for the transitions
+         }
   deriving (Eq, Ord, Show, Generic, NFData)
 
 -- TODO: redefine these using record pattern synonyms (once they are available)
@@ -109,77 +114,77 @@ data SafeWorkflow
 {-# COMPLETE AND, SimpleLoop, Loop, ACF, Atom #-}
 
 -- | XOR with two branches.
-pattern XOR :: SafeWorkflow -> SafeWorkflow -> SafeWorkflow
+pattern XOR :: SafeWorkflow a -> SafeWorkflow a -> SafeWorkflow a
 pattern XOR lhs rhs <- ACF' (M.toList -> [(ACFArrow Entry Exit, [lhs, rhs])])
   where XOR lhs rhs  = ACF' (M.fromList  [(ACFArrow Entry Exit, [lhs, rhs])])
 
 -- | XOR with three branches.
-pattern XOR3 :: SafeWorkflow -> SafeWorkflow -> SafeWorkflow -> SafeWorkflow
+pattern XOR3 :: SafeWorkflow a -> SafeWorkflow a -> SafeWorkflow a -> SafeWorkflow a
 pattern XOR3 a b c   = XOR a (XOR b c)
 
 -- | XOR with unidirectional communication between branches.
-pattern GenXOR :: SafeWorkflow -> SafeWorkflow -> SafeWorkflow -> SafeWorkflow -> SafeWorkflow -> SafeWorkflow
+pattern GenXOR :: SafeWorkflow a -> SafeWorkflow a -> SafeWorkflow a -> SafeWorkflow a -> SafeWorkflow a -> SafeWorkflow a
 pattern GenXOR lhsIn lhsOut rhsIn rhsOut lhsToRhs <- ACF' (M.toList -> [(ACFArrow Entry (P 1), [lhsIn]), (ACFArrow (P 1) Exit, [lhsOut]), (ACFArrow Entry (P 2), [rhsIn]), (ACFArrow (P 2) Exit, [rhsOut]), (ACFArrow (P 1) (P 2), [lhsToRhs])])
   where GenXOR lhsIn lhsOut rhsIn rhsOut lhsToRhs =  ACF' (M.fromList  [(ACFArrow Entry (P 1), [lhsIn]), (ACFArrow (P 1) Exit, [lhsOut]), (ACFArrow Entry (P 2), [rhsIn]), (ACFArrow (P 2) Exit, [rhsOut]), (ACFArrow (P 1) (P 2), [lhsToRhs])])
 
 -- | Sequencing two safe workflows.
-pattern Seq :: SafeWorkflow -> SafeWorkflow -> SafeWorkflow
+pattern Seq :: SafeWorkflow a -> SafeWorkflow a -> SafeWorkflow a
 pattern Seq lhs rhs <- ACF' (M.toList -> [(ACFArrow Entry (P 1), [lhs]), (ACFArrow (P 1) Exit, [rhs])])
   where Seq lhs rhs =  ACF' (M.fromList  [(ACFArrow Entry (P 1), [lhs]), (ACFArrow (P 1) Exit, [rhs])])
 
 -- | Unidirectional pattern general acyclic control-flow.
-pattern ACF :: ACFMap -> SafeWorkflow
+pattern ACF :: (ACFMap a) -> SafeWorkflow a
 pattern ACF m <- ACF' m
 
 -- | AND with two branches.
-pattern AND2 :: SafeWorkflow -> SafeWorkflow -> SafeWorkflow
-pattern AND2 lhs rhs <- AND (AsList [lhs,rhs])
-  where AND2 lhs rhs = AND [lhs,rhs]
+pattern AND2 :: a -> a -> SafeWorkflow a -> SafeWorkflow a -> SafeWorkflow a
+pattern AND2 split join lhs rhs <- AND split join (AsList [lhs,rhs])
+  where AND2 split join lhs rhs =  AND split join [lhs,rhs]
 
 -- | Simple loop with exit only from the head.
-pattern SimpleLoop :: SafeWorkflow -> SafeWorkflow -> SafeWorkflow
+pattern SimpleLoop :: SafeWorkflow a -> SafeWorkflow a -> SafeWorkflow a
 pattern SimpleLoop loop exit = GenLoop Nothing exit loop
 
 -- | Loop with exit from the body.
-pattern Loop :: SafeWorkflow -> SafeWorkflow -> SafeWorkflow -> SafeWorkflow
+pattern Loop :: SafeWorkflow a -> SafeWorkflow a -> SafeWorkflow a -> SafeWorkflow a
 pattern Loop loopIn exit loopOut = GenLoop (Just loopIn) exit loopOut
 
 noMatchError :: Text -> Text
 noMatchError selector = "No match in record selector " <> selector
 
-xorLhs :: SafeWorkflow -> SafeWorkflow
+xorLhs :: SafeWorkflow a -> SafeWorkflow a
 xorLhs (XOR lhs _) = lhs
 xorLhs _ = panic $ noMatchError "xorLhs"
 
-xorRhs :: SafeWorkflow -> SafeWorkflow
+xorRhs :: SafeWorkflow a -> SafeWorkflow a
 xorRhs (XOR _ rhs) = rhs
 xorRhs _ = panic $ noMatchError "xorRhs"
 
-gXorLhsIn :: SafeWorkflow -> SafeWorkflow
+gXorLhsIn :: SafeWorkflow a -> SafeWorkflow a
 gXorLhsIn (GenXOR lhsIn _ _ _ _) = lhsIn
 gXorLhsIn _= panic $ noMatchError "gXorLhsIn"
 
-gXorLhsOut :: SafeWorkflow -> SafeWorkflow
+gXorLhsOut :: SafeWorkflow a -> SafeWorkflow a
 gXorLhsOut (GenXOR _ lhsOut _ _ _) = lhsOut
 gXorLhsOut _ = panic $ noMatchError "gXorLhsOut"
 
-gXorRhsIn :: SafeWorkflow -> SafeWorkflow
+gXorRhsIn :: SafeWorkflow a -> SafeWorkflow a
 gXorRhsIn (GenXOR _ _ rhsIn _ _) = rhsIn
 gXorRhsIn _ = panic $ noMatchError "gXorRhsIn"
 
-gXorRhsOut :: SafeWorkflow -> SafeWorkflow
+gXorRhsOut :: SafeWorkflow a -> SafeWorkflow a
 gXorRhsOut (GenXOR _ _ _ rhsOut _) = rhsOut
 gXorRhsOut _ = panic $ noMatchError "gXorRhsOut"
 
-gXorLhsToRhs :: SafeWorkflow -> SafeWorkflow
+gXorLhsToRhs :: SafeWorkflow a -> SafeWorkflow a
 gXorLhsToRhs (GenXOR _ _ _ _ lhsToRhs) = lhsToRhs
 gXorLhsToRhs _ = panic $ noMatchError "gXorLhsToRhs"
 
-seqLhs :: SafeWorkflow -> SafeWorkflow
+seqLhs :: SafeWorkflow a -> SafeWorkflow a
 seqLhs (Seq lhs _) = lhs
 seqLhs _ = panic $ noMatchError "seqLhs"
 
-seqRhs :: SafeWorkflow -> SafeWorkflow
+seqRhs :: SafeWorkflow a -> SafeWorkflow a
 seqRhs (Seq _ rhs) = rhs
 seqRhs _ = panic $ noMatchError "seqRhs"
 
@@ -189,7 +194,7 @@ isIntermediate (P _) = True
 isIntermediate _     = False
 
 -- | Gather the places from an ACF map.
-gACFPlaces :: ACFMap -> Set ACFPlace
+gACFPlaces :: ACFMap a -> Set ACFPlace
 gACFPlaces = S.fromList . concatMap (\(ACFArrow x y) -> [x,y]) . M.keys
 
 -- | Collects all the invalid arrows in a general acyclic control-flow (non-recursive).
@@ -202,7 +207,7 @@ invalidArrows acfArrows = filter isInvalid acfArrows where
 
 -- | Safe smart constructor for ACFs. Returns a safe workflow
 -- if the ACF is correct, or the list of invalid arrows if it is not.
-mkACF :: ACFMap -> Either [ACFArrow] SafeWorkflow
+mkACF :: ACFMap a -> Either [ACFArrow] (SafeWorkflow a)
 mkACF acfMap = case invalidArrows acfArrows of
   [] -> Right $ ACF' acfMap
   xs -> Left xs
@@ -212,7 +217,7 @@ mkACF acfMap = case invalidArrows acfArrows of
 
 -- | Unsafe smart constructor for ACFs. Returns a safe workflow
 -- if the ACF is correct, crashes if it is not.
-unsafeMkACF :: ACFMap -> SafeWorkflow
+unsafeMkACF :: ACFMap a -> SafeWorkflow a
 unsafeMkACF = either mkError identity . mkACF where
   mkError arrows = panic $ "unsafeMkACF: The following arrows are invalid: " <> show arrows
 
@@ -228,15 +233,15 @@ genName = Name . show <$> gen
 genWfState :: (MonadGen e m, Show e) => m WorkflowState
 genWfState = singletonWfState <$> genName
 
--- | Construct the list of transitions from a given `SafeWorkflow`.
-constructTransitions :: SafeWorkflow -> [Transition]
+-- | Construct the list of transitions from a given `SafeWorkflow a`.
+constructTransitions :: SafeWorkflow a -> [Transition]
 constructTransitions = runGen . execWriterT . constructTransitionsM startState endState
 
--- | Construct the list of transitions from a given `SafeWorkflow` `swf` and `start` and `end` states.
+-- | Construct the list of transitions from a given `SafeWorkflow a` `swf` and `start` and `end` states.
 -- The open-ended transitions of `swf` will be connected to the `start` and `end` states
 -- based on the stucture of `swf`.
-constructTransitionsM :: WorkflowState -> WorkflowState -> SafeWorkflow -> (WriterT [Transition] (Gen Integer)) ()
-constructTransitionsM start end (AND branches) = do
+constructTransitionsM :: WorkflowState -> WorkflowState -> SafeWorkflow a -> (WriterT [Transition] (Gen Integer)) ()
+constructTransitionsM start end (AND _ _ branches) = do
   inOuts <- forM (GHC.toList branches) $ \br -> do
     inSt  <- genWfState
     outSt <- genWfState
@@ -271,7 +276,7 @@ constructTransitionsM start end (ACF (M.toList -> acfList)) = do
     let from' = getState from
         to'   = getState to
     mapM_ (constructTransitionsM from' to') swfs
-constructTransitionsM start end Atom = do
+constructTransitionsM start end Atom{..} = do
   tell [Arrow start end]
 
 instance Pretty ACFPlace where
@@ -303,10 +308,10 @@ instance Arbitrary ACFArrow where
     ]
   shrink _ = []
 
-instance Arbitrary SafeWorkflow where
+instance Arbitrary a => Arbitrary (SafeWorkflow a) where
   arbitrary = sized genSWFNet where
     -- | Sized `SafeWorkflow generation
-    genSWFNet :: Int -> QC.Gen SafeWorkflow
+    genSWFNet :: Int -> QC.Gen (SafeWorkflow a)
     genSWFNet n |          n <= 1 = atom
     genSWFNet n | 1 < n && n <= 2 = maxComplexity 2
     genSWFNet n | 2 < n && n <= 3 = maxComplexity 3
@@ -315,16 +320,16 @@ instance Arbitrary SafeWorkflow where
     genSWFNet n | 5 < n           = unsafeMkACF <$> sizedACFMap n
     genSWFNet n = panic $ "Negative value for SafeWorkflow generation: " <> show n
 
-    maxComplexity :: Int -> QC.Gen SafeWorkflow
+    maxComplexity :: Int -> QC.Gen (SafeWorkflow a)
     maxComplexity n = oneof $ take n (allComplexities n)
 
-    allComplexities :: Int -> [QC.Gen SafeWorkflow]
+    allComplexities :: Int -> [QC.Gen (SafeWorkflow a)]
     allComplexities n = [ atom, complexity2 n, complexity3 n, complexity4 n, complexity5 n, complexity6 n ]
 
-    atom :: QC.Gen SafeWorkflow
-    atom = pure Atom
+    atom :: QC.Gen (SafeWorkflow a)
+    atom = Atom <$> arbitrary
 
-    complexity2 :: Int -> QC.Gen SafeWorkflow
+    complexity2 :: Int -> QC.Gen (SafeWorkflow a)
     complexity2 n = partitionThen n 2 $ \partition -> do
       case partition of
         [k1,k2] -> oneof
@@ -334,7 +339,7 @@ instance Arbitrary SafeWorkflow where
           ]
         _ -> panic $ show n <> " was not partitioned into 2 components"
 
-    complexity3 :: Int -> QC.Gen SafeWorkflow
+    complexity3 :: Int -> QC.Gen (SafeWorkflow a)
     complexity3 n = partitionThen n 3 $ \partition -> do
       case partition of
         [k1,k2,k3] -> oneof
@@ -342,33 +347,34 @@ instance Arbitrary SafeWorkflow where
           ]
         _ -> panic $ show n <> " was not partitioned into 3 components"
 
-    complexity4 :: Int -> QC.Gen SafeWorkflow
+    complexity4 :: Int -> QC.Gen (SafeWorkflow a)
     complexity4 n = partitionThen n 4 $ \partition -> do
       case partition of
         [k1,k2,k3,k4] -> oneof
-          [ AND <$> someSWFNets (n-2) 2
+          [ AND <$> arbitrary <*> arbitrary <*> someSWFNets (n-2) 2
           ]
         _ -> panic $ show n <> " was not partitioned into 4 components"
 
-    complexity5 :: Int -> QC.Gen SafeWorkflow
+    complexity5 :: Int -> QC.Gen (SafeWorkflow a)
     complexity5 n = partitionThen n 5 $ \partition -> do
       case partition of
         [k1,k2,k3,k4,k5] -> oneof
-          [ AND <$> someSWFNets (n-2) 3
+          [ AND <$> arbitrary <*> arbitrary <*> someSWFNets (n-2) 3
           ]
         _ -> panic $ show n <> " was not partitioned into 5 components"
 
-    complexity6 :: Int -> QC.Gen SafeWorkflow
+    complexity6 :: Int -> QC.Gen (SafeWorkflow a)
     complexity6 n = unsafeMkACF <$> sizedACFMap n
 
     -- | Generates `SafeWorkflow`s of summed size `n`.
-    someSWFNets :: Int -> Int -> QC.Gen (List2 SafeWorkflow)
+    someSWFNets :: Int -> Int -> QC.Gen (List2 (SafeWorkflow a))
     someSWFNets n k =
       partitionThen n k $ \ps -> do
         xs <- mapM genSWFNet ps
         pure $ GHC.fromList xs
 
-  shrink x@AND{..} = Atom : genericShrink x
+  -- FIXME: Annotating the Atom with the split annotation of the AND is very ad hoc.
+  shrink x@AND{..} = Atom splitAnnot : genericShrink x
   shrink x = genericShrink x
 
 -- | `paritionThen n k gen` picks a random partition of `n` containing exactly `k` number of elements where `1 < k <= n`,
@@ -391,7 +397,7 @@ partitionInt d = go d d where
   go !h !n = [ a:as | a<-[1..min n h], as <- go a (n-a) ]
 
 -- | Sized generation of acyclic control-flow map.
-sizedACFMap :: Int -> QC.Gen ACFMap
+sizedACFMap :: forall a . Arbitrary a => Int -> QC.Gen (ACFMap a)
 sizedACFMap size = do
   -- NOTE: number of new places in the spine
   spineLength <- frequency
@@ -418,7 +424,7 @@ sizedACFMap size = do
     let spineSizes     = take (spineLength' + 1) partition
         extensionSizes = drop (spineLength' + 1) partition
     spineSwfs <- forM spineSizes $ \s -> do
-      swf <- resize s (arbitrary @SafeWorkflow)
+      swf <- resize s (arbitrary @(SafeWorkflow a))
       pure [swf]
     let acfMap = M.fromList $ zip spineArrows spineSwfs
     foldM (flip extendACFMap) acfMap extensionSizes
@@ -428,7 +434,7 @@ sizedACFMap size = do
 -- However, those single branches can contain other workflows suchs as loops, ANDs and even other ACFs.
 -- Some special cases of ACF generation are hard-coded (eg.: XOR, Seq) which guarantees that we will have
 -- XOR-splits, so we don't lose generality.
-extendACFMap :: Int -> ACFMap -> QC.Gen ACFMap
+extendACFMap :: Arbitrary a => Int -> ACFMap a -> QC.Gen (ACFMap a)
 extendACFMap size acfMap
   | size <= 1 = extendACFMapWithArrow size acfMap
   | otherwise = oneof [ extendACFMapWithArrow size acfMap
@@ -436,16 +442,16 @@ extendACFMap size acfMap
                       ]
 
 -- | Extends a ACF with a direct arrow.
-extendACFMapWithArrow :: Int -> ACFMap -> QC.Gen ACFMap
+extendACFMapWithArrow :: forall a . Arbitrary a => Int -> ACFMap a -> QC.Gen (ACFMap a)
 extendACFMapWithArrow size acfMap = do
   let places = S.toList $ gACFPlaces acfMap
   x   <- elements places `suchThat` (\x -> x /= Exit)
   y   <- elements places `suchThat` (\y -> x < y)
-  swf <- resize size (arbitrary @SafeWorkflow)
+  swf <- resize size (arbitrary @(SafeWorkflow a))
   pure $ M.insert (ACFArrow x y) [swf] acfMap
 
 -- | Extends an ACF with a new place and two arrows connecting the place to the other parts of the ACF.
-extendACFMapWithPlace :: Int -> ACFMap -> QC.Gen ACFMap
+extendACFMapWithPlace :: forall a . Arbitrary a => Int -> ACFMap a -> QC.Gen (ACFMap a)
 extendACFMapWithPlace size acfMap = do
   let places = S.toList $ gACFPlaces acfMap
   from <- elements places `suchThat` (\from -> from /= Exit)
@@ -455,8 +461,8 @@ extendACFMapWithPlace size acfMap = do
   k1 <- choose (1,size-1)
   let k2 = size - k1
 
-  swf1 <- resize k1 (arbitrary @SafeWorkflow)
-  swf2 <- resize k2 (arbitrary @SafeWorkflow)
+  swf1 <- resize k1 (arbitrary @(SafeWorkflow a))
+  swf2 <- resize k2 (arbitrary @(SafeWorkflow a))
 
   pure $ acfMap <> M.fromList
     [ (ACFArrow from p, [swf1])
