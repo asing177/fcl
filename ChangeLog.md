@@ -2,6 +2,10 @@
 
 ## 0.2
 
+* Bugfix for undefinedness analysis
+* Removed "soundness checking" for safe workflows, implemented safe workflow recognition algorithm (split-and-merge analysis)
+* More property-based tests for soundness checking and split-and-merge analysis
+* Generalisation of graphviz generation algorithm
 * Extend `enum` declarations to full variant record declarations with typesafe
   record access and assignment. Below is an example which shows the
   declaration of a type `color` with constructors `HSB` and `Monochrome`. The

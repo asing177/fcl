@@ -1,0 +1,12 @@
+ 
+Method arguments and effects:
+join: () -> {read via deployer}
+joinAlice: () -> {read via sender, write alice}
+joinBob: () -> {read via sender, write bob}
+begin: () -> {read alice, read bob}
+doAlice: (int) -> {read alice, write aliceVal}
+doBob: (int) -> {read bob, write bobVal}
+novate: () -> {read via deployer}
+novateAlice: () -> {read via sender, write alice}
+novateBob: () -> {read via sender, write bob}
+end: () -> {write via terminate, read alice, read bob}

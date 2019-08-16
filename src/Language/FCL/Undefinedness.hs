@@ -1,9 +1,9 @@
 {-# LANGUAGE TupleSections #-}
-{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE DeriveAnyClass #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
+-- NOTE: path-insensitive analysis
 module Language.FCL.Undefinedness (
   InvalidStackTrace(..),
   IsInitialized(..),
@@ -19,7 +19,7 @@ import Algebra.Lattice
    , BoundedMeetSemiLattice(..)
    , (/\), (\/), meets
    )
-import Language.FCL.AST hiding (Transition(..))
+import Language.FCL.AST hiding (Transition(..), WorkflowState)
 import Language.FCL.WorkflowNet
 import qualified Language.FCL.Prim as Prim
 import Language.FCL.Pretty (Pretty(..), vcat, token, listOf, (<+>), (<$$>), nest, linebreak)
@@ -31,6 +31,10 @@ import qualified Data.Map as Map
 import qualified Data.Set as Set
 import Data.Text (unlines)
 
+
+
+type WorkflowState = Set Place
+
 -- Note: 'foldMap' is to be avoided, since the default behavior using the map
 -- monoid is to call a right-biased union. However, regarding the
 -- 'UndefinednessEnv' values, we want `unionWith (/\)` in every case.
@@ -40,10 +44,10 @@ undefinednessAnalysis
   -> Either [InvalidStackTrace] [ValidStackTrace]
 undefinednessAnalysis script = do
     initialUndefEnv <- initialEnv script
-    let initialMarking = mkInitialMarking initialUndefEnv
-        wfn = createWorkflowNet script initialUndefEnv genMethodUndefEnv
-        allStackTraces = Set.toList (generateStackTraces initialMarking wfn)
-        (allErrs, allSuccesses) = validateStackTraces initialMarking allStackTraces
+    let initialMarking = mkInitialMarking initialUndefEnv                           :: Map Place UndefinednessEnv
+        wfn = createWorkflowNet script initialUndefEnv genMethodUndefEnv            :: WorkflowNet UndefinednessEnv
+        allStackTraces = Set.toList (generateStackTraces initialMarking wfn)        :: [StackTrace]
+        (allErrs, allSuccesses) = validateStackTraces initialMarking allStackTraces :: ([InvalidStackTrace], [ValidStackTrace])
     case allErrs of
       [] -> Right allSuccesses
       errs@(_:_) -> Left errs
@@ -56,7 +60,7 @@ undefinednessAnalysis script = do
 
     checkMethodUnsafe :: Method ->
                          (UndefinednessEnv -> UndefinednessEnv) ->
-                         Map (Set Place) [UndefinednessEnv -> UndefinednessEnv]
+                         Map WorkflowState [UndefinednessEnv -> UndefinednessEnv]
     checkMethodUnsafe method = either panic identity . checkMethod method
 
 -------------------------------------------------------------------------------
@@ -191,6 +195,9 @@ instance Pretty StackTraceItem where
 instance Pretty StackTrace where
   ppr = vcat . map (\x -> ppr x)
 
+-- | Given an initial marking it traverses a given workflow net
+-- and collects the possible stack traces. The algorithm will
+-- visit every state at most once.
 generateStackTraces
   :: Marking UndefinednessEnv
   -> WorkflowNet UndefinednessEnv
@@ -198,7 +205,10 @@ generateStackTraces
 generateStackTraces initialMarking wfn =
     genStackTraces mempty initialMarking
   where
-    genStackTraces :: Set (Set Place) -> Marking UndefinednessEnv -> Set StackTrace
+    -- | Helper function that tracks the visited states.
+    genStackTraces :: Set WorkflowState ->          -- ^ Workflow states visited so far
+                      Marking UndefinednessEnv ->   -- ^ Current marking
+                      Set StackTrace                -- ^ Possible stack traces
     genStackTraces visited marking
       | Set.member (Map.keysSet marking) visited = Set.singleton []
       | null fireableTransitions = Set.singleton []
@@ -339,7 +349,7 @@ instance Pretty IsInitialized where
 checkMethod
   :: Method
   -> (UndefinednessEnv -> UndefinednessEnv)
-  -> Either Text (Map (Set Place) [UndefinednessEnv -> UndefinednessEnv])
+  -> Either Text (Map WorkflowState [UndefinednessEnv -> UndefinednessEnv])
 checkMethod method mkEnv = do
   mkEnv <- checkPreconditions (methodPreconditions method) mkEnv
   checkStatement (methodBody method) mkEnv
@@ -351,13 +361,15 @@ checkPreconditions
 checkPreconditions (Preconditions ps) mkEnv
   = foldM (flip checkExpression) mkEnv . map snd $ ps
 
+-- NOTE: empty set means ~ current state
 -- | Check a statement's Undefinedness environment. Returns an error whenever
 -- you feed it a naked expression. We expect the input to be an assignment,
 -- primop call or if-*statement* (and variants thereof).
 checkStatement
   :: LExpr -- ^ *statement* to check
   -> (UndefinednessEnv -> UndefinednessEnv)
-  -> Either Text (Map (Set Place) [UndefinednessEnv -> UndefinednessEnv])
+  -- NOTE: the list is needed because we can reach the same workflow state on multiple different paths
+  -> Either Text (Map WorkflowState [UndefinednessEnv -> UndefinednessEnv])
 checkStatement (Located loc actual@(ELit _)) _
   = Left (showAtLoc loc $ "expected statement, got: " <> show actual)
 checkStatement (Located loc actual@(EVar _)) _

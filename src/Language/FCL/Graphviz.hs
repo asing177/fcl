@@ -15,8 +15,11 @@ module Language.FCL.Graphviz (
   fileWriteSVG,
   fileToGraphviz,
   DisplayableWorkflow(..),
+  Methods(..),
+  Transitions(..),
   methodsToGraphviz,
-  transitionsToGraphviz
+  transitionsToGraphviz,
+  workflowWriteSVG
   ) where
 
 import Protolude
@@ -28,7 +31,7 @@ import System.FilePath (replaceExtension)
 import System.Process.Text (readProcessWithExitCode)
 
 import Language.FCL.AST
-import Language.FCL.Analysis (inferMethodsTransitions)
+import Language.FCL.Analysis (inferMethodsTransitions, inferStaticWorkflowStates)
 import Language.FCL.Parser (parseFile)
 import Language.FCL.Pretty (hsep, prettyPrint, ppr, panicppr)
 import Language.FCL.Utils ((?))
@@ -58,6 +61,9 @@ fileWriteGraphviz path = fileToGraphviz path >>= writeFile (replaceExtension pat
 
 fileWriteSVG :: FilePath -> IO ()
 fileWriteSVG path = fileToSVG path >>= writeFile (replaceExtension path ".svg")
+
+workflowWriteSVG :: DisplayableWorkflow wf => FilePath -> wf -> IO ()
+workflowWriteSVG path = (callDot . renderToGraphviz) >=> writeFile (replaceExtension path ".svg")
 
 methodsToGraphviz :: [Method] -> Graphviz
 methodsToGraphviz = renderToGraphviz . Methods
@@ -172,11 +178,14 @@ instance DisplayableWorkflow Methods where
       annotateTransition (meth, tr) n = MTr meth tr (show n)
 
   staticWorkflowStates :: Methods -> Set WorkflowState
-  staticWorkflowStates ms = foldMap (transitionStates . mtrTransition)
+  staticWorkflowStates ms = inferStaticWorkflowStates
+                          . map mtrTransition
                           . annotatedTransitions
                           $ ms
 
 -- | Workflow represented as a list of transitions.
+-- Transitions will be named in their order of appearance
+-- in the input list.
 newtype Transitions = Transitions [Transition]
   deriving (Eq, Ord, Show)
 
@@ -213,10 +222,11 @@ instance DisplayableWorkflow Transitions where
   annotatedTransitions (Transitions trs) = zipWith annotateTransition trs [1..]
     where
       annotateTransition :: Transition -> Int -> AnnotatedTransition Transitions
-      annotateTransition tr n = NTr tr (show n)
+      annotateTransition tr n = NTr tr ("T" <> show n)
 
   staticWorkflowStates :: Transitions -> Set WorkflowState
-  staticWorkflowStates trs = foldMap (transitionStates . ntrTransition)
+  staticWorkflowStates trs = inferStaticWorkflowStates
+                           . map ntrTransition
                            . annotatedTransitions
                            $ trs
 
@@ -257,7 +267,3 @@ options = unlines
   [ True  ? "graph [bgcolor=transparent]" -- transparent background
   , False ? "rankdir=LR;" -- lay out horizontally
   ]
-
-transitionStates :: Transition -> Set WorkflowState
-transitionStates (Arrow lhs rhs) = Set.fromList [lhs, rhs]
-
