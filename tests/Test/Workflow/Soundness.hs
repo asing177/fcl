@@ -17,6 +17,7 @@ soundnessTests = testGroup ("Test the soundness checking algorithm on safely con
   [ testGroup "Unit tests"
     [ testGroup "Basic nets"   basicNetTests
     , testGroup "Example nets" exampleNetTests
+    , testGroup "Some arbitrary nets" someArbitraryNetTests
     , testGroup "Cross validation witness nets" crossValidWitnessNetTests
     , testGroup "Sound but not safe witness nets" soundButNotSafeWitnessNetTests
     ]

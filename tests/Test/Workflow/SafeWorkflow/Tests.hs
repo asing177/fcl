@@ -4,6 +4,7 @@ module Test.Workflow.SafeWorkflow.Tests
   , isSafeWorkflowSound_General
   , basicNetTests
   , exampleNetTests
+  , someArbitraryNetTests
   , crossValidWitnessNetTests
   , soundButNotSafeWitnessNetTests
   , bothYieldSameDecision
@@ -87,6 +88,9 @@ basicNetTests = map (uncurry mkFCSoundnessTest) namedBasicNets
 
 exampleNetTests :: [TestTree]
 exampleNetTests = map (uncurry mkFCSoundnessTest) namedExampleNets
+
+someArbitraryNetTests :: [TestTree]
+someArbitraryNetTests = map (uncurry mkFCSoundnessTest) namedArbitraryNets
 
 crossValidWitnessNetTests :: [TestTree]
 crossValidWitnessNetTests = map (uncurry mkCrossValidationTest) namedCrossValidWitnessNets
