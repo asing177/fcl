@@ -374,6 +374,9 @@ instance Arbitrary a => Arbitrary (SafeWorkflow a) where
         pure $ GHC.fromList xs
 
   -- FIXME: Annotating the Atom with the split annotation of the AND is very ad hoc.
+  --        This should be only a structural shrink unrelated to the annotation.
+  --        We know how it simplifies the structure but don't know how it should simplify the annotation.
+  -- Possible Fix: Monoid constraint for the annotations?
   shrink x@AND{..} = Atom splitAnnot : genericShrink x
   shrink x = genericShrink x
 

@@ -14,14 +14,14 @@ import Data.Maybe (catMaybes)
 import Language.FCL.AST (Transition(..), WorkflowState(..), Place(..), unsafeWorkflowState, wfIntersection)
 import Language.FCL.Analysis (inferStaticWorkflowStates)
 import Language.FCL.SafeWorkflow (SafeWorkflow(..), constructTransitions)
+import Language.FCL.SafeWorkflow.Simple (SimpleSafeWorkflow)
 
 import Test.QuickCheck
 
-
 -- | Safe workflow extended with some additional places, states and transitions.
 data ExtendedSW
-  = ExtendedSW { eswSafeWorkflow      :: SafeWorkflow       -- ^ Basic safe workflow
-               , eswExtraTransitions  :: Set Transition     -- ^ Additional transitions (can contain new states)
+  = ExtendedSW { eswSafeWorkflow      :: SimpleSafeWorkflow  -- ^ Basic safe workflow
+               , eswExtraTransitions  :: Set Transition      -- ^ Additional transitions (can contain new states)
                }
   deriving (Eq, Ord, Show, Generic, NFData)
 
@@ -40,7 +40,7 @@ extendedWorkflowTransitions (ExtendedSW swf trs) = nub $ (S.toList trs) ++ (cons
 -}
 instance Arbitrary ExtendedSW where
   arbitrary = do
-    swf <- arbitrary @SafeWorkflow
+    swf <- arbitrary @SimpleSafeWorkflow
     let origTrans  = constructTransitions swf                       :: [Transition]
         origStates = S.toList $ inferStaticWorkflowStates origTrans :: [WorkflowState]
         origPlaces = S.toList $ foldMap places origStates           :: [Place]
@@ -198,7 +198,7 @@ newtype ExtendedFCSW = EFCSW { fcGetESW :: ExtendedSW }
 
 instance Arbitrary ExtendedFCSW where
   arbitrary = do
-    swf <- arbitrary @SafeWorkflow
+    swf <- arbitrary @SimpleSafeWorkflow
     let origTrans  = constructTransitions swf                       :: [Transition]
         origStates = S.toList $ inferStaticWorkflowStates origTrans :: [WorkflowState]
         origPlaces = S.toList $ foldMap places origStates           :: [Place]

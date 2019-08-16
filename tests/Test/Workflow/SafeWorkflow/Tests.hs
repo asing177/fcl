@@ -42,6 +42,7 @@ import Language.FCL.Reachability.Definitions (WFError(..), ReachabilityGraph)
 import Language.FCL.Reachability.Utils (gatherReachableStatesFrom)
 import Language.FCL.Reachability.StructuredTransition (structureTransitions, unstructureTransitions, structureSimply, unstructureSimply)
 import Language.FCL.SafeWorkflow (SafeWorkflow(..), constructTransitions)
+import Language.FCL.SafeWorkflow.Simple (SimpleSafeWorkflow, pattern SAtom)
 
 import Test.Workflow.SafeWorkflow.Extended
 import Test.Workflow.SafeWorkflow.Examples
@@ -53,13 +54,13 @@ import Test.Workflow.SafeWorkflow.Examples
 -- Safe workflows --
 --------------------
 
-isSafeWorkflowSound_SplitAndMerge :: SafeWorkflow -> Bool
+isSafeWorkflowSound_SplitAndMerge :: SimpleSafeWorkflow -> Bool
 isSafeWorkflowSound_SplitAndMerge = null . soundnessCheckWith reachabilityGraph
 
-isSafeWorkflowSound_General :: SafeWorkflow -> Bool
+isSafeWorkflowSound_General :: SimpleSafeWorkflow -> Bool
 isSafeWorkflowSound_General = null . soundnessCheckWith completeReachabilityGraph
 
-soundnessCheckWith :: (Set Transition -> (Set WFError, ReachabilityGraph)) -> SafeWorkflow -> [WFError]
+soundnessCheckWith :: (Set Transition -> (Set WFError, ReachabilityGraph)) -> SimpleSafeWorkflow -> [WFError]
 soundnessCheckWith constructGraph
   = S.toList
   . fst
@@ -67,7 +68,7 @@ soundnessCheckWith constructGraph
   . S.fromList
   . constructTransitions
 
-mkFCSoundnessTest :: [Char] -> SafeWorkflow -> TestTree
+mkFCSoundnessTest :: [Char] -> SimpleSafeWorkflow -> TestTree
 mkFCSoundnessTest name swf = testCase name $ do
   let errs = soundnessCheckWith reachabilityGraph swf
   assertBool (show . ppr $ errs) (null errs)
@@ -174,10 +175,10 @@ isReallyFreeChoice = null
 -- (size paramater used by the `Arbitrary` instance).
 transitionsLEQSize :: NonNegative (Small Int) -> Gen Bool
 transitionsLEQSize (getSmall . getNonNegative -> 0) = do
-  swf <- resize 0 $ arbitrary :: Gen SafeWorkflow
-  return $ swf == Atom
+  swf <- resize 0 $ arbitrary :: Gen SimpleSafeWorkflow
+  return $ swf == SAtom
 transitionsLEQSize (getSmall . getNonNegative -> n) = do
-  swf <- resize n $ arbitrary :: Gen SafeWorkflow
+  swf <- resize n $ arbitrary :: Gen SimpleSafeWorkflow
   let trsCount = length $ constructTransitions swf
   return $ trsCount <= n
 
@@ -191,7 +192,7 @@ countStates = length . gatherReachableStatesFrom startState . snd
 
 -- | Checks whether the reachability graph calculated by the split-and-merge analysis
 -- has fewer states than the one calculated by the general algorithm (for a given safe workflow).
-samGraphIsSmaller_SW :: SafeWorkflow -> Bool
+samGraphIsSmaller_SW :: SimpleSafeWorkflow -> Bool
 samGraphIsSmaller_SW sw = (countStates . reachabilityGraph $ trs) <= (countStates . completeReachabilityGraph $ trs) where
   trs = S.fromList $ constructTransitions sw
 
@@ -216,7 +217,7 @@ structureUnstructureId trSet = trSet == roundTrip trSet where
 
 -- | Checks whether structuring then unstructuring a set of transitions
 -- calculated from a given safe workflow is equivalent to the identity function.
-structureUnstructureId_Safe :: SafeWorkflow -> Bool
+structureUnstructureId_Safe :: SimpleSafeWorkflow -> Bool
 structureUnstructureId_Safe = structureUnstructureId
                             . S.fromList
                             . constructTransitions
@@ -242,7 +243,7 @@ structureUnstructureSimplyId trSet = trSet == roundTrip trSet where
 
 -- | Checks whether structuring simply then unstructuring simply a set of transitions
 -- calculated from a given safe workflow is equivalent to the identity function.
-structureUnstructureSimplyId_Safe :: SafeWorkflow -> Bool
+structureUnstructureSimplyId_Safe :: SimpleSafeWorkflow -> Bool
 structureUnstructureSimplyId_Safe = structureUnstructureSimplyId
                                   . S.fromList
                                   . constructTransitions
