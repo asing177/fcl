@@ -17,8 +17,21 @@ import qualified Data.Set as S
 import qualified Data.Map as M
 
 import Language.FCL.AST (Name(..), Place(..), WorkflowState(..), Transition(..), makeWorkflowState, startState, endState, wfUnion)
+import Language.FCL.SafeWorkflow
+  ( SafeWorkflow(..)
+  , pattern XOR
+  , pattern Seq
+  , pattern SimpleLoop
+  , pattern Loop
+  , unsafeMkACF
+  , ACFArrow(..)
+  , ACFPlace(..)
 
-import Test.Workflow.SafeWorkflow
+  , pattern AND2
+  , pattern XOR3
+  , pattern GenXOR
+  )
+
 import Test.Workflow.SafeWorkflow.Extended
 
 -------------------------------------------------

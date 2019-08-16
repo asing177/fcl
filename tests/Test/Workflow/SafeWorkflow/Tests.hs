@@ -1,4 +1,5 @@
 {-# LANGUAGE ViewPatterns #-}
+{-# LANGUAGE PatternSynonyms #-}
 module Test.Workflow.SafeWorkflow.Tests
   ( isSafeWorkflowSound_SplitAndMerge
   , isSafeWorkflowSound_General
@@ -40,8 +41,8 @@ import Language.FCL.Reachability.SplitAndMerge (reachabilityGraph, freeChoicePro
 import Language.FCL.Reachability.Definitions (WFError(..), ReachabilityGraph)
 import Language.FCL.Reachability.Utils (gatherReachableStatesFrom)
 import Language.FCL.Reachability.StructuredTransition (structureTransitions, unstructureTransitions, structureSimply, unstructureSimply)
+import Language.FCL.SafeWorkflow (SafeWorkflow(..), constructTransitions)
 
-import Test.Workflow.SafeWorkflow
 import Test.Workflow.SafeWorkflow.Extended
 import Test.Workflow.SafeWorkflow.Examples
 

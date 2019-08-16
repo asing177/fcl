@@ -4,7 +4,7 @@
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE ViewPatterns #-}
-module Test.Workflow.SafeWorkflow
+module Language.FCL.SafeWorkflow
   ( SafeWorkflow(Atom, AND, GenLoop)
 
   , andBranches
@@ -43,10 +43,8 @@ import Protolude
 
 import qualified GHC.Exts as GHC (IsList(..))
 
-import Data.Maybe (fromJust)
-import Data.Set (Set(..))
-import Data.Map (Map(..))
-import Data.List (nub, last)
+import Data.Set (Set)
+import Data.Map (Map)
 import Data.List.List2 (List2(..), pattern AsList)
 import Data.List.NonEmpty (NonEmpty(..))
 
@@ -98,14 +96,17 @@ data SafeWorkflow
             , gLoopOut  :: SafeWorkflow           -- ^ Seconds half of the body of the loop
             }
   -- | Acyclic control-flow.
-  | ACF' { gACFMap :: ACFMap
-            }
+  | ACF' { acfMap :: ACFMap
+         }
   -- | Atom representing a single transition.
   | Atom
   deriving (Eq, Ord, Show, Generic, NFData)
 
 -- TODO: redefine these using record pattern synonyms (once they are available)
 -- https://gitlab.haskell.org/ghc/ghc/wikis/pattern-synonyms/record-pattern-synonyms
+
+{-# COMPLETE AND, GenLoop,          ACF, Atom #-}
+{-# COMPLETE AND, SimpleLoop, Loop, ACF, Atom #-}
 
 -- | XOR with two branches.
 pattern XOR :: SafeWorkflow -> SafeWorkflow -> SafeWorkflow
@@ -143,32 +144,44 @@ pattern SimpleLoop loop exit = GenLoop Nothing exit loop
 pattern Loop :: SafeWorkflow -> SafeWorkflow -> SafeWorkflow -> SafeWorkflow
 pattern Loop loopIn exit loopOut = GenLoop (Just loopIn) exit loopOut
 
+noMatchError :: Text -> Text
+noMatchError selector = "No match in record selector " <> selector
+
 xorLhs :: SafeWorkflow -> SafeWorkflow
 xorLhs (XOR lhs _) = lhs
+xorLhs _ = panic $ noMatchError "xorLhs"
 
 xorRhs :: SafeWorkflow -> SafeWorkflow
 xorRhs (XOR _ rhs) = rhs
+xorRhs _ = panic $ noMatchError "xorRhs"
 
 gXorLhsIn :: SafeWorkflow -> SafeWorkflow
 gXorLhsIn (GenXOR lhsIn _ _ _ _) = lhsIn
+gXorLhsIn _= panic $ noMatchError "gXorLhsIn"
 
 gXorLhsOut :: SafeWorkflow -> SafeWorkflow
 gXorLhsOut (GenXOR _ lhsOut _ _ _) = lhsOut
+gXorLhsOut _ = panic $ noMatchError "gXorLhsOut"
 
 gXorRhsIn :: SafeWorkflow -> SafeWorkflow
 gXorRhsIn (GenXOR _ _ rhsIn _ _) = rhsIn
+gXorRhsIn _ = panic $ noMatchError "gXorRhsIn"
 
 gXorRhsOut :: SafeWorkflow -> SafeWorkflow
 gXorRhsOut (GenXOR _ _ _ rhsOut _) = rhsOut
+gXorRhsOut _ = panic $ noMatchError "gXorRhsOut"
 
 gXorLhsToRhs :: SafeWorkflow -> SafeWorkflow
 gXorLhsToRhs (GenXOR _ _ _ _ lhsToRhs) = lhsToRhs
+gXorLhsToRhs _ = panic $ noMatchError "gXorLhsToRhs"
 
 seqLhs :: SafeWorkflow -> SafeWorkflow
 seqLhs (Seq lhs _) = lhs
+seqLhs _ = panic $ noMatchError "seqLhs"
 
 seqRhs :: SafeWorkflow -> SafeWorkflow
 seqRhs (Seq _ rhs) = rhs
+seqRhs _ = panic $ noMatchError "seqRhs"
 
 -- | Is an ACF place intermediate (not `Entry` nor `Exit`).
 isIntermediate :: ACFPlace -> Bool
@@ -288,6 +301,7 @@ instance Arbitrary ACFArrow where
     , ACFArrow Entry to
     , ACFArrow Entry from
     ]
+  shrink _ = []
 
 instance Arbitrary SafeWorkflow where
   arbitrary = sized genSWFNet where
@@ -456,6 +470,7 @@ canFitBetween from to
 canFitBetween Entry _ = True
 canFitBetween _ Exit  = True
 canFitBetween (P from) (P to) = not $ hasIncorrectBounds from to
+canFitBetween _ _ = False
 
 -- | Generates a new ACF place between two other places with
 -- respect to some inclusive bounds. The additional bounds are just
@@ -476,6 +491,7 @@ between _ _ (P low) (P high)
 between _ hi (P low) Exit
   | hasIncorrectBounds low hi = panic $ boundError low hi
   | otherwise = P <$> choose (low+1, hi)
+between _ _ l h = panic $ boundError l h
 
 boundError :: (Pretty a, Pretty b) => a -> b -> Text
 boundError lo hi = show $ "between: Can't generate new place in between" <+> ppr lo <+> "and" <+> ppr hi

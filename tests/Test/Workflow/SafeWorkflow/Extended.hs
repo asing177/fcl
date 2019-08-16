@@ -13,10 +13,10 @@ import Data.Maybe (catMaybes)
 
 import Language.FCL.AST (Transition(..), WorkflowState(..), Place(..), unsafeWorkflowState, wfIntersection)
 import Language.FCL.Analysis (inferStaticWorkflowStates)
+import Language.FCL.SafeWorkflow (SafeWorkflow(..), constructTransitions)
 
 import Test.QuickCheck
 
-import Test.Workflow.SafeWorkflow (SafeWorkflow(..), constructTransitions)
 
 -- | Safe workflow extended with some additional places, states and transitions.
 data ExtendedSW
