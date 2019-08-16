@@ -1,0 +1,3 @@
+ 
+Method arguments and effects:
+go: () -> {write via terminate, read x, write x}

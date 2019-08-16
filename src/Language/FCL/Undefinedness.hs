@@ -3,7 +3,7 @@
 {-# LANGUAGE DeriveAnyClass #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
--- NOTE: path-insensitive analysis
+-- NOTE: Path-insensitive analysis (See checkStatement (... EIf ...))
 module Language.FCL.Undefinedness (
   InvalidStackTrace(..),
   IsInitialized(..),
@@ -32,13 +32,28 @@ import qualified Data.Set as Set
 import Data.Text (unlines)
 
 
-
-type WorkflowState = Set Place
-
 -- Note: 'foldMap' is to be avoided, since the default behavior using the map
 -- monoid is to call a right-biased union. However, regarding the
 -- 'UndefinednessEnv' values, we want `unionWith (/\)` in every case.
 
+-- | Undefinedness analysis determines whether a variable is always
+-- defined during the execution of the workflow. If there is at least one
+-- path/trace where it is uninitialized leading up to the use site,
+-- then the variable is considered undefined. Furthermore, if we assign
+-- an undefined variable to any other variable, the state of that other variable
+-- will be erroneous.
+--
+-- The algorithm also collect all the possible stack traces during the execution
+-- of the workflow. This allows for very precise error message generation
+-- but results in facotrial (!) time and space complexity.
+--
+-- The worst case is when we have an AND-split with `n` different branches.
+-- This results in `2^n` number of possible states (one for each branch).
+-- At the beginning we can choose from `n` different transitions,
+-- then after firing that transition, we still have `n-1`
+-- left to activate in the next step. Hence the factorial time complexity.
+-- Since we also want to store all these traces, the algortihm requires
+-- at least `n!` space to run.
 undefinednessAnalysis
   :: Script
   -> Either [InvalidStackTrace] [ValidStackTrace]
@@ -212,13 +227,14 @@ generateStackTraces initialMarking wfn =
     genStackTraces visited marking
       | Set.member (Map.keysSet marking) visited = Set.singleton []
       | null fireableTransitions = Set.singleton []
-      | otherwise = foldMap fireTransition fireableTransitions
+      -- depth-first firing
+      | otherwise = foldMap recursivelyFireTransition fireableTransitions
       where
         fireableTransitions :: [Transition UndefinednessEnv]
         fireableTransitions = enabledTransitions marking wfn
 
-        fireTransition :: Transition UndefinednessEnv -> Set StackTrace
-        fireTransition t@(Transition _ nm _ _) =
+        recursivelyFireTransition :: Transition UndefinednessEnv -> Set StackTrace
+        recursivelyFireTransition t@(Transition _ nm _ _) =
           let resultState = fireUnsafe marking t
               newVisited = Set.insert (Map.keysSet marking) visited
            in Set.map (StackTraceItem nm marking resultState :)
@@ -244,6 +260,10 @@ validateStackTrace initMarking strace =
   where
     initValidStackTrace = ValidStackTrace [] initMarking
 
+    -- NOTE: basically just Either monad stuff
+    -- | If the trace is invalid, just return it.
+    -- if it is valid, but the current item contains errors,
+    -- then invalidate it, else continue exploring the valid trace.
     validateStackItem
       :: Either InvalidStackTrace ValidStackTrace
       -> StackTraceItem
@@ -385,12 +405,18 @@ checkStatement (Located loc actual@(ESet _)) _
 checkStatement (Located loc actual@EConstr{}) _
   = Left (showAtLoc loc $ "expected statement, got: " <> show actual)
 
+-- QUESTION: Branching as in transitioning into multiple places (AND-split)?
+-- ANSWER: No, branching here means ~ ending with a transition
+-- QUESTION: Can `s0` ever be "branching" statement?
 -- This is the most involved case, as branching in the first statement makes
 -- checking the paths in the second statement non-trivial
 checkStatement (Located _ (ESeq s0 s1)) mkEnv = do
     (branches0, rest0) <- sepBranches <$> checkStatement s0 mkEnv
+    -- NOTE: tests pass even with this --> when (not $ null branches0) (panic "branches0 can be non-empty")
     branches1 <-
       case concat (Map.elems rest0) of
+        -- QUESTION: Can this ever happen? Only when the args list is empty
+        -- ANSWER: Nullary functions exist. For example just a side effecting procedure.
         []      -> checkStatement s1 mkEnv
         r@(_:_) -> Map.unionsWith (++) <$> mapM (checkStatement s1) r
     pure $ Map.unionWith (++) branches0 branches1
@@ -399,6 +425,7 @@ checkStatement (Located _ (ESeq s0 s1)) mkEnv = do
     -- the cases where there is no transition performed
     sepBranches = Map.partitionWithKey $ \k _ -> not (Set.null k)
 
+-- NOTE: Path insensitive, because it merges the result of both branches.
 checkStatement (Located _ (EIf c s0 s1)) mkEnv
   = do
   mkEnv' <- checkExpression c mkEnv
@@ -429,6 +456,7 @@ checkStatement (Located _ (ECall efunc args)) mkEnv
       -- and call 'checkStatement' on it. However, we still check all the
       -- argument expressions to the helper function for undefinedness.
       Right nm
+        -- NOTE: this is just fmap ... (just puts it into a list then assigns it to the empty set)
         -> second (Map.singleton mempty . pure) $
              foldM (flip checkExpression) mkEnv args
       Left Prim.Terminate
@@ -449,28 +477,35 @@ checkStatement (Located _ ENoOp) mkEnv
 checkStatement (Located loc EHole) _
   = panic $ "Hole expression at " <> show loc <> " in `checkStatement`"
 
+-- NOTE: propagates information from the rhs to the lhs
 -- | Check an assignment
 checkAssignment
   :: Loc
   -> (UndefinednessEnv -> UndefinednessEnv)
-  -> NonEmpty Name
-  -> LExpr
+  -> NonEmpty Name  -- ^ Left-hand side names
+  -> LExpr          -- ^ Right-hand side expression
   -> Either Text (UndefinednessEnv -> UndefinednessEnv)
 checkAssignment loc g vars rhs = do
     f1 <- checkExpression rhs g
     varsRhs <- expressionVars rhs
     -- traceM (show $ minsertVar varsRhs (f mempty))
+    -- NOTE: just collects the info from the rhs and puts it into the lhs
     let f2 = foldr (\name -> ((minsertVar varsRhs name) .)) identity vars
     pure (f2 . f1)
   where
     replaceError (Error _) = Error $ Set.singleton loc
     replaceError x = x
 
+    -- QUESTION: doesn't the empty map stand for a rhs expression without variables?
+    -- ANSWER: if it is not in the map _initially_ it means it is either a local variable or a method argument (see: checkVariable)
     -- if the rhs env is empty, assume all are initialized (args & tmp vars)
     minsertVar :: (Set Name) -> Name -> UndefinednessEnv -> UndefinednessEnv
     minsertVar varNms v env = initializeInEnv v varVal env
       where
+               -- NOTE: if there are no variabkes on the rhs, we are good
         varVal | Map.null rhsVarsEnv = Initialized
+               -- NOTE: we only care about the variables on the rhs
+               -- NOTE: if _any_ variable is undefined/erroneous on the rhs, the lhs will be uninitialized/erroneous too
                | otherwise = replaceError (meets (Map.elems rhsVarsEnv))
 
         rhsVarsEnv = Map.restrictKeys env varNms
@@ -579,8 +614,13 @@ checkVariable (Located loc var) env =
   case Map.lookup var env of
     Nothing            -> env
     Just Initialized   -> env
+    -- QUESTION: Probably a variable referencing itself?
+    -- ANSWER: A variable can be uninitalized but then become initilaized.
+    --         If we don't use the variable when it is still uninitialized, then everything is fine.
+    --         However, if we use it, it becomes erroneous, and stores the location of the use-site.
+    --         There is no going back after becoming erroneous.
     Just Uninitialized -> Map.insert var (Error $ Set.singleton loc) env
-    Just (Error err)   -> Map.insert var (Error $ Set.insert loc err) env
+    Just (Error err)   -> Map.insert var (Error $ Set.insert loc err) env   -- NOTE: just extending the set of errors
 
 
 
