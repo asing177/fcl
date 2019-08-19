@@ -4,12 +4,14 @@
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
 -- NOTE: Path-insensitive analysis (See checkStatement (... EIf ...))
-module Language.FCL.Undefinedness (
-  InvalidStackTrace(..),
-  IsInitialized(..),
-  unusedVars,
-  undefinednessAnalysis,
-) where
+module Language.FCL.Undefinedness
+  ( InvalidStackTrace(..)
+  , IsInitialized(..)
+  , UndefinednessEnv
+  , unusedVars
+  , undefinednessAnalysis
+  , checkMethodUnsafe
+  ) where
 
 import Protolude
 
@@ -72,11 +74,6 @@ undefinednessAnalysis script = do
 
     genMethodUndefEnv :: ColorTransition UndefinednessEnv
     genMethodUndefEnv = ColorTransition checkMethodUnsafe
-
-    checkMethodUnsafe :: Method ->
-                         (UndefinednessEnv -> UndefinednessEnv) ->
-                         Map WorkflowState [UndefinednessEnv -> UndefinednessEnv]
-    checkMethodUnsafe method = either panic identity . checkMethod method
 
 -------------------------------------------------------------------------------
 -- Environment/state used in analysis
@@ -145,6 +142,7 @@ initialEnv script = handleErrors (fmap ($ mempty) buildEnv)
 -- graph. Any such path is assumed to start from the "initial" state.
 type StackTrace = [StackTraceItem]
 
+-- NOTE: The `initialState` can probably be scrapped and inferred from the previous items.
 -- | Since a stack trace is assumed to start from the "initial" state,
 -- we only store a list of destinations and method names (edge
 -- labels).
@@ -373,6 +371,12 @@ checkMethod
 checkMethod method mkEnv = do
   mkEnv <- checkPreconditions (methodPreconditions method) mkEnv
   checkStatement (methodBody method) mkEnv
+
+checkMethodUnsafe
+  :: Method
+  -> (UndefinednessEnv -> UndefinednessEnv)
+  -> Map WorkflowState [UndefinednessEnv -> UndefinednessEnv]
+checkMethodUnsafe method = either panic identity . checkMethod method
 
 checkPreconditions
   :: Preconditions
