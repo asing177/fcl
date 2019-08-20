@@ -29,6 +29,7 @@ dependencies:
   - text
   - memory
   - lattices
+  - search-algorithms
 
   # Data Structures
   - containers

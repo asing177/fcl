@@ -44,6 +44,7 @@ extra-deps:
   commit: 7f7a0d3c20a35dc71d530fd04a2e4959923d7d1e
 
 - monad-gen-0.3.0.1@sha256:a2569465cfbd468d3350ef25de56b3362580e77537224313aab1210f40804a3b
+- search-algorithms-0.3.0@sha256:091d0e4170d201df8145b385ef4cc3111dc3596a9acc59a760613092a3ae8431,1825
 
 # Override default flag values for local packages and extra-deps
 # flags: {}
