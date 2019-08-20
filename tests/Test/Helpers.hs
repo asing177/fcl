@@ -2,6 +2,10 @@ module Test.Helpers where
 
 import Protolude
 
+import Data.Algorithm.Diff (getGroupedDiff)
+import Data.Algorithm.DiffOutput (ppDiff)
+import Data.String (String, lines)
+
 import Test.Tasty.HUnit
 
 type To a b = a -> b
@@ -23,3 +27,10 @@ roundTripProperty
   -> a
   -> Bool
 roundTripProperty to from x = Right x == from (to x)
+
+-- | Compares two strings, returns @Nothing@ if they are the same,
+-- returns @Just@ the diff if they are different.
+checkDifference :: String -> String -> Maybe String
+checkDifference exp act = if exp == act
+  then Nothing
+  else Just $ ppDiff $ getGroupedDiff (lines exp) (lines act)

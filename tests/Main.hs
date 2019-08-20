@@ -24,9 +24,10 @@ import qualified Test.Encoding             as Encoding
 suite :: IO TestTree
 suite
   = do
-  workflowTests <- Workflow.compilationTests
-  compilerTests <- Script.compilerTests
-  evalTests     <- Script.evalTests
+  workflowTests      <- Workflow.compilationTests
+  compilerTests      <- Script.compilerTests
+  evalTests          <- Script.evalTests
+  undefinednessTests <- Undefinedness.undefinednessTests
   pure $ testGroup "FCL tests" [
 
     -- Evaluator tests
@@ -42,7 +43,7 @@ suite
     , Key.keyTests
 
     -- Undefinedness tests
-    , Undefinedness.undefinednessTests
+    , undefinednessTests
 
     -- Script parser/pretty printer Tests
     , Script.scriptPropTests
