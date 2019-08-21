@@ -418,6 +418,10 @@ instance Pretty IsInitialized where
 -- Analyis of FCL AST
 --------------------------------------------------------------------------------
 
+-- NOTE: We could use this function instead of Language.FCL.Analysis.extractTranisitions
+-- to infer the transitions from an FCL script AND annotate them with dataflow information.
+-- This collects the possible output workflows state and their corresponding dataflow functions too!
+-- The second argument could be the identity function.
 checkMethod
   :: Method
   -> (UndefinednessEnv -> UndefinednessEnv)
