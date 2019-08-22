@@ -12,9 +12,16 @@ import Control.Monad.RWS
 import System.FilePath (FilePath, (</>))
 import System.Directory (createDirectoryIfMissing)
 
-import Language.FCL.Graphviz (Transitions(..), workflowWriteSVG)
-import Language.FCL.SafeWorkflow (constructTransitions)
-import Language.FCL.SafeWorkflow.Editable (Continuation, EditLabel(..), EditableSW, pattern Hole, replaceHole)
+import Language.FCL.Graphviz (workflowWriteSVG)
+import Language.FCL.SafeWorkflow.Editable
+  ( Continuation
+  , EditLabel(..)
+  , PrettyLabel(..)
+  , EditableSW
+  , pattern Hole
+  , replaceHole
+  , refreshTransitionIndices
+  )
 
 import qualified Language.FCL.SafeWorkflow.Editable as Edit
 
@@ -67,7 +74,7 @@ replaceHoleM ix cont = do
   put sw'
 
 printSW :: FilePath -> EditableSW -> IO ()
-printSW path = workflowWriteSVG path . Transitions . sort . constructTransitions
+printSW path = workflowWriteSVG path . fmap PrettyLabel . refreshTransitionIndices
 
 simpleWhiteBoardExample :: SWREPLM ()
 simpleWhiteBoardExample = do

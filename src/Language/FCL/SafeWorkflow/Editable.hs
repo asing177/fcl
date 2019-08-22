@@ -4,18 +4,23 @@
 module Language.FCL.SafeWorkflow.Editable
   ( Continuation(..)
   , EditLabel(..)
+  , PrettyLabel(..)
   , EditableSW
   , pattern Hole
   , fromContinuation
   , replaceHole
+  , refreshTransitionIndices
   )
   where
 
 import Protolude
 
 import GHC.Exts (IsList(..))
+import qualified GHC.Show (show)
 
 import qualified Data.Map as M
+
+import Control.Monad.Gen
 
 import Language.FCL.SafeWorkflow hiding
   ( Atom
@@ -26,16 +31,40 @@ import Language.FCL.SafeWorkflow hiding
   , pattern Seq
   , pattern ACF
   )
+import Language.FCL.AST (Name(..))
+import Language.FCL.Pretty (Pretty, ppr)
+
 import qualified Language.FCL.SafeWorkflow as SW
 
--- | Index of a hole in an editable workflow.
-type HoleIx = Int
+-- NOTE: Reeediting an already finished transition could be done by
+-- transforming it back to a Hole first, then editing it.
+
+-- | Identifier of a hole in an editable workflow.
+type HoleId = Int
+
+-- | Identifier of a transition in an editable workflow
+type TransId = Int
 
 -- | Labels for safe workflow editing.
 data EditLabel
-  = NoLabel       -- TODO: revisit this
-  | HLabel HoleIx -- ^ Label for holes
+  = HLabel HoleId       -- ^ Label for holes
+  | TLabel Name TransId -- ^ Label for finished transitions
+  | NoLabel             -- TODO: revisit this
   deriving (Eq, Ord, Show)
+
+-- | Newtype wrapper for pretty pritning `EditLabel`s
+newtype PrettyLabel = PrettyLabel EditLabel
+  deriving (Eq, Ord)
+
+instance Pretty PrettyLabel where
+  ppr = \case
+    -- TODO: revisit naming
+    PrettyLabel (TLabel name id) -> "T" <> ppr id
+    PrettyLabel (HLabel      id) -> "_" <> ppr id
+    PrettyLabel NoLabel          -> "no_label"
+
+instance Show PrettyLabel where
+  show = show . ppr
 
 -- | Safe workflow enriched with additional annotations
 -- to faciliate the editing process.
@@ -59,8 +88,8 @@ data Continuation
   deriving (Eq, Ord, Show)
 
 fromContinuation
-  :: (HoleIx -> HoleIx -> HoleIx) -- ^ Make a new index from the parent and the current one
-  -> HoleIx                       -- ^ Parent index
+  :: (HoleId -> HoleId -> HoleId) -- ^ Make a new index from the parent and the current one
+  -> HoleId                       -- ^ Parent index
   -> Continuation                 -- ^ Construct to fill the hole with
   -> EditableSW
 fromContinuation mkIx parent = \case
@@ -88,11 +117,11 @@ replaceHole lbl cont esw
   | countHoles esw > 1 = replaceHoleWithIndexing mkIxWithPrefix lbl cont esw
   | otherwise          = replaceHoleWithIndexing (\_ x -> x)    lbl cont esw
   where
-    mkIxWithPrefix :: HoleIx -> HoleIx -> HoleIx
+    mkIxWithPrefix :: HoleId -> HoleId -> HoleId
     mkIxWithPrefix parent ix = 10*parent + ix
 
 replaceHoleWithIndexing
-  :: (HoleIx -> HoleIx -> HoleIx) -- ^ Make a new index from the parent and the current one
+  :: (HoleId -> HoleId -> HoleId) -- ^ Make a new index from the parent and the current one
   -> EditLabel                    -- ^ Look for a hole with this label
   -> Continuation                 -- ^ Construct to fill the hole with
   -> EditableSW                   -- ^ The workflow to replace the hole in
@@ -111,3 +140,10 @@ replaceHoleWithIndexing mkIx lbl@(HLabel n) cont = \case
   sw@(SW.ACF acfMap) ->
     unsafeMkACF $ M.map (fmap $ replaceHoleWithIndexing mkIx lbl cont) acfMap
 replaceHoleWithIndexing mkIx lbl _ = panic $ "replaceHoleWithIndexing: Didn't get a hole label: " <> show lbl
+
+refreshTransitionIndices :: EditableSW -> EditableSW
+refreshTransitionIndices esw = runGen $ forM esw $ \case
+  -- TODO: revisit this
+  NoLabel        -> TLabel ""   <$> gen
+  lbl@HLabel{}   -> pure lbl
+  TLabel name id -> TLabel name <$> gen
