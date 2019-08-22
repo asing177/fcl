@@ -1,6 +1,6 @@
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE OverloadedLists #-}
-{-# LANGUAGE DeriveGeneric, DeriveAnyClass #-}
+{-# LANGUAGE DeriveGeneric, DeriveAnyClass, DeriveFunctor, DeriveFoldable, DeriveTraversable #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE ViewPatterns #-}
@@ -113,7 +113,7 @@ data SafeWorkflow a
   -- | Atom representing a single transition.
   | Atom { atomAnnot :: a                             -- ^ Annotation for the transitions
          }
-  deriving (Eq, Ord, Show, Generic, NFData)
+  deriving (Eq, Ord, Show, Generic, NFData, Functor, Foldable, Traversable)
 
 -- TODO: redefine these using record pattern synonyms (once they are available)
 -- https://gitlab.haskell.org/ghc/ghc/wikis/pattern-synonyms/record-pattern-synonyms

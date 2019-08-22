@@ -2,7 +2,7 @@
 {-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE InstanceSigs #-}
 {-# LANGUAGE TypeFamilies #-}
-{-# LANGUAGE DeriveGeneric, DeriveAnyClass #-}
+{-# LANGUAGE DeriveGeneric, DeriveAnyClass, DeriveFunctor, DeriveFoldable, DeriveTraversable #-}
 {-|
 Module      : List2
 Description : Lists containing at least two elements.
@@ -22,7 +22,7 @@ import qualified Data.Foldable as F
 import Test.QuickCheck
 
 data List2 a = List2 a a [a]
-  deriving (Eq, Ord, Show, Generic, NFData)
+  deriving (Eq, Ord, Show, Generic, NFData, Functor, Foldable, Traversable)
 
 instance IsList (List2 a) where
 
@@ -35,14 +35,6 @@ instance IsList (List2 a) where
 
   toList :: List2 a -> [a]
   toList = F.toList
-
-instance Foldable List2 where
-  foldMap :: Monoid m => (a -> m) -> List2 a -> m
-  foldMap f (List2 x y ys) = f x <> f y <> foldMap f ys
-
-instance Functor List2 where
-  fmap :: (a -> b) -> List2 a -> List2 b
-  fmap f (List2 x y ys) = List2 (f x) (f y) (map f ys)
 
 instance Arbitrary a => Arbitrary (List2 a) where
   arbitrary = List2 <$> arbitrary <*> arbitrary <*> arbitrary
