@@ -164,6 +164,7 @@ library:
     - Language.FCL.Reachability.StructuredTransition
     - Language.FCL.SafeWorkflow
     - Language.FCL.SafeWorkflow.DSL
+    - Language.FCL.SafeWorkflow.REPL
     - Language.FCL.SafeWorkflow.Simple
     - Language.FCL.Analysis
     - Language.FCL.Graphviz
