@@ -6,8 +6,7 @@
 {-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 module Language.FCL.SafeWorkflow
-  ( SafeWorkflow(Atom, AND, GenLoop, Hole)
-  , HLabel
+  ( SafeWorkflow(Atom, AND, GenLoop)
 
   , andBranches
   , gLoopIn
@@ -86,9 +85,6 @@ data ACFArrow = ACFArrow ACFPlace ACFPlace
 -- is not singleton, it represents an XOR-split, multiple ways to exectute the transition.
 type ACFMap a = Map ACFArrow (NonEmpty (SafeWorkflow a))
 
--- | Type to uniquely label `Hole`s in `SafeWorfklow`s
-type HLabel = Int
-
 -- | Workflow nets that are sound by construction. We only allow these _safe_ workflow nets
 -- to be constructed in very specific ways in order to make soundness verification automatic.
 -- The transitions in safe workflows can be annotated by any desired information.
@@ -109,11 +105,6 @@ data SafeWorkflow a
          }
   -- | Atom representing a single transition.
   | Atom { getAnnot :: a                              -- ^ Annotation for the transitions
-         }
-  -- | A hole to be filled in the `SafeWorkflow`.
-  -- Only used during the construction, a complete
-  -- `SafeWorkflow` should never contain a hole.
-  | Hole { getLabel :: HLabel                         -- ^ Label for the hole
          }
   deriving (Eq, Ord, Show, Generic, NFData)
 
@@ -287,9 +278,6 @@ constructTransitionsM start end (ACF (M.toList -> acfList)) = do
         to'   = getState to
     mapM_ (constructTransitionsM from' to') swfs
 constructTransitionsM start end Atom{..} = do
-  tell [Arrow start end]
--- TODO: name this
-constructTransitionsM start end Hole{..} = do
   tell [Arrow start end]
 
 instance Pretty ACFPlace where

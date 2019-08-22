@@ -1,3 +1,4 @@
+{-# LANGUAGE PatternSynonyms #-}
 module Language.FCL.SafeWorkflow.REPL
   ( module Language.FCL.SafeWorkflow.REPL
   ) where
@@ -12,11 +13,10 @@ import System.FilePath (FilePath, (</>))
 import System.Directory (createDirectoryIfMissing)
 
 import Language.FCL.Graphviz (Transitions(..), workflowWriteSVG)
-import Language.FCL.SafeWorkflow (SafeWorkflow(..), constructTransitions)
-import Language.FCL.SafeWorkflow.Simple (SimpleSafeWorkflow)
-import Language.FCL.SafeWorkflow.DSL (Continuation, HLabel, replaceHole)
+import Language.FCL.SafeWorkflow (constructTransitions)
+import Language.FCL.SafeWorkflow.Editable (Continuation, EditLabel(..), EditableSW, pattern Hole, replaceHole)
 
-import qualified Language.FCL.SafeWorkflow.DSL as DSL
+import qualified Language.FCL.SafeWorkflow.Editable as Edit
 
 -- TODO: currently Options has no impact on any operation, refactor
 -- | Options for running the safe workflow REPL
@@ -33,14 +33,14 @@ defaultOpts = Options
   }
 
 -- | Edit history for thesafe workflow REPL.
-type History = Dual [SimpleSafeWorkflow]
+type History = Dual [EditableSW]
 
 -- | Safe workflow REPL (read eval print loop) monad
 -- Keeps track of the safe workflow being edited,
 -- and has logging capabilities too.
-type SWREPLM = RWS Options History SimpleSafeWorkflow
+type SWREPLM = RWS Options History EditableSW
 
-runSWREPLPure :: SWREPLM a -> (a, SimpleSafeWorkflow, History)
+runSWREPLPure :: SWREPLM a -> (a, EditableSW, History)
 runSWREPLPure actionM = runRWS actionM defaultOpts (Hole 1)
 
 runSWREPLWithLogging :: SWREPLM () -> IO ()
@@ -48,7 +48,7 @@ runSWREPLWithLogging
   = void
   . runSWREPLIOWithOpts (defaultOpts {loggingEnabled = True})
 
-runSWREPLIOWithOpts :: Options -> SWREPLM a -> IO (a, SimpleSafeWorkflow, History)
+runSWREPLIOWithOpts :: Options -> SWREPLM a -> IO (a, EditableSW, History)
 runSWREPLIOWithOpts opts@Options{..} actionM = do
   let r@(_, _, Dual history) = runRWS actionM opts (Hole 1)
       history' = Hole 1 : reverse history
@@ -59,22 +59,22 @@ runSWREPLIOWithOpts opts@Options{..} actionM = do
       printSW filePath log
   return r
 
-replaceHoleM :: HLabel -> Continuation -> SWREPLM ()
-replaceHoleM lbl cont = do
+replaceHoleM :: Int -> Continuation -> SWREPLM ()
+replaceHoleM ix cont = do
   sw <- get
-  let sw' = replaceHole lbl cont sw
+  let sw' = replaceHole (HLabel ix) cont sw
   tell $ Dual [sw']
   put sw'
 
-printSW :: FilePath -> SimpleSafeWorkflow -> IO ()
+printSW :: FilePath -> EditableSW -> IO ()
 printSW path = workflowWriteSVG path . Transitions . sort . constructTransitions
 
 simpleWhiteBoardExample :: SWREPLM ()
 simpleWhiteBoardExample = do
-  replaceHoleM 1 (DSL.AND 2)
-  replaceHoleM 1 DSL.Atom
-  replaceHoleM 2 (DSL.XOR 2)
-  replaceHoleM 1 DSL.Atom
-  replaceHoleM 2 DSL.SimpleLoop
-  replaceHoleM 1 DSL.Atom
-  replaceHoleM 2 DSL.Atom
+  replaceHoleM 1 (Edit.AND 2)
+  replaceHoleM 1 Edit.Atom
+  replaceHoleM 2 (Edit.XOR 2)
+  replaceHoleM 1 Edit.Atom
+  replaceHoleM 2 Edit.SimpleLoop
+  replaceHoleM 1 Edit.Atom
+  replaceHoleM 2 Edit.Atom
