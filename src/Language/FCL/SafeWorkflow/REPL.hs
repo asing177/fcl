@@ -20,7 +20,7 @@ import Language.FCL.SafeWorkflow.Editable
   , EditableSW
   , pattern Hole
   , replaceHole
-  , refreshTransitionIndices
+  , nameUnlabelledTransitions
   )
 
 import qualified Language.FCL.SafeWorkflow.Editable as Edit
@@ -74,10 +74,10 @@ replaceHoleM ix cont = do
   put sw'
 
 printSW :: FilePath -> EditableSW -> IO ()
-printSW path = workflowWriteSVG path . fmap PrettyLabel . refreshTransitionIndices
+printSW path = workflowWriteSVG path . fmap PrettyLabel . nameUnlabelledTransitions
 
-simpleWhiteBoardExample :: SWREPLM ()
-simpleWhiteBoardExample = do
+simpleWhiteBoardExample1 :: SWREPLM ()
+simpleWhiteBoardExample1 = do
   replaceHoleM 1 (Edit.AND 2)
   replaceHoleM 1 Edit.Atom
   replaceHoleM 2 (Edit.XOR 2)
@@ -85,3 +85,13 @@ simpleWhiteBoardExample = do
   replaceHoleM 2 Edit.SimpleLoop
   replaceHoleM 1 Edit.Atom
   replaceHoleM 2 Edit.Atom
+
+simpleWhiteBoardExample2 :: SWREPLM ()
+simpleWhiteBoardExample2 = do
+  replaceHoleM 1   (Edit.AND 2)
+  replaceHoleM 2   (Edit.XOR 2)
+  replaceHoleM 22  Edit.SimpleLoop
+  replaceHoleM 221 Edit.Atom
+  replaceHoleM 222 Edit.Atom
+  replaceHoleM 21  Edit.Atom
+  replaceHoleM 1   Edit.Atom

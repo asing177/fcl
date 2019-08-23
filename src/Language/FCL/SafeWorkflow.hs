@@ -9,6 +9,7 @@
 {-# LANGUAGE InstanceSigs #-}
 module Language.FCL.SafeWorkflow
   ( SafeWorkflow(Atom, AND, GenLoop)
+  , AnnotatedTransition(..)
 
   , andBranches
   , gLoopIn
@@ -63,12 +64,9 @@ import Test.QuickCheck hiding (Gen)
 import qualified Test.QuickCheck as QC
 
 import Language.FCL.AST
-import Language.FCL.Pretty (Pretty, ppr, prettyPrint, (<+>), hsep)
+import Language.FCL.Pretty (Pretty, ppr, (<+>))
 import Language.FCL.Orphans()
-import Language.FCL.Graphviz hiding (AnnotatedTransition)
-import Language.FCL.Analysis (inferStaticWorkflowStates)
 
-import qualified Language.FCL.Graphviz as GV
 
 -- NOTE: can't return back to different places from a loop (eg.: novation.s)
 -- NOTE: syncronisation points are always singleton states (places) (eg.: novation.s)
@@ -543,42 +541,3 @@ boundError lo hi = show $ "between: Can't generate new place in between" <+> ppr
 -- Used for determining whetehr two ACF places can accomodate an additional place in-between.
 hasIncorrectBounds :: Int -> Int -> Bool
 hasIncorrectBounds lo hi = abs (hi - lo) < 2
-
-------------------------
--- Graphviz instances --
-------------------------
-
-instance Show a => DisplayableWorkflow (SafeWorkflow a) where
-  -- | Annotated transition.
-  data AnnotatedTransition (SafeWorkflow a)
-    = AnnTr { getAnnTr :: AnnotatedTransition a
-            }
-
-  renderTransitionNode :: GV.AnnotatedTransition (SafeWorkflow a) -> Graphviz
-  renderTransitionNode (getAnnot . getAnnTr -> ann) = mconcat
-    [ show ann
-    , "[label=<"
-    , "<FONT POINT-SIZE=\"16\">" <> show ann <> "</FONT>"
-    , "<FONT POINT-SIZE=\"10\" COLOR=\"blue\"> "
-    , "</FONT>"
-    , ">"
-    , "shape=box; fontname=\"Arial\"; style=filled; color=black; fillcolor=gray75;]"
-    ]
-
-  renderTransitionArrows :: GV.AnnotatedTransition (SafeWorkflow a) -> Graphviz
-  renderTransitionArrows (getAnnTr -> AnnTransition ann (Arrow src dst)) = prettyPrint $ hsep
-    [ ppr src
-    , "->"
-    , ppr (show ann :: Text)
-    , ";"
-    , ppr (show ann :: Text)
-    , "->"
-    , ppr dst
-    ]
-
-  annotatedTransitions :: SafeWorkflow a -> [GV.AnnotatedTransition (SafeWorkflow a)]
-  annotatedTransitions = map AnnTr . constructAnnTransitions
-
-  staticWorkflowStates :: SafeWorkflow a -> Set WorkflowState
-  staticWorkflowStates = inferStaticWorkflowStates
-                       . constructTransitions

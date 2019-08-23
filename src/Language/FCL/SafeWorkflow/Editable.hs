@@ -1,5 +1,8 @@
 {-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE PatternSynonyms #-}
+{-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE InstanceSigs #-}
 {-# OPTIONS_GHC -fno-warn-incomplete-record-updates #-}
 module Language.FCL.SafeWorkflow.Editable
   ( Continuation(..)
@@ -9,7 +12,7 @@ module Language.FCL.SafeWorkflow.Editable
   , pattern Hole
   , fromContinuation
   , replaceHole
-  , refreshTransitionIndices
+  , nameUnlabelledTransitions
   )
   where
 
@@ -31,10 +34,13 @@ import Language.FCL.SafeWorkflow hiding
   , pattern Seq
   , pattern ACF
   )
-import Language.FCL.AST (Name(..))
-import Language.FCL.Pretty (Pretty, ppr)
+import Language.FCL.AST (Name(..), Transition(..), WorkflowState)
+import Language.FCL.Pretty (Doc, Pretty, ppr, hsep, prettyPrint)
+import Language.FCL.Analysis (inferStaticWorkflowStates)
+import Language.FCL.Graphviz hiding (AnnotatedTransition)
 
 import qualified Language.FCL.SafeWorkflow as SW
+import qualified Language.FCL.Graphviz     as GV
 
 -- NOTE: Reeediting an already finished transition could be done by
 -- transforming it back to a Hole first, then editing it.
@@ -59,7 +65,7 @@ newtype PrettyLabel = PrettyLabel EditLabel
 instance Pretty PrettyLabel where
   ppr = \case
     -- TODO: revisit naming
-    PrettyLabel (TLabel name id) -> "T" <> ppr id
+    PrettyLabel (TLabel name id) -> ppr name
     PrettyLabel (HLabel      id) -> "_" <> ppr id
     PrettyLabel NoLabel          -> "no_label"
 
@@ -69,6 +75,14 @@ instance Show PrettyLabel where
 -- | Safe workflow enriched with additional annotations
 -- to faciliate the editing process.
 type EditableSW = SafeWorkflow EditLabel
+
+-- | Safe workflow enriched with additional annotations
+-- to faciliate the editing process. This is the same as
+-- `EditableSW` just with prettier labels.
+type PrettyEditableSW = SafeWorkflow PrettyLabel
+
+prettify :: EditableSW -> PrettyEditableSW
+prettify = fmap PrettyLabel
 
 -- | A `Hole` is an `Atom` annotated with a hole label.
 -- These are the plugin points of the workflows, this where
@@ -141,9 +155,51 @@ replaceHoleWithIndexing mkIx lbl@(HLabel n) cont = \case
     unsafeMkACF $ M.map (fmap $ replaceHoleWithIndexing mkIx lbl cont) acfMap
 replaceHoleWithIndexing mkIx lbl _ = panic $ "replaceHoleWithIndexing: Didn't get a hole label: " <> show lbl
 
-refreshTransitionIndices :: EditableSW -> EditableSW
-refreshTransitionIndices esw = runGen $ forM esw $ \case
-  -- TODO: revisit this
-  NoLabel        -> TLabel ""   <$> gen
-  lbl@HLabel{}   -> pure lbl
-  TLabel name id -> TLabel name <$> gen
+-- TODO: make the generation of transition names and IDs more general
+nameUnlabelledTransitions :: EditableSW -> EditableSW
+nameUnlabelledTransitions esw = runGen $ forM esw $ \case
+  NoLabel -> do
+    id <- gen
+    pure $ TLabel (Name $ "T" <> show id) id
+  lbl -> pure lbl
+
+pprTrsId :: Int -> Doc
+pprTrsId id = "__trans__" <> ppr id
+
+instance DisplayableWorkflow PrettyEditableSW where
+  -- | Annotated transition.
+  data AnnotatedTransition PrettyEditableSW
+    = AnnTr { getRenderingId :: Int
+            , getAnnTr       :: SW.AnnotatedTransition PrettyLabel
+            }
+
+  renderTransitionNode :: GV.AnnotatedTransition PrettyEditableSW -> Graphviz
+  renderTransitionNode (AnnTr id (SW.AnnTransition ann _)) = prettyPrint $ mconcat
+    [ pprTrsId id
+    , "[label=<"
+    , "<FONT POINT-SIZE=\"16\">" <> ppr ann <> "</FONT>"
+    , "<FONT POINT-SIZE=\"10\" COLOR=\"blue\"> "
+    , "</FONT>"
+    , ">"
+    , "shape=box; fontname=\"Arial\"; style=filled; color=black; fillcolor=gray75;]"
+    ]
+
+  renderTransitionArrows :: GV.AnnotatedTransition PrettyEditableSW -> Graphviz
+  renderTransitionArrows (AnnTr id (SW.AnnTransition ann (Arrow src dst))) = prettyPrint $ hsep
+    [ ppr src
+    , "->"
+    , pprTrsId id
+    , ";"
+    , pprTrsId id
+    , "->"
+    , ppr dst
+    ]
+
+  annotatedTransitions :: PrettyEditableSW -> [GV.AnnotatedTransition PrettyEditableSW]
+  annotatedTransitions = map (uncurry AnnTr)
+                       . zip [0..]
+                       . constructAnnTransitions
+
+  staticWorkflowStates :: PrettyEditableSW -> Set WorkflowState
+  staticWorkflowStates = inferStaticWorkflowStates
+                       . constructTransitions
