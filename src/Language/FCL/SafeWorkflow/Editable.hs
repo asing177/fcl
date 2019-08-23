@@ -3,16 +3,19 @@
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE InstanceSigs #-}
+{-# LANGUAGE RecordWildCards #-}
 {-# OPTIONS_GHC -fno-warn-incomplete-record-updates #-}
 module Language.FCL.SafeWorkflow.Editable
   ( Continuation(..)
   , EditLabel(..)
   , PrettyLabel(..)
   , EditableSW
+  , TransId
+  , HoleId
+
   , pattern Hole
-  , fromContinuation
+
   , replaceHole
-  , nameUnlabelledTransitions
   )
   where
 
@@ -55,7 +58,6 @@ type TransId = Int
 data EditLabel
   = HLabel HoleId       -- ^ Label for holes
   | TLabel Name TransId -- ^ Label for finished transitions
-  | NoLabel             -- TODO: revisit this
   deriving (Eq, Ord, Show)
 
 -- | Newtype wrapper for pretty pritning `EditLabel`s
@@ -64,10 +66,8 @@ newtype PrettyLabel = PrettyLabel EditLabel
 
 instance Pretty PrettyLabel where
   ppr = \case
-    -- TODO: revisit naming
     PrettyLabel (TLabel name id) -> ppr name
     PrettyLabel (HLabel      id) -> "_" <> ppr id
-    PrettyLabel NoLabel          -> "no_label"
 
 instance Show PrettyLabel where
   show = show . ppr
@@ -90,13 +90,18 @@ prettify = fmap PrettyLabel
 pattern Hole :: Int -> EditableSW
 pattern Hole n = SW.Atom (HLabel n)
 
--- | Constructs to replace a hole with in an editable workflow.
+-- | `Continuation`s are used to replace holes in `EditableSW`s.
 data Continuation
-  = Atom
-  | AND Int
+  = Atom { atomLabel       :: EditLabel   -- ^ Label to be put on the transition
+         }
+  | AND  { andSplitLabel   :: EditLabel   -- ^ Label to be put on the splitting transition
+         , andJoinLabel    :: EditLabel   -- ^ Label to be put on the joining transition
+         , andNumBranches  :: Int         -- ^ Number of branches in the AND-split
+         }
+  | XOR  { xorNumBranches  :: Int         -- ^ Number of branches in the XOR-split
+         }
   | SimpleLoop
   | Loop
-  | XOR Int
   | Seq
   | ACF
   deriving (Eq, Ord, Show)
@@ -107,13 +112,31 @@ fromContinuation
   -> Continuation                 -- ^ Construct to fill the hole with
   -> EditableSW
 fromContinuation mkIx parent = \case
-  Atom       -> SW.Atom NoLabel
-  (AND n)    -> SW.AND NoLabel NoLabel $ fromList $ map (Hole . mkIx') [1..n]
+  Atom{..}   -> SW.Atom atomLabel
+  AND{..}    -> SW.AND andSplitLabel andJoinLabel $ fromList $ map (Hole . mkIx') [1..andNumBranches]
   SimpleLoop -> SW.SimpleLoop (Hole $ mkIx' 1) (Hole $ mkIx' 2)
   Loop       -> SW.Loop (Hole $ mkIx' 1) (Hole $ mkIx' 2) (Hole $ mkIx' 3)
-  (XOR n)    -> foldl SW.XOR (Hole $ mkIx' 1) $ map (Hole . mkIx') [2..n]
+  XOR{..}    -> foldl SW.XOR (Hole $ mkIx' 1) $ map (Hole . mkIx') [2..xorNumBranches]
   Seq        -> SW.Seq (Hole $ mkIx' 1) (Hole $ mkIx' 2)
-  ACF        -> panic "not implemented"
+  {- TODO: ACF Continuation
+
+     Handling this will probably require place annotations.
+     The user could select a place and we would display which other places
+     it can be conencted to.
+
+     Implementation plan:
+      1. Add place annotations to SafeWorkflows
+      2. Implement a function that given a place inside an ACF,
+         finds all the other places it can be connected to (inside said ACF).
+      3. Implement a function that connects two places in an ACF.
+      4. Probably will need a function that "merges" ACFs.
+         This will be needed to simplify the structure and coalesce
+         nested ACFs into a single one.
+         Example use case: See the n-ary XOR above. With the current
+         implementation we cannot connect places in different branches,
+         because they are inside different ACFs.
+  -}
+  ACF -> panic "not implemented"
 
   where mkIx' = mkIx parent
 
@@ -126,42 +149,33 @@ countHoles = \case
   (SW.SimpleLoop exit body) -> sum $ map countHoles [exit, body]
   sw@(SW.ACF acfMap)        -> sum $ M.map (sum . fmap countHoles) acfMap
 
-replaceHole :: EditLabel -> Continuation -> EditableSW -> EditableSW
-replaceHole lbl cont esw
-  | countHoles esw > 1 = replaceHoleWithIndexing mkIxWithPrefix lbl cont esw
-  | otherwise          = replaceHoleWithIndexing (\_ x -> x)    lbl cont esw
+replaceHole :: HoleId -> Continuation -> EditableSW -> EditableSW
+replaceHole holeId cont esw
+  | countHoles esw > 1 = replaceHoleWithIndexing mkIxWithPrefix holeId cont esw
+  | otherwise          = replaceHoleWithIndexing (\_ x -> x)    holeId cont esw
   where
     mkIxWithPrefix :: HoleId -> HoleId -> HoleId
     mkIxWithPrefix parent ix = 10*parent + ix
 
 replaceHoleWithIndexing
   :: (HoleId -> HoleId -> HoleId) -- ^ Make a new index from the parent and the current one
-  -> EditLabel                    -- ^ Look for a hole with this label
+  -> HoleId                       -- ^ Look for a hole with this identifier
   -> Continuation                 -- ^ Construct to fill the hole with
   -> EditableSW                   -- ^ The workflow to replace the hole in
   -> EditableSW
-replaceHoleWithIndexing mkIx lbl@(HLabel n) cont = \case
+replaceHoleWithIndexing mkIx holeId cont = \case
   sw@(Hole found)
-    | n == found -> fromContinuation mkIx found cont
+    | holeId == found -> fromContinuation mkIx found cont
     | otherwise -> sw
   sw@(SW.Atom _) -> sw
   sw@SW.AND{..} ->
-    sw { andBranches = fmap (replaceHoleWithIndexing mkIx lbl cont) andBranches }
+    sw { andBranches = fmap (replaceHoleWithIndexing mkIx holeId cont) andBranches }
   (SW.GenLoop into exit out) ->
-    SW.GenLoop (replaceHoleWithIndexing mkIx lbl cont <$> into)
-               (replaceHoleWithIndexing mkIx lbl cont exit)
-               (replaceHoleWithIndexing mkIx lbl cont out)
+    SW.GenLoop (replaceHoleWithIndexing mkIx holeId cont <$> into)
+               (replaceHoleWithIndexing mkIx holeId cont exit)
+               (replaceHoleWithIndexing mkIx holeId cont out)
   sw@(SW.ACF acfMap) ->
-    unsafeMkACF $ M.map (fmap $ replaceHoleWithIndexing mkIx lbl cont) acfMap
-replaceHoleWithIndexing mkIx lbl _ = panic $ "replaceHoleWithIndexing: Didn't get a hole label: " <> show lbl
-
--- TODO: make the generation of transition names and IDs more general
-nameUnlabelledTransitions :: EditableSW -> EditableSW
-nameUnlabelledTransitions esw = runGen $ forM esw $ \case
-  NoLabel -> do
-    id <- gen
-    pure $ TLabel (Name $ "T" <> show id) id
-  lbl -> pure lbl
+    unsafeMkACF $ M.map (fmap $ replaceHoleWithIndexing mkIx holeId cont) acfMap
 
 pprTrsId :: Int -> Doc
 pprTrsId id = "__trans__" <> ppr id
