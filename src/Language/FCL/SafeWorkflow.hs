@@ -11,38 +11,47 @@ module Language.FCL.SafeWorkflow
   ( SafeWorkflow(Atom, AND, GenLoop)
   , AnnotatedTransition(..)
 
-  , andBranches
-  , gLoopIn
-  , gLoopOut
-  , gLoopExit
+  -- | Acyclic control-flow types.
+  , PlaceId
+  , ACFArrow(..)
+  , ACFPlace(..)
+  , ACFMap
+  , PlaceAnnotMap
 
-  , mkACF
-  , unsafeMkACF
+  -- | AND-split.
+  , ANDBranch(..)
 
+  -- | Pattern synonyms.
+  -- `AND2` and `GenXOR` patterns are only available for `SimpleWorkflow`s.
+  -- See `Language.FCL.SafeWorkflow.Simple`.
   , pattern XOR
   , pattern XOR3
-  -- , pattern GenXOR
-  , pattern AND2
   , pattern Seq
   , pattern SimpleLoop
   , pattern Loop
   , pattern ACF
 
+  -- | Selector functions
+  , andBranches
+  , gLoopIn
+  , gLoopOut
+  , gLoopExit
   , xorLhs
   , xorRhs
-  -- , gXorLhsIn
-  -- , gXorLhsOut
-  -- , gXorRhsIn
-  -- , gXorRhsOut
-  -- , gXorLhsToRhs
   , seqLhs
   , seqRhs
 
+  -- | Acyclic control-flow types smart constructors,
+  , mkACF
+  , unsafeMkACF
+
+  -- | Transforming a `SafeWorkflow` into a set of transitions.
   , constructTransitions
   , constructAnnTransitions
 
-  , ACFArrow(..)
-  , ACFPlace(..)
+  -- | Other helper functions.
+  , collectPlaceIds
+  , noMatchError
   ) where
 
 import Protolude
@@ -51,7 +60,7 @@ import qualified GHC.Exts as GHC (IsList(..))
 
 import Data.Set (Set, (\\))
 import Data.Map (Map)
-import Data.List.List2 (List2(..), pattern AsList)
+import Data.List.List2 (List2(..))
 import Data.List.NonEmpty (NonEmpty(..))
 
 import qualified Data.Set as S
@@ -93,9 +102,17 @@ data ACFArrow = ACFArrow ACFPlace ACFPlace
 -- is not singleton, it represents an XOR-split, multiple ways to exectute the transition.
 type ACFMap a b = Map ACFArrow (NonEmpty (SafeWorkflow a b))
 
--- | A maping describing the annotations of places in `ACFMap`s.
+-- | A mapping describing the annotations of places in `ACFMap`s.
 type PlaceAnnotMap a = Map PlaceId a
 
+-- | Branch of an AND-split.
+data ANDBranch a b = ANDBranch
+  { branchInAnnot  :: a                 -- ^ Annotation going into the branch.
+  , branchOutAnnot :: a                 -- ^ Annotation going out of the branch.
+  , branchWorkflow :: SafeWorkflow a b  -- ^ Workflow in the branch.
+  } deriving (Eq, Ord, Show, Generic, NFData, Functor, Foldable, Traversable)
+
+-- TODO: Bifunctor instance
 -- | Workflow nets that are sound by construction. We only allow these _safe_ workflow nets
 -- to be constructed in very specific ways in order to make soundness verification automatic.
 -- The transitions in safe workflows can be annotated by any desired information.
@@ -103,9 +120,8 @@ data SafeWorkflow a b
   -- | AND splitting into multiple workflows.
   = AND { splitAnnot  :: b                            -- ^ Annotation for the AND-split transition
         , joinAnnot   :: b                            -- ^ Annotation for the AND-join transition
-        , andBranches :: List2 (SafeWorkflow a b)       -- ^ At least one branch
+        , andBranches :: List2 (ANDBranch a b)        -- ^ At least one branch
         }
-  -- TODO: add annotation
   -- | Looping construct with option to exit from both the body of the loop and the head of the loop.
   -- If the first half of the body is empty, we exit from head, otherwise exit from the body.
   | GenLoop { exitAnnot :: Maybe a                      -- ^ Annotation of the exit point (place)
@@ -144,12 +160,6 @@ pattern XOR lhs rhs <- ACF' (M.toList -> []) (M.toList -> [(ACFArrow Entry Exit,
 pattern XOR3 :: SafeWorkflow a b -> SafeWorkflow a b -> SafeWorkflow a b -> SafeWorkflow a b
 pattern XOR3 a b c   = XOR a (XOR b c)
 
--- TODO: support only SGenXOR without annotations
--- | XOR with unidirectional communication between branches.
--- pattern GenXOR :: SafeWorkflow a b -> SafeWorkflow a b -> SafeWorkflow a b -> SafeWorkflow a b -> SafeWorkflow a b -> SafeWorkflow a b
--- pattern GenXOR lhsIn lhsOut rhsIn rhsOut lhsToRhs <- ACF' (M.toList -> [(ACFArrow Entry (P 1), [lhsIn]), (ACFArrow (P 1) Exit, [lhsOut]), (ACFArrow Entry (P 2), [rhsIn]), (ACFArrow (P 2) Exit, [rhsOut]), (ACFArrow (P 1) (P 2), [lhsToRhs])])
---   where GenXOR lhsIn lhsOut rhsIn rhsOut lhsToRhs =  ACF' (M.fromList  [(ACFArrow Entry (P 1), [lhsIn]), (ACFArrow (P 1) Exit, [lhsOut]), (ACFArrow Entry (P 2), [rhsIn]), (ACFArrow (P 2) Exit, [rhsOut]), (ACFArrow (P 1) (P 2), [lhsToRhs])])
-
 -- | Sequencing two safe workflows.
 pattern Seq :: a -> SafeWorkflow a b -> SafeWorkflow a b -> SafeWorkflow a b
 pattern Seq ann lhs rhs <- ACF' (M.toList -> [(1,ann)]) (M.toList -> [(ACFArrow Entry (P 1), [lhs]), (ACFArrow (P 1) Exit, [rhs])])
@@ -158,11 +168,6 @@ pattern Seq ann lhs rhs <- ACF' (M.toList -> [(1,ann)]) (M.toList -> [(ACFArrow 
 -- | Unidirectional pattern general acyclic control-flow.
 pattern ACF :: PlaceAnnotMap a -> ACFMap a b -> SafeWorkflow a b
 pattern ACF annots acfMap <- ACF' annots acfMap
-
--- | AND with two branches.
-pattern AND2 :: b -> b -> SafeWorkflow a b -> SafeWorkflow a b -> SafeWorkflow a b
-pattern AND2 split join lhs rhs <- AND split join (AsList [lhs,rhs])
-  where AND2 split join lhs rhs =  AND split join [lhs,rhs]
 
 -- | Simple loop with exit only from the head.
 pattern SimpleLoop :: SafeWorkflow a b -> SafeWorkflow a b -> SafeWorkflow a b
@@ -182,26 +187,6 @@ xorLhs _ = panic $ noMatchError "xorLhs"
 xorRhs :: SafeWorkflow a b -> SafeWorkflow a b
 xorRhs (XOR _ rhs) = rhs
 xorRhs _ = panic $ noMatchError "xorRhs"
-
--- gXorLhsIn :: SafeWorkflow a b -> SafeWorkflow a b
--- gXorLhsIn (GenXOR lhsIn _ _ _ _) = lhsIn
--- gXorLhsIn _= panic $ noMatchError "gXorLhsIn"
-
--- gXorLhsOut :: SafeWorkflow a b -> SafeWorkflow a b
--- gXorLhsOut (GenXOR _ lhsOut _ _ _) = lhsOut
--- gXorLhsOut _ = panic $ noMatchError "gXorLhsOut"
-
--- gXorRhsIn :: SafeWorkflow a b -> SafeWorkflow a b
--- gXorRhsIn (GenXOR _ _ rhsIn _ _) = rhsIn
--- gXorRhsIn _ = panic $ noMatchError "gXorRhsIn"
-
--- gXorRhsOut :: SafeWorkflow a b -> SafeWorkflow a b
--- gXorRhsOut (GenXOR _ _ _ rhsOut _) = rhsOut
--- gXorRhsOut _ = panic $ noMatchError "gXorRhsOut"
-
--- gXorLhsToRhs :: SafeWorkflow a b -> SafeWorkflow a b
--- gXorLhsToRhs (GenXOR _ _ _ _ lhsToRhs) = lhsToRhs
--- gXorLhsToRhs _ = panic $ noMatchError "gXorLhsToRhs"
 
 seqLhs :: SafeWorkflow a b -> SafeWorkflow a b
 seqLhs (Seq _ lhs _) = lhs
@@ -312,15 +297,16 @@ constructAnnTransitions
   . execWriterT
   . constructAnnTransitionsM startState endState
 
+-- TODO: implement place-annotated construction
 -- | Construct the list of transitions from a given `SafeWorkflow` @swf@ and @start@ and @end@ states.
 -- The open-ended transitions of @swf@ will be connected to the @start@ and @end@ states
 -- based on the stucture of @swf@.
 constructAnnTransitionsM :: WorkflowState -> WorkflowState -> SafeWorkflow a b -> (WriterT [AnnotatedTransition b] (Gen Integer)) ()
 constructAnnTransitionsM start end (AND splitAnn joinAnn branches) = do
-  inOuts <- forM (GHC.toList branches) $ \br -> do
+  inOuts <- forM (GHC.toList branches) $ \(ANDBranch _ _ swf) -> do
     inSt  <- genWfState
     outSt <- genWfState
-    constructAnnTransitionsM inSt outSt br
+    constructAnnTransitionsM inSt outSt swf
     pure (inSt, outSt)
   let (ins, outs) = unzip inOuts
   tell [ AnnTransition splitAnn $ Arrow start (mconcat ins)
@@ -389,6 +375,16 @@ instance Arbitrary ACFArrow where
     ]
   shrink _ = []
 
+instance (Arbitrary a, Arbitrary b) => Arbitrary (ANDBranch a b) where
+  arbitrary = do
+    wfSize <- getSize
+    swf    <- resize wfSize $ arbitrary @(SafeWorkflow a b)
+    annIn  <- arbitrary @a
+    annOut <- arbitrary @a
+    pure $ ANDBranch annIn annOut swf
+
+  shrink = genericShrink
+
 instance (Arbitrary a, Arbitrary b) => Arbitrary (SafeWorkflow a b) where
   arbitrary = sized genSWFNet where
     -- | Sized `SafeWorkflow generation
@@ -432,7 +428,7 @@ instance (Arbitrary a, Arbitrary b) => Arbitrary (SafeWorkflow a b) where
     complexity4 n = partitionThen n 4 $ \partition -> do
       case partition of
         [k1,k2,k3,k4] -> oneof
-          [ AND <$> arbitrary <*> arbitrary <*> someSWFNets (n-2) 2
+          [ AND <$> arbitrary <*> arbitrary <*> sizedANDBranches (n-2) 2
           ]
         _ -> panic $ show n <> " was not partitioned into 4 components"
 
@@ -440,7 +436,7 @@ instance (Arbitrary a, Arbitrary b) => Arbitrary (SafeWorkflow a b) where
     complexity5 n = partitionThen n 5 $ \partition -> do
       case partition of
         [k1,k2,k3,k4,k5] -> oneof
-          [ AND <$> arbitrary <*> arbitrary <*> someSWFNets (n-2) 3
+          [ AND <$> arbitrary <*> arbitrary <*> sizedANDBranches (n-2) 3
           ]
         _ -> panic $ show n <> " was not partitioned into 5 components"
 
@@ -452,11 +448,16 @@ instance (Arbitrary a, Arbitrary b) => Arbitrary (SafeWorkflow a b) where
       pure $ unsafeMkACF annots acfMap
 
     -- | Generates `SafeWorkflow`s of summed size `n`.
-    someSWFNets :: Int -> Int -> QC.Gen (List2 (SafeWorkflow a b))
-    someSWFNets n k =
+    sizedANDBranches
+      :: forall a b . (Arbitrary a, Arbitrary b)
+      => Int  -- ^ Maximum number of transitions in the entire AND-split (all branches together)
+      -> Int  -- ^ Number of branches
+      -> QC.Gen (List2 (ANDBranch a b))
+    sizedANDBranches n k =
       partitionThen n k $ \ps -> do
-        xs <- mapM genSWFNet ps
-        pure $ GHC.fromList xs
+        branches <- forM ps $ \s -> resize s (arbitrary @(ANDBranch a b))
+        pure $ GHC.fromList branches
+
 
   -- FIXME: Annotating the Atom with the split annotation of the AND is very ad hoc.
   --        This should be only a structural shrink unrelated to the annotation.
