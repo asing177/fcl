@@ -7,6 +7,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE InstanceSigs #-}
+{-# OPTIONS_GHC -fno-warn-incomplete-record-updates #-}
 module Language.FCL.SafeWorkflow
   ( SafeWorkflow(Atom, AND, GenLoop)
   , AnnotatedTransition(..)
@@ -112,7 +113,6 @@ data ANDBranch a b = ANDBranch
   , branchWorkflow :: SafeWorkflow a b  -- ^ Workflow in the branch.
   } deriving (Eq, Ord, Show, Generic, NFData, Functor, Foldable, Traversable)
 
--- TODO: Bifunctor instance
 -- | Workflow nets that are sound by construction. We only allow these _safe_ workflow nets
 -- to be constructed in very specific ways in order to make soundness verification automatic.
 -- The transitions in safe workflows can be annotated by any desired information.
@@ -140,6 +140,27 @@ data SafeWorkflow a b
   | Atom { atomAnnot :: b                             -- ^ Annotation for the transitions
          }
   deriving (Eq, Ord, Show, Generic, NFData, Functor, Foldable, Traversable)
+
+instance Bifunctor ANDBranch where
+  bimap f g (ANDBranch inAnnot outAnnot swf) =
+    ANDBranch (f inAnnot) (f outAnnot) (bimap f g swf)
+
+-- QUESTION: Isn't there a clever way to derive these?
+-- ANSWER: Data.Bifunctor.TH doesn't work due to not so clever deriving machinery (need Bifunctor instance for Map ...).
+--         Swapping type variables for Safeworkflow trough newtypes or data then deriving the instances doesn't work either.
+instance Bifunctor SafeWorkflow where
+  first f andSplit@AND{..} = andSplit { andBranches = fmap (first f) andBranches }
+  first f loop@GenLoop{..} = loop { exitAnnot = fmap f exitAnnot
+                                  , gLoopIn   = fmap (first f) gLoopIn
+                                  , gLoopExit = first f gLoopExit
+                                  , gLoopOut  = first f gLoopOut
+                                  }
+  first f acf@ACF'{..} = acf { placeAnnots = M.map f placeAnnots
+                             , acfMap = M.map (fmap $ first f) acfMap
+                             }
+  first f (Atom ann) = Atom ann
+
+  second = fmap
 
 -- TODO: redefine these using record pattern synonyms (once they are available)
 -- https://gitlab.haskell.org/ghc/ghc/wikis/pattern-synonyms/record-pattern-synonyms
