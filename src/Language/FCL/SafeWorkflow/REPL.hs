@@ -1,10 +1,12 @@
 {-# LANGUAGE PatternSynonyms #-}
+{-# LANGUAGE OverloadedLists #-}
 module Language.FCL.SafeWorkflow.REPL
   ( module Language.FCL.SafeWorkflow.REPL
   ) where
 
 import Protolude hiding (sequence)
 
+import Data.List.List2
 import Data.Monoid (Dual(..))
 
 import Control.Monad.Gen
@@ -16,16 +18,6 @@ import System.Directory (createDirectoryIfMissing)
 import Language.FCL.AST (Name)
 import Language.FCL.Graphviz (workflowWriteSVG)
 import Language.FCL.SafeWorkflow.Editable
-  ( EditLabel(..)
-  , PrettyLabel(..)
-  , EditableSW
-  , TransId
-  , HoleId
-
-  , pattern Hole
-
-  , replaceHole
-  )
 
 import qualified Language.FCL.SafeWorkflow.Editable as Edit
 
@@ -85,22 +77,27 @@ finish
   -> SWREPLM ()
 finish holeId atomName = do
   transId <- gen
-  let cont = Edit.Atom (TLabel atomName transId)
+  let cont = Edit.Atom (LFinished atomName transId)
   loggedModify (replaceHole holeId cont)
 
 -- | Replace a hole with a parallel subworkflow.
 parallel
-  :: HoleId       -- ^ Identifier of hole to be replaced
-  -> Int          -- ^ Number of parallel threads (AND branches)
-  -> Name         -- ^ Name of splitting transition
-  -> Name         -- ^ Name of joining transition
+  :: HoleId                 -- ^ Identifier of hole to be replaced
+  -> Int                    -- ^ Number of parallel threads (AND branches)
+  -> Name                   -- ^ Name of splitting transition
+  -> Name                   -- ^ Name of joining transition
+  -> List2 (Name, Name)     -- ^ Names for the places inside the AND-branches
   -> SWREPLM ()
-parallel holeId numBranches splitName joinName = do
+parallel holeId numBranches splitName joinName names = do
   splitId <- gen
   joinId  <- gen
-  let splitLabel = TLabel splitName splitId
-      joinLabel  = TLabel joinName  joinId
-      cont       = Edit.AND splitLabel joinLabel numBranches
+  let splitLabel = LFinished splitName splitId
+      joinLabel  = LFinished joinName  joinId
+  branchLabels <- forM names $ \(inName, outName) -> do
+    inId  <- gen
+    outId <- gen
+    pure $ ANDBranchLabels (LPlace inName inId) (LPlace outName outId)
+  let cont = Edit.AND splitLabel joinLabel branchLabels
   loggedModify (replaceHole holeId cont)
 
 -- | Replace a hole with a branching subworkflow.
@@ -121,14 +118,22 @@ stayOrContinue holeId = loggedModify (replaceHole holeId Edit.SimpleLoop)
 -- Loop in the the current state with the option to exit.
 loopOrContinue
   :: HoleId       -- ^ Identifier of hole to be replaced
+  -> Name         -- ^ Name for the breakpoint
   -> SWREPLM ()
-loopOrContinue  holeId= loggedModify (replaceHole holeId Edit.Loop)
+loopOrContinue holeId breakPointName = do
+  breakPointId <- gen
+  let cont = Edit.Loop (LPlace breakPointName breakPointId)
+  loggedModify (replaceHole holeId cont)
 
 -- | Replace a hole wth a sequence of two subworkflows.
 sequence
   :: HoleId       -- ^ Identifier of hole to be replaced
+  -> Name         -- ^ Name for the place in-between the the two subworklows
   -> SWREPLM ()
-sequence holeId = loggedModify (replaceHole holeId Edit.Seq)
+sequence holeId inbetweenName = do
+  inbetweenId <- gen
+  let cont = Edit.Seq (LPlace inbetweenName inbetweenId)
+  loggedModify (replaceHole holeId cont)
 
 -- TODO: See "ACF Continutation" note in Language.FCL.SafeWorkflow.Editable
 acf
@@ -137,11 +142,14 @@ acf
 acf = panic "not implemented"
 
 printSW :: FilePath -> EditableSW -> IO ()
-printSW path = workflowWriteSVG path . fmap PrettyLabel
+printSW path = workflowWriteSVG path . prettify
 
 simpleWhiteBoardExample1 :: SWREPLM ()
 simpleWhiteBoardExample1 = do
   parallel 1 2 "split" "join"
+    [ ("lhsIn", "lhsOut")
+    , ("rhsIn", "rhsOut")
+    ]
   finish 1 "t1"
   choice 2 2
   finish 1 "t2"
@@ -152,6 +160,9 @@ simpleWhiteBoardExample1 = do
 simpleWhiteBoardExample2 :: SWREPLM ()
 simpleWhiteBoardExample2 = do
   parallel 1 2 "split" "join"
+    [ ("lhsIn", "lhsOut")
+    , ("rhsIn", "rhsOut")
+    ]
   choice 2 2
   stayOrContinue 22
   finish 221 "t3"

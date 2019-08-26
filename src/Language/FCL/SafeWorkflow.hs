@@ -53,6 +53,7 @@ module Language.FCL.SafeWorkflow
   -- | Other helper functions.
   , collectPlaceIds
   , noMatchError
+  , mapANDBranchWF
   ) where
 
 import Protolude
@@ -141,26 +142,6 @@ data SafeWorkflow a b
          }
   deriving (Eq, Ord, Show, Generic, NFData, Functor, Foldable, Traversable)
 
-instance Bifunctor ANDBranch where
-  bimap f g (ANDBranch inAnnot outAnnot swf) =
-    ANDBranch (f inAnnot) (f outAnnot) (bimap f g swf)
-
--- QUESTION: Isn't there a clever way to derive these?
--- ANSWER: Data.Bifunctor.TH doesn't work due to not so clever deriving machinery (need Bifunctor instance for Map ...).
---         Swapping type variables for Safeworkflow trough newtypes or data then deriving the instances doesn't work either.
-instance Bifunctor SafeWorkflow where
-  first f andSplit@AND{..} = andSplit { andBranches = fmap (first f) andBranches }
-  first f loop@GenLoop{..} = loop { exitAnnot = fmap f exitAnnot
-                                  , gLoopIn   = fmap (first f) gLoopIn
-                                  , gLoopExit = first f gLoopExit
-                                  , gLoopOut  = first f gLoopOut
-                                  }
-  first f acf@ACF'{..} = acf { placeAnnots = M.map f placeAnnots
-                             , acfMap = M.map (fmap $ first f) acfMap
-                             }
-  first f (Atom ann) = Atom ann
-
-  second = fmap
 
 -- TODO: redefine these using record pattern synonyms (once they are available)
 -- https://gitlab.haskell.org/ghc/ghc/wikis/pattern-synonyms/record-pattern-synonyms
@@ -616,3 +597,31 @@ boundError lo hi = show $ "between: Can't generate new place in between" <+> ppr
 -- Used for determining whetehr two ACF places can accomodate an additional place in-between.
 hasIncorrectBounds :: Int -> Int -> Bool
 hasIncorrectBounds lo hi = abs (hi - lo) < 2
+
+---------------------
+-- Other instances --
+---------------------
+
+mapANDBranchWF :: (SafeWorkflow a b -> SafeWorkflow a b) -> ANDBranch a b -> ANDBranch a b
+mapANDBranchWF f andBranch@ANDBranch{..} = andBranch { branchWorkflow = f branchWorkflow }
+
+instance Bifunctor ANDBranch where
+  bimap f g (ANDBranch inAnnot outAnnot swf) =
+    ANDBranch (f inAnnot) (f outAnnot) (bimap f g swf)
+
+-- QUESTION: Isn't there a clever way to derive these?
+-- ANSWER: Data.Bifunctor.TH doesn't work due to not so clever deriving machinery (need Bifunctor instance for Map ...).
+--         Swapping type variables for Safeworkflow trough newtypes or data then deriving the instances doesn't work either.
+instance Bifunctor SafeWorkflow where
+  first f andSplit@AND{..} = andSplit { andBranches = fmap (first f) andBranches }
+  first f loop@GenLoop{..} = loop { exitAnnot = fmap f exitAnnot
+                                  , gLoopIn   = fmap (first f) gLoopIn
+                                  , gLoopExit = first f gLoopExit
+                                  , gLoopOut  = first f gLoopOut
+                                  }
+  first f acf@ACF'{..} = acf { placeAnnots = M.map f placeAnnots
+                             , acfMap = M.map (fmap $ first f) acfMap
+                             }
+  first f (Atom ann) = Atom ann
+
+  second = fmap
