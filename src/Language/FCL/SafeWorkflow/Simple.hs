@@ -7,6 +7,8 @@ module Language.FCL.SafeWorkflow.Simple
   , pattern SAtom
   , pattern SAND
   , pattern SAND2
+  , pattern SSeq
+  , pattern SLoop
   , pattern SGenXOR
 
   , gXorLhsIn
@@ -40,6 +42,14 @@ pattern SAND branches = AND () () branches
 pattern SAND2 :: SimpleSafeWorkflow -> SimpleSafeWorkflow -> SimpleSafeWorkflow
 pattern SAND2 lhs rhs <- SAND (AsList [ANDBranch _ _ lhs, ANDBranch _ _ rhs])
   where SAND2 lhs rhs =  SAND [ANDBranch () () lhs, ANDBranch () () rhs]
+
+-- | Unannotated sequence.
+pattern SSeq :: SimpleSafeWorkflow -> SimpleSafeWorkflow -> SimpleSafeWorkflow
+pattern SSeq lhs rhs = Seq () lhs rhs
+
+-- | Unannotated sequence.
+pattern SLoop :: SimpleSafeWorkflow -> SimpleSafeWorkflow -> SimpleSafeWorkflow -> SimpleSafeWorkflow
+pattern SLoop loopIn exit loopOut = Loop () loopIn exit loopOut
 
 mkSimpleACF :: ACFMap () b -> SafeWorkflow () b
 mkSimpleACF acfMap = unsafeMkACF triviallyAnnotatedPlaces acfMap where
