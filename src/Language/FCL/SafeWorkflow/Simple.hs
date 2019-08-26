@@ -18,6 +18,8 @@ module Language.FCL.SafeWorkflow.Simple
   , gXorRhsOut
 
   , mkSimpleACF
+  , constructTransitionsWithoutPlaces
+  , constructAnnTransitionsWithoutPlaces
 
   , module Language.FCL.SafeWorkflow
   ) where
@@ -27,6 +29,7 @@ import Protolude
 import qualified Data.Map as M
 import Data.List.List2
 
+import Language.FCL.AST (Transition)
 import Language.FCL.SafeWorkflow
 
 type SimpleANDBranch    = ANDBranch    () ()
@@ -80,3 +83,9 @@ gXorRhsOut _ = panic $ noMatchError "gXorRhsOut"
 gXorLhsToRhs :: SimpleSafeWorkflow -> SimpleSafeWorkflow
 gXorLhsToRhs (SGenXOR _ _ _ _ lhsToRhs) = lhsToRhs
 gXorLhsToRhs _ = panic $ noMatchError "gXorLhsToRhs"
+
+constructTransitionsWithoutPlaces :: SafeWorkflow () b -> [Transition]
+constructTransitionsWithoutPlaces = constructTransitions () ()
+
+constructAnnTransitionsWithoutPlaces :: SafeWorkflow () b -> AnnTransitions () b
+constructAnnTransitionsWithoutPlaces = constructAnnTransitions () ()

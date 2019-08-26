@@ -29,8 +29,10 @@ import Protolude
 import qualified GHC.Exts as GHC (IsList(..))
 import qualified GHC.Show (show)
 
+import Data.Text (unlines)
 import Data.List.List2
 
+import qualified Data.Set as S
 import qualified Data.Map as M
 
 import Language.FCL.SafeWorkflow hiding
@@ -43,10 +45,11 @@ import Language.FCL.SafeWorkflow hiding
   , pattern ACF
   , PlaceId
   )
-import Language.FCL.AST (Name(..), Transition(..), WorkflowState)
+import Language.FCL.AST (Name(..), Transition(..), WorkflowState(..), Place(..))
 import Language.FCL.Pretty (Doc, Pretty, ppr, hsep, prettyPrint)
 import Language.FCL.Analysis (inferStaticWorkflowStates)
 import Language.FCL.Graphviz hiding (AnnotatedTransition)
+import Language.FCL.SafeWorkflow.Simple (constructTransitionsWithoutPlaces, constructAnnTransitionsWithoutPlaces)
 
 import qualified Language.FCL.SafeWorkflow as SW
 import qualified Language.FCL.Graphviz     as GV
@@ -226,6 +229,8 @@ replaceHoleWithIndexing mkIx holeId cont = \case
 pprTrsId :: Int -> Doc
 pprTrsId id = "__trans__" <> ppr id
 
+-- NOTE: Didn't want to generalize this type classs any further,
+-- so I just added a specialized version of `renderToGraphviz`.
 instance DisplayableWorkflow PrettyEditableSW where
   -- | Annotated transition.
   data AnnotatedTransition PrettyEditableSW
@@ -259,8 +264,68 @@ instance DisplayableWorkflow PrettyEditableSW where
   annotatedTransitions = map (uncurry AnnTr)
                        . zip [0..]
                        . getTransitions
-                       . constructAnnTransitions
+                       . constructAnnTransitionsWithoutPlaces
+                       . first (const ())
 
   staticWorkflowStates :: PrettyEditableSW -> Set WorkflowState
   staticWorkflowStates = inferStaticWorkflowStates
-                       . constructTransitions
+                       . constructTransitionsWithoutPlaces
+                       . bimap (const ()) (const ())
+
+  renderToGraphviz :: PrettyEditableSW -> Graphviz
+  renderToGraphviz wf = digraph $ unlines
+    [ options
+    , graphvizPlaces
+    , graphvizTransitions
+    , graphvizArrows
+    , graphvizRanks
+    ]
+    where
+      graphvizPlaces :: Graphviz
+      graphvizPlaces = unlines
+                     . map (uncurry mkAnnotPlace)
+                     . M.toList
+                     $ placeAnnotMap
+
+      graphvizTransitions :: Graphviz
+      graphvizTransitions = unlines
+                          . map renderTransitionNode
+                          . annotatedTransitions
+                          $ wf
+
+      graphvizArrows :: Graphviz
+      graphvizArrows = unlines
+                     . map renderTransitionArrows
+                     . annotatedTransitions
+                     $ wf
+
+      -- make ranks to hopefully bring some sanity to the layout of AND-splits
+      graphvizRanks :: Graphviz
+      graphvizRanks = unlines
+                    . mapMaybe mkRank
+                    . S.toList
+                    . staticWorkflowStates
+                    $ wf
+
+      -- | Annotated places (initial and terminal are NOT in this)
+      placeAnnotMap :: Map Place PrettyPLabel
+      placeAnnotMap = getPlaceAnnotations
+                    . constructAnnTransitions
+                        (panic "The label of the initial place has been used")
+                        (panic "The label of the terminal place has been used")
+                    $ wf
+
+      mkAnnotPlace :: Place -> PrettyPLabel -> Graphviz
+      mkAnnotPlace p@(Place _) lbl = prettyPrint . mconcat $
+        [ ppr p  -- this is the ID
+        , "[label=<"
+        , "<FONT POINT-SIZE=\"16\">" <> ppr lbl <> "</FONT>"  -- this is the rendered label
+        , "<FONT POINT-SIZE=\"10\" COLOR=\"blue\"> "
+        , "</FONT>"
+        , ">"
+        , " shape=ellipse; fontname=\"Arial\"; fontsize=16; style=filled; color=black; fillcolor=white;]"
+        ]
+      mkAnnotPlace p@(PlaceEnd) _ = prettyPrint p
+        <> " [shape=point; width=0.3; peripheries=2; style=filled; color=\"#d11010\"; label=\"\"]"
+      mkAnnotPlace p@(PlaceStart) _ = prettyPrint p
+        <> " [shape=point; width=0.3; style=filled; color=\"#0e64ce\"; label=\"\"]"

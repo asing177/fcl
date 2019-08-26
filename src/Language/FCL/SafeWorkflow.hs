@@ -245,6 +245,8 @@ collectACFErrors annots acfMap =
     placeIds = collectPlaceIds acfMap
 
 -- | Collect the `PlaceId`s from a given `ACFMap`.
+-- The entry and exit points are nt checked, since they
+-- already should have been labelled by the outer construct.
 collectPlaceIds :: ACFMap a b -> Set PlaceId
 collectPlaceIds = S.fromList . concatMap getIds . M.keys where
 
@@ -320,22 +322,28 @@ addTransitionM t = do
   let newEntry = AnnTransitions mempty [t]
   tell newEntry
 
+initAnnotationsM :: a -> a -> TransitionCtorM a b ()
+initAnnotationsM initAnn termAnn = do
+  addPlaceAnnotM PlaceStart initAnn
+  addPlaceAnnotM PlaceEnd   termAnn
+
 -- NOTE: Specialized to disambiguate the overlaoded list type variable.
 -- | Add multiple transitions.
 addTransitionsM :: [AnnTransition b] -> TransitionCtorM a b ()
 addTransitionsM = mapM_ addTransitionM
 
 -- | Construct a list of transitions without annotations from a given `SafeWorkflow`.
-constructTransitions :: SafeWorkflow a b -> [Transition]
-constructTransitions = map getTrans
-                     . getTransitions
-                     . constructAnnTransitions
+constructTransitions :: a -> a -> SafeWorkflow a b -> [Transition]
+constructTransitions initAnn termAnn
+  = map getTrans
+  . getTransitions
+  . constructAnnTransitions initAnn termAnn
 
 -- | Construct a list of annotated transitions from a given `SafeWorkflow`.
-constructAnnTransitions :: SafeWorkflow a b -> AnnTransitions a b
-constructAnnTransitions
-  = execTransitionConstructor
-  . constructAnnTransitionsM startState endState
+constructAnnTransitions :: a -> a -> SafeWorkflow a b -> AnnTransitions a b
+constructAnnTransitions initAnn termAnn swf = execTransitionConstructor $ do
+  initAnnotationsM initAnn termAnn
+  constructAnnTransitionsM startState endState swf
 
 -- TODO: implement place-annotated construction
 -- | Construct the list of transitions from a given `SafeWorkflow` @swf@ and @start@ and @end@ states.
@@ -357,12 +365,6 @@ constructAnnTransitionsM start end (AND splitAnn joinAnn branches) = do
     [ AnnTransition splitAnn $ Arrow start (mconcat ins)
     , AnnTransition joinAnn  $ Arrow (mconcat outs) end
     ]
-constructAnnTransitionsM start end (Seq inbetweenAnn lhs rhs) = do
-  inbetweenPlace <- genPlace
-  addPlaceAnnotM inbetweenPlace inbetweenAnn
-  let inbetweenState = singletonWfState inbetweenPlace
-  constructAnnTransitionsM start inbetweenState lhs
-  constructAnnTransitionsM inbetweenState end   rhs
 constructAnnTransitionsM start end (SimpleLoop loop exit) = do
   constructAnnTransitionsM start start loop
   constructAnnTransitionsM start end   exit

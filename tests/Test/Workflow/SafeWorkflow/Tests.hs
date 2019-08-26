@@ -41,8 +41,8 @@ import Language.FCL.Reachability.SplitAndMerge (reachabilityGraph, freeChoicePro
 import Language.FCL.Reachability.Definitions (WFError(..), ReachabilityGraph)
 import Language.FCL.Reachability.Utils (gatherReachableStatesFrom)
 import Language.FCL.Reachability.StructuredTransition (structureTransitions, unstructureTransitions, structureSimply, unstructureSimply)
-import Language.FCL.SafeWorkflow (SafeWorkflow(..), constructTransitions)
-import Language.FCL.SafeWorkflow.Simple (SimpleSafeWorkflow, pattern SAtom)
+import Language.FCL.SafeWorkflow (SafeWorkflow(..))
+import Language.FCL.SafeWorkflow.Simple (SimpleSafeWorkflow, pattern SAtom, constructTransitionsWithoutPlaces)
 
 import Test.Workflow.SafeWorkflow.Extended
 import Test.Workflow.SafeWorkflow.Examples
@@ -66,7 +66,7 @@ soundnessCheckWith constructGraph
   . fst
   . constructGraph
   . S.fromList
-  . constructTransitions
+  . constructTransitionsWithoutPlaces
 
 mkFCSoundnessTest :: [Char] -> SimpleSafeWorkflow -> TestTree
 mkFCSoundnessTest name swf = testCase name $ do
@@ -132,7 +132,7 @@ checkWithBoth ExtendedSW{..} = ( getErrors . reachabilityGraph         $ eswTran
   eswTransitions = S.union swTransitions eswExtraTransitions
 
   swTransitions :: Set Transition
-  swTransitions  = S.fromList $ constructTransitions eswSafeWorkflow
+  swTransitions  = S.fromList $ constructTransitionsWithoutPlaces eswSafeWorkflow
 
 -- QUESTION: should these be moved to a separate module
 -----------
@@ -179,7 +179,7 @@ transitionsLEQSize (getSmall . getNonNegative -> 0) = do
   return $ swf == SAtom
 transitionsLEQSize (getSmall . getNonNegative -> n) = do
   swf <- resize n $ arbitrary :: Gen SimpleSafeWorkflow
-  let trsCount = length $ constructTransitions swf
+  let trsCount = length $ constructTransitionsWithoutPlaces swf
   return $ trsCount <= n
 
 
@@ -194,7 +194,7 @@ countStates = length . gatherReachableStatesFrom startState . snd
 -- has fewer states than the one calculated by the general algorithm (for a given safe workflow).
 samGraphIsSmaller_SW :: SimpleSafeWorkflow -> Bool
 samGraphIsSmaller_SW sw = (countStates . reachabilityGraph $ trs) <= (countStates . completeReachabilityGraph $ trs) where
-  trs = S.fromList $ constructTransitions sw
+  trs = S.fromList $ constructTransitionsWithoutPlaces sw
 
 -- QUESTION: should this be moved to a separate module?
 -- | Checks whether the reachability graph calculated by the split-and-merge analysis
@@ -220,7 +220,7 @@ structureUnstructureId trSet = trSet == roundTrip trSet where
 structureUnstructureId_Safe :: SimpleSafeWorkflow -> Bool
 structureUnstructureId_Safe = structureUnstructureId
                             . S.fromList
-                            . constructTransitions
+                            . constructTransitionsWithoutPlaces
 
 -- | Checks whether structuring then unstructuring a set of transitions
 -- calculated from a given extended safe workflow is equivalent to the identity function.
@@ -246,7 +246,7 @@ structureUnstructureSimplyId trSet = trSet == roundTrip trSet where
 structureUnstructureSimplyId_Safe :: SimpleSafeWorkflow -> Bool
 structureUnstructureSimplyId_Safe = structureUnstructureSimplyId
                                   . S.fromList
-                                  . constructTransitions
+                                  . constructTransitionsWithoutPlaces
 
 -- | Checks whether structuring simply then unstructuring simply a set of transitions
 -- calculated from a given extended safe workflow is equivalent to the identity function.

@@ -13,8 +13,8 @@ import Data.Maybe (catMaybes)
 
 import Language.FCL.AST (Transition(..), WorkflowState(..), Place(..), unsafeWorkflowState, wfIntersection)
 import Language.FCL.Analysis (inferStaticWorkflowStates)
-import Language.FCL.SafeWorkflow (SafeWorkflow(..), constructTransitions)
-import Language.FCL.SafeWorkflow.Simple (SimpleSafeWorkflow)
+import Language.FCL.SafeWorkflow (SafeWorkflow(..))
+import Language.FCL.SafeWorkflow.Simple (SimpleSafeWorkflow, constructTransitionsWithoutPlaces)
 
 import Test.QuickCheck
 
@@ -29,7 +29,7 @@ data ExtendedSW
 -- extended safe worklow. The original transitions
 -- appear earlier in the list than the newly added ones.
 extendedWorkflowTransitions :: ExtendedSW -> [Transition]
-extendedWorkflowTransitions (ExtendedSW swf trs) = nub $ (S.toList trs) ++ (constructTransitions swf)
+extendedWorkflowTransitions (ExtendedSW swf trs) = nub $ (S.toList trs) ++ (constructTransitionsWithoutPlaces swf)
 
 {- distribution based on original number of places?
   generate "safe" transitions (net stays free choice)
@@ -41,7 +41,7 @@ extendedWorkflowTransitions (ExtendedSW swf trs) = nub $ (S.toList trs) ++ (cons
 instance Arbitrary ExtendedSW where
   arbitrary = do
     swf <- arbitrary @SimpleSafeWorkflow
-    let origTrans  = constructTransitions swf                       :: [Transition]
+    let origTrans  = constructTransitionsWithoutPlaces swf                       :: [Transition]
         origStates = S.toList $ inferStaticWorkflowStates origTrans :: [WorkflowState]
         origPlaces = S.toList $ foldMap places origStates           :: [Place]
 
@@ -199,7 +199,7 @@ newtype ExtendedFCSW = EFCSW { fcGetESW :: ExtendedSW }
 instance Arbitrary ExtendedFCSW where
   arbitrary = do
     swf <- arbitrary @SimpleSafeWorkflow
-    let origTrans  = constructTransitions swf                       :: [Transition]
+    let origTrans  = constructTransitionsWithoutPlaces swf                       :: [Transition]
         origStates = S.toList $ inferStaticWorkflowStates origTrans :: [WorkflowState]
         origPlaces = S.toList $ foldMap places origStates           :: [Place]
 
