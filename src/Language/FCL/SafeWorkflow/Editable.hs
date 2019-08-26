@@ -230,7 +230,7 @@ instance DisplayableWorkflow PrettyEditableSW where
   -- | Annotated transition.
   data AnnotatedTransition PrettyEditableSW
     = AnnTr { getRenderingId :: Int
-            , getAnnTr       :: SW.AnnotatedTransition PrettyTLabel
+            , getAnnTr       :: SW.AnnTransition PrettyTLabel
             }
 
   renderTransitionNode :: GV.AnnotatedTransition PrettyEditableSW -> Graphviz
@@ -258,6 +258,7 @@ instance DisplayableWorkflow PrettyEditableSW where
   annotatedTransitions :: PrettyEditableSW -> [GV.AnnotatedTransition PrettyEditableSW]
   annotatedTransitions = map (uncurry AnnTr)
                        . zip [0..]
+                       . getTransitions
                        . constructAnnTransitions
 
   staticWorkflowStates :: PrettyEditableSW -> Set WorkflowState
