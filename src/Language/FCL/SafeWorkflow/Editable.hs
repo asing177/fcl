@@ -165,7 +165,7 @@ fromContinuation mkIx parent = \case
      it can be conencted to.
 
      Implementation plan:
-      1. [WIP] Add place annotations to SafeWorkflows
+      1. [DONE] Add place annotations to SafeWorkflows
       2. Implement a function that given a place inside an ACF,
          finds all the other places it can be connected to (inside said ACF).
       3. Implement a function that connects two places in an ACF.
