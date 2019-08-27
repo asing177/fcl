@@ -347,13 +347,9 @@ evalLExpr (Located loc e) = case e of
 
     pure VVoid
 
-  EUnOp (Located _ op) a -> do
-    valA <- evalLExpr a
-    let unOpFail = panicInvalidUnOp op valA
-    case valA of
-      VBool a' -> return $
-        case op of
-          Not -> VBool $ not a'
+  EUnOp (Located _ Not) a -> evalLExpr a >>= \case
+      VBool a' -> return $ VBool $ not a'
+      VNum n -> pure . VNum $ negate n
       _ -> panicImpossible "EUnOp"
 
   EBinOp (Located _ RecordAccess) e (Located _ (EVar (Located _ field))) -> do
