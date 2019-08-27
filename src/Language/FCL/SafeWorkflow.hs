@@ -511,4 +511,5 @@ hasCorrectBounds lo hi = abs (hi - lo) >= 2
 
 -- | Given two integers `n` and `k` checks whether `|n - k| < 2`
 -- Used for determining whetehr two ACF places can accomodate an additional place in-between.
+hasIncorrectBounds :: Int -> Int -> Bool
 hasIncorrectBounds lo hi = not $ hasCorrectBounds lo hi
