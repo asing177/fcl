@@ -478,7 +478,7 @@ canFitBetween from to
   | from == to = False
 canFitBetween Entry _ = True
 canFitBetween _ Exit  = True
-canFitBetween (P from) (P to) = not $ hasIncorrectBounds from to
+canFitBetween (P from) (P to) = hasCorrectBounds from to
 canFitBetween _ _ = False
 
 -- | Generates a new ACF place between two other places with
@@ -505,7 +505,10 @@ between _ _ l h = panic $ boundError l h
 boundError :: (Pretty a, Pretty b) => a -> b -> Text
 boundError lo hi = show $ "between: Can't generate new place in between" <+> ppr lo <+> "and" <+> ppr hi
 
--- | Given two integers `n` and `k` checks whether `|n - k| < 2`.
+-- | Given two integers `n` and `k` checks whether `|n - k| >= 2`.
+hasCorrectBounds :: Int -> Int -> Bool
+hasCorrectBounds lo hi = abs (hi - lo) >= 2
+
+-- | Given two integers `n` and `k` checks whether `|n - k| < 2`
 -- Used for determining whetehr two ACF places can accomodate an additional place in-between.
-hasIncorrectBounds :: Int -> Int -> Bool
-hasIncorrectBounds lo hi = abs (hi - lo) < 2
+hasIncorrectBounds lo hi = not $ hasCorrectBounds lo hi
