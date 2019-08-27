@@ -6,15 +6,16 @@ import Protolude
 
 import Test.Tasty
 import Test.Tasty.Hspec
-import qualified KeyTests
-import qualified TestScript
-import qualified TestUndefinedness
-import qualified TestNumber
-import qualified TestJson
-import qualified TestStorage
-
-import qualified TestWorkflow
-import qualified TestSwagger
+import qualified Test.Key                  as Key
+import qualified Test.Script               as Script
+import qualified Test.Undefinedness        as Undefinedness
+import qualified Test.Number               as Number
+import qualified Test.Json                 as Json
+import qualified Test.Storage              as Storage
+import qualified Test.Workflow.Compilation as Workflow
+import qualified Test.Workflow.Soundness   as Workflow
+import qualified Test.Swagger              as Swagger
+import qualified Test.Encoding             as Encoding
 
 -------------------------------------------------------------------------------
 -- test Suite
@@ -23,28 +24,28 @@ import qualified TestSwagger
 suite :: IO TestTree
 suite
   = do
-  workflowTests <- TestWorkflow.workflowTests
-  compilerTests <- TestScript.compilerTests
-  evalTests <- TestScript.evalTests
+  workflowTests <- Workflow.compilationTests
+  compilerTests <- Script.compilerTests
+  evalTests     <- Script.evalTests
   pure $ testGroup "FCL tests" [
 
     -- Evaluator tests
     evalTests
 
     -- JSON Serialize Tests
-    , TestJson.jsonTests
+    , Json.jsonTests
 
     -- Contract Storage Tests
-    , TestStorage.storageTests
+    , Storage.storageTests
 
     -- Cryptography Tests
-    , KeyTests.keyTests
+    , Key.keyTests
 
     -- Undefinedness tests
-    , TestUndefinedness.undefinednessTests
+    , Undefinedness.undefinednessTests
 
     -- Script parser/pretty printer Tests
-    , TestScript.scriptPropTests
+    , Script.scriptPropTests
 
     -- Script compiler golden tests
     , compilerTests
@@ -53,8 +54,12 @@ suite
     , workflowTests
 
     -- Non-lossy arithmetic tests
-    , TestNumber.numberTests
+    , Number.numberTests
 
+    -- Confirming the soundness checking algorithm's correctness on safely constructed workflows
+    , Workflow.soundnessTests
+
+    , Encoding.encodingTests
     ]
 
 -------------------------------------------------------------------------------
@@ -63,8 +68,9 @@ suite
 
 main :: IO ()
 main = do
-  swaggerTests <- testSpec "Swagger test" $ TestSwagger.swaggerTest
+  swaggerTests <- testSpec "Swagger test" $ Swagger.swaggerTest
   fclTests <- suite
-  defaultMain $ testGroup "All tests" [
-    swaggerTests,
-    fclTests]
+  defaultMain $ testGroup "All tests"
+    [ fclTests
+    , swaggerTests
+    ]

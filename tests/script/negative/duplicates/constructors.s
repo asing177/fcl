@@ -1,3 +1,3 @@
-type T1 { C }
-type T2 { C }
-type T3 { D; E; D }
+type t1 { C }
+type t2 { C }
+type t3 { D; E; D }

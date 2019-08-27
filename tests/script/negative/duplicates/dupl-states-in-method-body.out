@@ -1,8 +1,0 @@
-nope() {
-  transitionTo(@{a, a});
-----------------------^
-}
-
-"<stdin>" (line 2, column 23):
-unexpected ")"
-Duplicate places: a

@@ -51,6 +51,7 @@ dependencies:
   # Quickcheck
   - QuickCheck
   - quickcheck-instances
+  - generic-random
 
   # Http
   - wai
@@ -58,6 +59,7 @@ dependencies:
   - warp
   - servant
   - servant-server
+  - servant-checked-exceptions
   - servant-swagger
   - servant-swagger-ui
   - swagger2
@@ -99,6 +101,7 @@ library:
   - asn1-encoding
 
   ghc-options:
+    -Werror
     -fwarn-tabs
     -fwarn-incomplete-patterns
     -fwarn-incomplete-uni-patterns
@@ -115,6 +118,7 @@ library:
     -fwarn-missing-fields
     -fwarn-missing-methods
     -fwarn-missing-signatures
+    -fwarn-missing-pattern-synonym-signatures
     -fwarn-noncanonical-monad-instances
     -fwarn-unused-imports
     -fwarn-unused-pattern-binds
@@ -129,11 +133,14 @@ library:
     -Wmissing-export-lists
 
   exposed-modules:
+    - Data.List.List2
+
     - Language.FCL.Contract
     - Language.FCL.AST
     - Language.FCL.Delta
     - Language.FCL.Init
     - Language.FCL.Storage
+    - Language.FCL.Debug
     - Language.FCL.Pretty
     - Language.FCL.Error
     - Language.FCL.Eval
@@ -148,7 +155,11 @@ library:
     - Language.FCL.Undefinedness
     - Language.FCL.Effect
     - Language.FCL.WorkflowNet
-    - Language.FCL.ReachabilityGraph
+    - Language.FCL.Reachability.Definitions
+    - Language.FCL.Reachability.General
+    - Language.FCL.Reachability.Utils
+    - Language.FCL.Reachability.SplitAndMerge
+    - Language.FCL.Reachability.StructuredTransition
     - Language.FCL.Analysis
     - Language.FCL.Graphviz
     - Language.FCL.Hash
@@ -157,9 +168,6 @@ library:
     - Language.FCL.Encoding
     - Language.FCL.Metadata
     - Language.FCL.Asset
-    - Language.FCL.SafeString
-    - Language.FCL.SafeInteger
-    - Language.FCL.Unsafe
     - Language.FCL.Utils
     - Language.FCL.Time
     - Language.FCL.World
@@ -195,8 +203,6 @@ executables:
     - -with-rtsopts=-N
     dependencies:
     - fcl
-    - wai-logger
-    - scotty
 
 tests:
   fcl-test:
@@ -222,3 +228,5 @@ tests:
     - warp
     - quickcheck-instances
     - aeson-pretty
+    - mtl
+    - monad-gen

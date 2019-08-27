@@ -1,8 +1,8 @@
 // not ok
-type T1 { C(int f, int f) }
+type t1 { C(int f, int f) }
 
 // ok
-type T2 {
+type t2 {
   D(int g);
   E(int g);
 }

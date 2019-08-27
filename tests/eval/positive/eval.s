@@ -1,19 +1,19 @@
-decimal<1> m = 1.5;
-decimal<5> n = 10.00000;
-num w = 4.5;
-int x = 5;
-int y = 2;
-int z = 3;
-bool t = true;
-bool f = true;
+global decimal<1> m = 1.5;
+global decimal<5> n = 10.00000;
+global num w = 4.5;
+global int x = 5;
+global int y = 2;
+global int z = 3;
+global bool t = true;
+global bool f = true;
 
-asset<bool> a = a'H1tbrEKWGpbPjSeG856kz2DjViCwMU3qTw3i1PqCLz65';
-account b = u'H1tbrEKWGpbPjSeG856kz2DjViCwMU3qTw3i1PqCLz65';
+global asset<bool> a = a'H1tbrEKWGpbPjSeG856kz2DjViCwMU3qTw3i1PqCLz65';
+global account b = u'H1tbrEKWGpbPjSeG856kz2DjViCwMU3qTw3i1PqCLz65';
 
-timedelta td = 1y1mo1d1h1m1s;
-datetime dt_future;
-datetime dt_past;
-timedelta future_past_diff;
+global timedelta td = 1y1mo1d1h1m1s;
+global datetime dt_future;
+global datetime dt_past;
+global timedelta future_past_diff;
 
 transition initial -> terminal;
 

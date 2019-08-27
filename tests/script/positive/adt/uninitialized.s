@@ -1,9 +1,9 @@
-type Direction { Left; Right }
+type direction { Left; Right }
 
 global int i;
 
 @initial
-start(Direction dir) {
+start(direction dir) {
   case(dir) {
     Left -> { i = 10; transitionTo(:assigned); };
     Right -> transitionTo(:unassigned);
@@ -22,7 +22,7 @@ assignedStop() {
 }
 
 @unassigned
-assign(Direction dir) {
+assign(direction dir) {
   case(dir) {
     Left -> { i = 10; transitionTo(:assigned); };
     Right -> transitionTo(:unassigned);

@@ -58,7 +58,6 @@ module Language.FCL.AST (
   Place(..),
   Transition(..),
   WorkflowState(..),
-  places,
   unsafeWorkflowState,
   makePlace,
   makeWorkflowState,
@@ -107,6 +106,8 @@ import Protolude hiding (put, get, (<>), show, Show, putByteString, Type)
 import Prelude (show, Show(..))
 import Test.QuickCheck hiding (listOf)
 import qualified Test.QuickCheck as Q
+import Test.QuickCheck.Instances.Text ()
+import Generic.Random
 import Control.Monad (fail)
 
 import Numeric.Lossless.Number
@@ -117,8 +118,6 @@ import qualified Language.FCL.Token as Token
 import qualified Language.FCL.Hash as Hash
 import qualified Data.Text as T
 import qualified Datetime.Types as DT
-import qualified Data.Hourglass as DH
-import qualified Data.Time.Calendar as DC
 
 import Data.Aeson as A hiding (Value)
 import qualified Data.Binary as B
@@ -130,9 +129,6 @@ import Data.Serialize (Serialize(..), putInt8, getInt8)
 import Data.Serialize.Text()
 
 import Language.FCL.Address
-import Language.FCL.Utils (duplicates)
-import Language.FCL.SafeString
-import Language.FCL.SafeInteger
 import Language.FCL.Orphans ()
 
 -------------------------------------------------------------------------------
@@ -195,7 +191,7 @@ instance FromJSON ADTConstr where
 
 -- | Variable names
 newtype Name = Name { unName :: Text }
-  deriving (Eq, Show, Ord, Generic, B.Binary, Serialize, FromJSONKey, ToJSONKey, Hash.Hashable)
+  deriving (Eq, Show, Ord, Generic, B.Binary, Serialize, FromJSONKey, ToJSONKey, Hash.Hashable, NFData)
 
 instance ToJSON Name where
   toJSON (Name nm) = toJSON nm
@@ -307,7 +303,7 @@ data BinOp
   | Lesser  -- ^ Lesser
   | Greater -- ^ Greater
   | RecordAccess -- ^ Record access, e.g. @expr.field@
-  deriving (Eq, Ord, Show, Generic, Hash.Hashable)
+  deriving (Eq, Ord, Show, Generic, Hash.Hashable, Bounded, Enum)
 
 instance ToJSON BinOp where
   toJSON = genericToJSON (defaultOptions { sumEncoding = ObjectWithSingleField })
@@ -317,7 +313,7 @@ instance FromJSON BinOp where
 
 -- | Unary operators
 data UnOp = Not -- ^ Logical negation
-  deriving (Eq, Ord, Show, Generic, Hash.Hashable)
+  deriving (Eq, Ord, Show, Generic, Hash.Hashable, Bounded, Enum)
 
 instance ToJSON UnOp where
   toJSON _ = "Not"
@@ -333,8 +329,8 @@ data Lit
   | LAccount   (Address AAccount)
   | LAsset     (Address AAsset)
   | LContract  (Address AContract)
-  | LText       SafeString
-  | LSig       (SafeInteger, SafeInteger)
+  | LText      Text
+  | LSig       (Integer, Integer)
   | LDateTime  DateTime
   | LTimeDelta TimeDelta
   -- | LConstr    Name
@@ -353,8 +349,8 @@ data Value
   | VAccount (Address AAccount)    -- ^ Account Address
   | VAsset (Address AAsset)        -- ^ Asset Address
   | VContract (Address AContract)  -- ^ Contract Address
-  | VText SafeString                -- ^ Msgs (ASCII)
-  | VSig (SafeInteger, SafeInteger) -- ^ ESDSA Sig
+  | VText Text                     -- ^ Msgs (ASCII)
+  | VSig (Integer, Integer)        -- ^ ESDSA Sig
   | VVoid                          -- ^ Void
   | VDateTime DateTime             -- ^ A datetime with a timezone
   | VTimeDelta TimeDelta           -- ^ A difference in time
@@ -364,6 +360,16 @@ data Value
   | VUndefined                     -- ^ Undefined
   | VConstr NameUpper [Value]      -- ^ Constructor
   deriving (Eq, Ord, Show, Generic, Serialize, Hash.Hashable)
+
+instance ToJSONKey Value where
+
+instance ToJSON Value where
+  toJSON = genericToJSON (defaultOptions { sumEncoding = ObjectWithSingleField })
+
+instance FromJSON Value where
+  parseJSON = genericParseJSON (defaultOptions { sumEncoding = ObjectWithSingleField })
+
+instance FromJSONKey Value where
 
 -- | Type variables used in inference
 data TVar
@@ -384,6 +390,9 @@ data TCollection
   = TMap Type Type  -- ^ Type of FCL Maps
   | TSet Type       -- ^ Type of FCL Sets
   deriving (Eq, Ord, Show, Generic, Serialize, FromJSON, ToJSON, Hash.Hashable)
+
+instance Arbitrary TCollection where
+  arbitrary = genericArbitraryU
 
 -- | The required numeric precision @p@ to ensure non-lossy arithmetic. This is
 -- tracked in the type of numbers, @TNum p@.
@@ -434,7 +443,7 @@ data Type
   | TDateTime       -- ^ DateTime with Timezone
   | TTimeDelta      -- ^ Type of difference in time
   | TState          -- ^ Contract state
-  | TADT NameUpper -- ^ Algebraic data type
+  | TADT Name       -- ^ User-declared algebraic data type
   | TFun [Type] Type -- ^ Type signature of helper functions--argument types and return type
   | TColl TCollection -- ^ Type of collection values
   | TTransition     -- ^ Transition type
@@ -529,7 +538,7 @@ instance FromJSON Helper where
 
 -- | ADT
 data ADTDef = ADTDef
-  { adtName :: LNameUpper
+  { adtName :: LName
   , adtConstrs :: NonEmpty ADTConstr
   } deriving (Eq, Ord, Show, Generic, Hash.Hashable)
 
@@ -672,8 +681,8 @@ mapType einfo   (VSet vset)   =
 
 -- | Associations between type- and value-constructors
 data ADTInfo = ADTInfo
-  { constructorToType :: Map NameUpper (LNameUpper, [(LName, Type)])
-  , adtToConstrsAndFields :: Map NameUpper (NonEmpty ADTConstr, [(Name, Type)])
+  { constructorToType :: Map NameUpper (LName, [(LName, Type)])
+  , adtToConstrsAndFields :: Map Name (NonEmpty ADTConstr, [(Name, Type)])
   }
 
 -------------------------------------------------------------------------------
@@ -985,7 +994,7 @@ data Place
   = PlaceStart
   | Place { placeName :: Name }
   | PlaceEnd
-  deriving (Eq, Ord, Show, Generic, Serialize, FromJSONKey, ToJSONKey, Hash.Hashable)
+  deriving (Eq, Ord, Show, Generic, Serialize, FromJSONKey, ToJSONKey, Hash.Hashable, NFData)
 
 instance ToJSON Place where
   toJSON = genericToJSON (defaultOptions { sumEncoding = ObjectWithSingleField })
@@ -1010,7 +1019,13 @@ startState = WorkflowState $ Set.singleton PlaceStart
 endState = WorkflowState $ Set.singleton PlaceEnd
 
 newtype WorkflowState = WorkflowState { places :: Set Place }
-  deriving (Eq, Ord, Show, Generic, Serialize, Hash.Hashable)
+  deriving (Eq, Ord, Show, Generic, Serialize, Hash.Hashable, NFData)
+
+instance Semigroup WorkflowState where
+  (<>) (WorkflowState xs) (WorkflowState ys) = WorkflowState (xs <> ys)
+
+instance Monoid WorkflowState where
+  mempty = WorkflowState mempty
 
 instance Pretty WorkflowState where
   ppr (Set.toList . places -> [p]) = ppr p
@@ -1027,7 +1042,7 @@ instance FromJSON WorkflowState where
 
 data Transition
   = Arrow WorkflowState WorkflowState
-  deriving (Eq, Ord, Show, Generic, Serialize, Hash.Hashable)
+  deriving (Eq, Ord, Show, Generic, Serialize, Hash.Hashable, NFData)
 
 instance ToJSON Transition where
   toJSON = genericToJSON (defaultOptions { sumEncoding = ObjectWithSingleField })
@@ -1052,12 +1067,8 @@ isSubWorkflow (WorkflowState w1) (WorkflowState w2) = w1 `Set.isSubsetOf` w2
     liftWF op (WorkflowState w1) (WorkflowState w2) = WorkflowState $ w1 `op` w2
 
 
-makeWorkflowState :: [Name] -> Either Doc WorkflowState
-makeWorkflowState names
-  | null dups = Right . WorkflowState . Set.fromList $ map makePlace names
-  | otherwise = Left $ "Duplicate places:" <+> (hcat . map ppr) dups
-  where
-    dups = duplicates names
+makeWorkflowState :: [Name] -> WorkflowState
+makeWorkflowState = WorkflowState . Set.fromList . map makePlace
 
 -- | Doesn't check if workflow state is valid
 unsafeWorkflowState :: Set Place -> WorkflowState
@@ -1066,27 +1077,6 @@ unsafeWorkflowState = WorkflowState
 ---------------
 -- Arbitrary --
 ---------------
-
-instance Arbitrary DT.Datetime where
-  arbitrary = DT.posixToDatetime <$> choose (1, 32503680000) -- (01/01/1970, 01/01/3000)
-
-instance Arbitrary DT.Period where
-  arbitrary = do
-    year <- choose (0,1000)
-    month <- choose (0,12)
-    let monthNumDays = DC.gregorianMonthLength (fromIntegral year) month
-    day <- choose (0, monthNumDays)
-    pure $ DT.Period $ DH.Period year month day
-
-instance Arbitrary DT.Duration where
-  arbitrary = fmap DT.Duration $ DH.Duration
-    <$> (fmap DH.Hours $ choose (0,23))
-    <*> (fmap DH.Minutes $ choose (0,59))
-    <*> (fmap DH.Seconds $ choose (0,59))
-    <*> pure 0
-
-instance Arbitrary DT.Delta where
-  arbitrary = DT.Delta <$> arbitrary <*> arbitrary
 
 arbValue :: Int -> Gen Value
 arbValue n
@@ -1154,24 +1144,8 @@ instance Arbitrary a => Arbitrary (Located a) where
 addLoc :: Gen a -> Gen (Located a)
 addLoc g = Located <$> arbitrary <*> g
 
-instance Arbitrary BinOp where
-  arbitrary = elements
-    [ Add
-    , Sub
-    , Mul
-    , Div
-    , And
-    , Or
-    , Equal
-    , NEqual
-    , LEqual
-    , GEqual
-    , Lesser
-    , Greater
-    ]
-
 instance Arbitrary UnOp where
-  arbitrary = pure Not
+  arbitrary = arbitraryBoundedEnum
 
 instance Arbitrary Lit where
   -- Missing literals:
@@ -1187,6 +1161,8 @@ instance Arbitrary Lit where
     , LAccount  <$> arbitrary
     , LAsset    <$> arbitrary
     , LContract <$> arbitrary
+    , LDateTime <$> arbitrary
+    -- , LTimeDelta <$> arbitrary
     ]
 
 instance Arbitrary Type where
@@ -1214,10 +1190,14 @@ instance Arbitrary Arg where
   arbitrary = Arg <$> arbitrary <*> arbitrary
 
 instance Arbitrary Preconditions where
-  arbitrary = Preconditions <$> arbSmallList
+  arbitrary = do
+    exprs <- infiniteListOf (Located NoLoc <$> arbNonSeqExpr 0)
+    precs <- infiniteListOf arbitrary
+    n <- choose (0, 3)
+    pure . Preconditions . take n $ zip precs exprs
 
 instance Arbitrary Precondition where
-  arbitrary = oneof [ pure PrecAfter, pure PrecBefore, pure PrecRoles ]
+  arbitrary = elements [ PrecAfter, PrecBefore, PrecRoles ]
 
 instance Arbitrary Method where
   arbitrary = Method <$> arbitrary <*> arbitrary <*> arbitrary <*> arbSmallList <*> sized arbLExpr
@@ -1245,10 +1225,18 @@ instance Arbitrary Script where
       <*> arbSmallList
       <*> arbSmallList
 
+  shrink = genericShrink
+
 instance Arbitrary Expr where
   arbitrary = do
     n <- choose ((-5), 5)
     arbNonSeqExpr n
+
+instance Arbitrary Pattern where
+  arbitrary = genericArbitraryU
+
+instance Arbitrary BinOp where
+  arbitrary = genericArbitraryU
 
 arbNumLogicExpr :: Int -> Gen Expr
 arbNumLogicExpr n
@@ -1259,7 +1247,7 @@ arbNumLogicExpr n
             , LBool <$> arbitrary
             ]
   | otherwise = let n' = n `div` 2 in oneof
-      [ EBinOp <$> arbitrary
+      [ EBinOp <$> addLoc (elements (enumFromTo Add Greater)) -- exclude RecordAccess
                <*> addLoc (arbNumLogicExpr n')
                <*> addLoc (arbNumLogicExpr n')
       , EUnOp <$> arbitrary <*> addLoc (arbNumLogicExpr n')
@@ -1287,6 +1275,9 @@ arbNonSeqExpr n
                  <*> addLoc (arbNonSeqExpr n')
                  <*> arbLExpr n'
       , ECase <$> addLoc (arbNonSeqExpr n') <*> arbMatches n'
+      , EBinOp <$> addLoc (pure RecordAccess)
+               <*> addLoc (EVar <$> arbitrary)
+               <*> addLoc (EVar <$> arbitrary)
       , arbNumLogicExpr n
       ]
 
@@ -1301,7 +1292,7 @@ arbLExpr n = oneof . map addLoc $
   [ arbNonSeqExpr n, arbSeqExpr n ]
 
 arbSmallList :: Arbitrary a => Gen [a]
-arbSmallList = arbitrary `suchThat` (\x -> length x < 10)
+arbSmallList = arbitrary `suchThat` (\x -> length x < 5)
 
 arbTake :: Int -> Gen [a] -> Gen [a]
 arbTake n arb = arb `suchThat` (\x -> length x < n)

@@ -8,7 +8,7 @@
 fromList
   [ ( Key { unKey = "bob" }
     , VConstr
-        (MkNameUpper "Pers")
+        (MkNameUpper "Person")
         [ VText "bob"
         , VConstr
             (MkNameUpper "Addr")

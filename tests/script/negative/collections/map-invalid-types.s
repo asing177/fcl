@@ -18,7 +18,7 @@ deleteTest(asset<decimal<5>> a) {
 }
 
 @initial
-lookupTest(msg m) {
+lookupTest(text m) {
   v = lookup(m,shares);
   terminate();
 }

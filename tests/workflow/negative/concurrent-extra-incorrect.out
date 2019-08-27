@@ -1,0 +1,11 @@
+Workflow soundness errors:
+• Improper completion. Applying 'transition {final} -> {terminal}' to state '{doneBob
+                                                                             ,final}' would result in the new state '{doneBob
+                                                                                                                     ,terminal}' where the terminal place is reached while other places are still active.
+• Improper completion. Applying 'transition {final} -> {terminal}' to state '{final
+                                                                             ,todoBob1}' would result in the new state '{todoBob1
+                                                                                                                        ,terminal}' where the terminal place is reached while other places are still active.
+• Improper completion. Applying 'transition {final} -> {terminal}' to state '{final
+                                                                             ,todoBob2}' would result in the new state '{todoBob2
+                                                                                                                        ,terminal}' where the terminal place is reached while other places are still active.
+• Dead-end state: '{doneBob,final}'.

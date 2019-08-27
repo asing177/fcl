@@ -1,9 +1,9 @@
-decimal<2> principle;
-decimal<2> interest_rate;
-asset<decimal<2>> currency;
-account borrower;
-account lender;
-text loan_contract;
+global decimal<2> principle;
+global decimal<2> interest_rate;
+global asset<decimal<2>> currency;
+global account borrower;
+global account lender;
+global text loan_contract;
 
 @initial
 propose_contract(decimal<2> principle_arg, asset<decimal<2>> currency_arg, account borrower_arg, account lender_arg, decimal<2> interest_rate_arg){

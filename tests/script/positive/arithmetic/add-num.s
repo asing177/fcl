@@ -1,5 +1,5 @@
-decimal<2> m = 0.01;
-num      n = 1/3;
+global decimal<2> m = 0.01;
+global num        n = 1/3;
 
 @initial
 init() {

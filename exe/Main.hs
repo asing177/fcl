@@ -3,7 +3,9 @@ module Main where
 import qualified Data.Aeson.Encode.Pretty as A
 import Options.Applicative
 import Protolude
+import qualified Language.FCL.Reachability.General as Reachability (completeReachabilityGraph, pprReachabilityGraph)
 import qualified Language.FCL.Analysis as Analysis (inferTransitions)
+import qualified Language.FCL.Undefinedness as Undefinedness (undefinednessAnalysis)
 import qualified Language.FCL.Compile as Compile
 import qualified Language.FCL.Graphviz as Graphviz
 import qualified Language.FCL.Parser as Parser (parseFile)
@@ -11,12 +13,16 @@ import qualified Language.FCL.Pretty            as Pretty
 import qualified Language.FCL.Utils as Utils
 import qualified System.Exit
 
+import qualified Data.Set as S
+
 data ScriptCommand
   = CompileScript { file :: FilePath }
   | Lint { file :: FilePath }
   | Format { file :: FilePath }
   | Graph { file :: FilePath }
   | Transitions { file :: FilePath }
+  | ReachabilityGraph { file :: FilePath }
+  | UndefinednessAnalysis { file :: FilePath }
   deriving (Eq, Ord, Show)
 
 -------------------------------------------------------------------------------
@@ -30,6 +36,8 @@ scriptParser =
   <|> scriptLint
   <|> scriptGraph
   <|> scriptTransitions
+  <|> scriptReachabilityGraph
+  <|> scriptUndefinednessAnalysis
 
 scriptFormat :: Parser ScriptCommand
 scriptFormat = subparser $ command "format"
@@ -79,6 +87,22 @@ scriptTransitions = subparser $ command "transitions"
     scriptParser' :: Parser ScriptCommand
     scriptParser' = Transitions <$> fileParser
 
+scriptReachabilityGraph :: Parser ScriptCommand
+scriptReachabilityGraph = subparser $ command "reachability"
+    (info (helper <*> scriptParser')
+    (progDesc "Calculate the reachabality graph"))
+  where
+    scriptParser' :: Parser ScriptCommand
+    scriptParser' = ReachabilityGraph <$> fileParser
+
+scriptUndefinednessAnalysis :: Parser ScriptCommand
+scriptUndefinednessAnalysis = subparser $ command "undefinedness"
+    (info (helper <*> scriptParser')
+    (progDesc "Run the undefinedness analysis"))
+  where
+    scriptParser' :: Parser ScriptCommand
+    scriptParser' = UndefinednessAnalysis <$> fileParser
+
 --------------------------------------------
 -- Parser Utils
 --------------------------------------------
@@ -105,7 +129,7 @@ driverScript cmd
     Format scriptFile -> do
       res <- Compile.formatScript scriptFile
       case res of
-        Left err -> putStrLn err
+        Left err -> die err
         Right script -> putStrLn script
 
     -- graph
@@ -115,7 +139,7 @@ driverScript cmd
     -- compile
     CompileScript scriptFile -> do
       Compile.compileFile scriptFile >>= \case
-        Left err -> putText err
+        Left err -> die err
         Right checked -> do
           putText . Pretty.prettyPrint $ checked
 
@@ -129,8 +153,28 @@ driverScript cmd
       putText ""
       case errs of
         [] -> Utils.putGreen $ Pretty.prettyPrint errs
-        (_:_) -> Utils.putRed $ Pretty.prettyPrint errs -- don't fail
+        (_:_) -> die $ Pretty.prettyPrint errs
 
+    ReachabilityGraph scriptFile -> do
+      ast <- Parser.parseFile scriptFile
+      let transitions = S.fromList $ Analysis.inferTransitions ast
+          (errSet, rGraph) = Reachability.completeReachabilityGraph transitions
+          errs = S.toList errSet
+      putText "Reachability graph of the workflow net:"
+      putText ""
+      putText $ show $ Reachability.pprReachabilityGraph rGraph
+      putText ""
+      case errs of
+        [] -> Utils.putGreen $ Pretty.prettyPrint errs
+        (_:_) -> die $ Pretty.prettyPrint errs
+
+    UndefinednessAnalysis scriptFile -> do
+      ast <- Parser.parseFile scriptFile
+      let undefRes = Undefinedness.undefinednessAnalysis ast
+      case undefRes of
+        Right _ -> Utils.putGreen "The workflow has no undefinedness errors."
+        Left invalidStackTraces -> do
+          die $ show $ Pretty.ppr invalidStackTraces
 
 
 -------------------------------------------------------------------------------

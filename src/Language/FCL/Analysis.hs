@@ -7,6 +7,10 @@ module Language.FCL.Analysis (
   inferMethodsTransitions,
   inferMethodTransitions,
   inferTransitions,
+  inferStaticWorkflowStates,
+  inferMethodWorkflowStates,
+  inferMethodsWorkflowStates,
+  inferScriptWorkflowStates
 ) where
 
 import Protolude hiding ((<>))
@@ -57,6 +61,29 @@ instance Pretty TransitionErrors where
         : map (("•" <+>) . ppr) errs)
         <$$> "\nInferred Transitions:\n"
         <$$> ppr inferred
+
+-- | Given an FCL script, determines the static workflow states of it.
+inferScriptWorkflowStates :: Script -> Set WorkflowState
+inferScriptWorkflowStates = inferStaticWorkflowStates
+                          . inferTransitions
+
+-- | Given a list of methods, determines the static workflow states associated with them.
+inferMethodsWorkflowStates :: [Method] -> Set WorkflowState
+inferMethodsWorkflowStates = foldMap inferMethodWorkflowStates
+
+-- | Given a method, determines the static workflow states associated with   it.
+inferMethodWorkflowStates :: Method -> Set WorkflowState
+inferMethodWorkflowStates = inferStaticWorkflowStates
+                          . map snd
+                          . inferMethodTransitions
+
+-- | Collects the input and output states of each transition.
+-- We cal these the static states of the workflow.
+inferStaticWorkflowStates :: [Transition] -> Set WorkflowState
+inferStaticWorkflowStates = foldMap transitionStates where
+
+  transitionStates :: Transition -> Set WorkflowState
+  transitionStates (Arrow lhs rhs) = Set.fromList [lhs, rhs]
 
 -- | Infer a Script's transitions and if any transitions are declared expicitly,
 -- check that they are equal, otherwise just return the script with the inferred

@@ -82,9 +82,8 @@ import Numeric.Lossless.Number
 import Language.FCL.AST hiding (mapType)
 import Language.FCL.Address
 import Language.FCL.Lexer as Lexer
-import Language.FCL.Pretty hiding (parens)
+import Language.FCL.Pretty hiding (parens, comma)
 import Language.FCL.Prim (lookupPrim, PrimOp)
-import Language.FCL.SafeString (fromBytes')
 import qualified Language.FCL.Token as Token
 import qualified Datetime.Types as DT
 
@@ -266,7 +265,7 @@ timedeltaLit :: Parser Lit
 timedeltaLit = LTimeDelta <$> timedeltaParser
 
 textLit :: Parser Lit
-textLit = LText . fromBytes' . BS8.pack <$> rawTextLit
+textLit = LText . toS . BS8.pack <$> rawTextLit
  <?> "text"
 
 stateLit :: Parser Lit
@@ -303,8 +302,8 @@ type_ =  intType
      <|> textType
      <|> dateType
      <|> timedeltaType
-     <|> adtType
      <|> collectionType
+     <|> adtType
      <?> "type"
 
 intType :: Parser Type
@@ -351,7 +350,7 @@ timedeltaType :: Parser Type
 timedeltaType = TTimeDelta <$ try (reserved Token.timedelta)
 
 adtType :: Parser Type
-adtType = TADT <$> Lexer.nameUpper
+adtType = TADT <$> Lexer.name
 
 collectionType :: Parser Type
 collectionType =
@@ -376,29 +375,18 @@ setType = do
 -------------------------------------------------------------------------------
 
 def :: Parser Def
-def = try globalDef
-  <|> globalDefNull
-  <?> "definition"
-
-globalDef :: Parser Def
-globalDef = do
-  optional (reserved Token.global <|> reserved Token.local)
-  typ <- type_
-  precs <- preconditions <|> pure (mempty @Preconditions)
-  id <- name
-  reservedOp Token.assign
-  lexpr <- expr
-  return $ GlobalDef typ precs id lexpr
- <?> "global definition"
-
-globalDefNull :: Parser Def
-globalDefNull = do
-  optional (reserved Token.global <|> reserved Token.local)
-  typ <- type_
-  precs <- preconditions <|> pure (mempty @Preconditions)
-  Located loc id <- locName
-  return $ GlobalDefNull typ precs (Located loc id)
- <?> "global definition"
+def = do
+    _ <- try (reserved Token.global <|> reserved Token.local)
+    typ <- type_
+    precs <- preconditions <|> pure (mempty @Preconditions)
+    Located loc id <- locName
+    let
+      initDef = do
+        reservedOp Token.assign
+        lexpr <- expr
+        pure $ GlobalDef typ precs id lexpr
+      nullDef = pure $ GlobalDefNull typ precs (Located loc id)
+    initDef <|> nullDef
 
 -------------------------------------------------------------------------------
 -- Methods & Helper Functions
@@ -663,16 +651,12 @@ workflowPlaces :: Parser WorkflowState
 workflowPlaces
   =   reserved Token.initial *> pure startState
   <|> reserved Token.terminal *> pure endState
-  <|> do
-    places <- (pure <$> Lexer.name) <|> braces (commaSep1 Lexer.name)
-    case makeWorkflowState places of
-      Right wfst -> pure wfst
-      Left err -> parserFail $ show err
+  <|> makeWorkflowState <$> ((pure <$> Lexer.name) <|> braces (commaSep1 Lexer.name))
   <?> "workflow state"
 
 transition :: Parser Transition
 transition = do
-  reserved Token.transition
+  _ <- try $ reserved Token.transition
   Arrow <$> (workflowPlaces <* symbol Token.rarrow) <*> workflowPlaces
   <?> "transition"
 
@@ -682,8 +666,10 @@ transition = do
 
 adtDef :: Parser ADTDef
 adtDef = do
-    _ <- (reserved Token.type_ <|> reserved Token.enum)
-    tyName <- Lexer.locNameUpper
+    _ <- try (reserved Token.type_ <|> reserved Token.enum)
+    tyName <- Lexer.locName
+    -- when (locVal tyName `elem` Token.keywords)
+    --   (parserFail )
     _ <- symbol Token.lbrace
     constructors <- nonEmptyUnsafe (constructor `sepEndBy1` semi)
     _ <- symbol Token.rbrace
@@ -706,8 +692,8 @@ adtDef = do
 script :: Parser Script
 script = do
   adts <- many adtDef
-  defns <- endBy def semi
-  graph <- endBy transition semi
+  defns <- def `endBy` semi
+  graph <- transition `endBy` semi
   methods <- many method
   helpers <- many helper
   return $ Script adts defns graph methods helpers

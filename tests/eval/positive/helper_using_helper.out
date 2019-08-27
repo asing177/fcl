@@ -1,11 +1,14 @@
 *** Deltas ***
-[ ModifyState WorkflowState { places = fromList [ PlaceEnd ] }
+[ ModifyGlobal
+    Name { unName = "someBit" } (VConstr (MkNameUpper "O") [])
+, ModifyState WorkflowState { places = fromList [ PlaceEnd ] }
 , Terminate
 ]
 
 *** Globals ***
 fromList
-  [ ( Key { unKey = "testAddr" }
+  [ ( Key { unKey = "someBit" } , VConstr (MkNameUpper "O") [] )
+  , ( Key { unKey = "testAddr" }
     , VAccount (Address "fwBVDsVh8SYQy98CzYpNPcbyTRczVUZ96HszhNRB8Ve")
     )
   , ( Key { unKey = "testAddr2" }

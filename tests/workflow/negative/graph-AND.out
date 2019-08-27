@@ -1,0 +1,13 @@
+Workflow soundness errors:
+• One-boundedness violation. Applying transition 'transition {xIsSet} -> {eitherSet}' to state '{eitherSet
+                                                                                                ,xIsSet}' would result in an illegal state where the following place occurs more than once: 'eitherSet'.
+• One-boundedness violation. Applying transition 'transition {yIsSet} -> {eitherSet}' to state '{eitherSet
+                                                                                                ,yIsSet}' would result in an illegal state where the following place occurs more than once: 'eitherSet'.
+• Improper completion. Applying 'transition {eitherSet} -> {terminal}' to state '{eitherSet
+                                                                                 ,xIsSet}' would result in the new state '{xIsSet
+                                                                                                                          ,terminal}' where the terminal place is reached while other places are still active.
+• Improper completion. Applying 'transition {eitherSet} -> {terminal}' to state '{eitherSet
+                                                                                 ,yIsSet}' would result in the new state '{yIsSet
+                                                                                                                          ,terminal}' where the terminal place is reached while other places are still active.
+• Dead-end state: '{eitherSet,xIsSet}'.
+• Dead-end state: '{eitherSet,yIsSet}'.

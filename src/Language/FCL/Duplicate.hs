@@ -41,7 +41,7 @@ data DuplicateError
   | DuplicateFunction LName
   | DuplicateConstructor ADTConstr
   | DuplicateField LName
-  | DuplicateADTDef LNameUpper
+  | DuplicateADTDef LName
   | DuplicateVariable VarSrc VarSrc LName
   | DuplicateTransition Transition
   | DuplicatePrecondition (Precondition, LExpr)

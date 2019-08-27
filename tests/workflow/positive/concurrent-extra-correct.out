@@ -1,0 +1,11 @@
+ 
+Method arguments and effects:
+requestValues: () -> {}
+alternativeAlice: () -> {}
+shorterCut: () -> {}
+shortCut: () -> {}
+setValueAlice: (int) -> {}
+setValueBob1: (int) -> {}
+setValueBob2: (int) -> {}
+calculateTotal: () -> {}
+finish: () -> {write via terminate}

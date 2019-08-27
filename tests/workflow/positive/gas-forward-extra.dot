@@ -1,0 +1,56 @@
+digraph workflow {
+edge [color="#000000"]
+graph [bgcolor=transparent]
+
+
+initial [shape=point; width=0.3; style=filled; color="#0e64ce"; label=""]
+discrepancy [shape=ellipse; fontname="Arial"; fontsize=16; style=filled; color=black; fillcolor=white;]
+matching [shape=ellipse; fontname="Arial"; fontsize=16; style=filled; color=black; fillcolor=white;]
+nomination [shape=ellipse; fontname="Arial"; fontsize=16; style=filled; color=black; fillcolor=white;]
+ppaPeriod [shape=ellipse; fontname="Arial"; fontsize=16; style=filled; color=black; fillcolor=white;]
+preVolActualisation [shape=ellipse; fontname="Arial"; fontsize=16; style=filled; color=black; fillcolor=white;]
+priceActualisation [shape=ellipse; fontname="Arial"; fontsize=16; style=filled; color=black; fillcolor=white;]
+priceActualisationDone [shape=ellipse; fontname="Arial"; fontsize=16; style=filled; color=black; fillcolor=white;]
+volActualisation [shape=ellipse; fontname="Arial"; fontsize=16; style=filled; color=black; fillcolor=white;]
+volActualisationDone [shape=ellipse; fontname="Arial"; fontsize=16; style=filled; color=black; fillcolor=white;]
+terminal [shape=point; width=0.3; peripheries=2; style=filled; color="#d11010"; label=""]
+
+1[label=<<FONT POINT-SIZE="16">propose</FONT><FONT POINT-SIZE="10" COLOR="blue"> <BR/>roles: seller</FONT>>shape=box; fontname="Arial"; style=filled; color=black; fillcolor=gray75;]
+2[label=<<FONT POINT-SIZE="16">match</FONT><FONT POINT-SIZE="10" COLOR="blue"> <BR/>before: deliveryStartDate<BR/>roles: buyer</FONT>>shape=box; fontname="Arial"; style=filled; color=black; fillcolor=gray75;]
+3[label=<<FONT POINT-SIZE="16">match</FONT><FONT POINT-SIZE="10" COLOR="blue"> <BR/>before: deliveryStartDate<BR/>roles: buyer</FONT>>shape=box; fontname="Arial"; style=filled; color=black; fillcolor=gray75;]
+4[label=<<FONT POINT-SIZE="16">endDuringMatching</FONT><FONT POINT-SIZE="10" COLOR="blue"> <BR/>after: deliveryStartDate</FONT>>shape=box; fontname="Arial"; style=filled; color=black; fillcolor=gray75;]
+5[label=<<FONT POINT-SIZE="16">resolve</FONT><FONT POINT-SIZE="10" COLOR="blue"> <BR/>before: deliveryStartDate<BR/>roles: seller</FONT>>shape=box; fontname="Arial"; style=filled; color=black; fillcolor=gray75;]
+6[label=<<FONT POINT-SIZE="16">resolve</FONT><FONT POINT-SIZE="10" COLOR="blue"> <BR/>before: deliveryStartDate<BR/>roles: seller</FONT>>shape=box; fontname="Arial"; style=filled; color=black; fillcolor=gray75;]
+7[label=<<FONT POINT-SIZE="16">endDuringDiscrepancy</FONT><FONT POINT-SIZE="10" COLOR="blue"> <BR/>after: deliveryStartDate</FONT>>shape=box; fontname="Arial"; style=filled; color=black; fillcolor=gray75;]
+8[label=<<FONT POINT-SIZE="16">nominate</FONT><FONT POINT-SIZE="10" COLOR="blue"> <BR/>roles: seller</FONT>>shape=box; fontname="Arial"; style=filled; color=black; fillcolor=gray75;]
+9[label=<<FONT POINT-SIZE="16">nominate</FONT><FONT POINT-SIZE="10" COLOR="blue"> <BR/>roles: seller</FONT>>shape=box; fontname="Arial"; style=filled; color=black; fillcolor=gray75;]
+10[label=<<FONT POINT-SIZE="16">preTransition</FONT><FONT POINT-SIZE="10" COLOR="blue"> </FONT>>shape=box; fontname="Arial"; style=filled; color=black; fillcolor=gray75;]
+11[label=<<FONT POINT-SIZE="16">actualisevolume</FONT><FONT POINT-SIZE="10" COLOR="blue"> <BR/>roles: pipeline</FONT>>shape=box; fontname="Arial"; style=filled; color=black; fillcolor=gray75;]
+12[label=<<FONT POINT-SIZE="16">actualisevolume</FONT><FONT POINT-SIZE="10" COLOR="blue"> <BR/>roles: pipeline</FONT>>shape=box; fontname="Arial"; style=filled; color=black; fillcolor=gray75;]
+13[label=<<FONT POINT-SIZE="16">actualiseprice</FONT><FONT POINT-SIZE="10" COLOR="blue"> <BR/>roles: admin</FONT>>shape=box; fontname="Arial"; style=filled; color=black; fillcolor=gray75;]
+14[label=<<FONT POINT-SIZE="16">settle</FONT><FONT POINT-SIZE="10" COLOR="blue"> <BR/>roles: buyer</FONT>>shape=box; fontname="Arial"; style=filled; color=black; fillcolor=gray75;]
+15[label=<<FONT POINT-SIZE="16">adjust</FONT><FONT POINT-SIZE="10" COLOR="blue"> <BR/>roles: pipeline</FONT>>shape=box; fontname="Arial"; style=filled; color=black; fillcolor=gray75;]
+16[label=<<FONT POINT-SIZE="16">adjust</FONT><FONT POINT-SIZE="10" COLOR="blue"> <BR/>roles: pipeline</FONT>>shape=box; fontname="Arial"; style=filled; color=black; fillcolor=gray75;]
+
+initial -> 1 ; 1 -> matching
+matching -> 2 ; 2 -> discrepancy
+matching -> 3 ; 3 -> nomination
+matching -> 4 ; 4 -> terminal
+discrepancy -> 5 ; 5 -> discrepancy
+discrepancy -> 6 ; 6 -> nomination
+discrepancy -> 7 ; 7 -> terminal
+nomination -> 8 ; 8 -> nomination
+nomination -> 9 ; 9 -> {preVolActualisation, priceActualisation}
+preVolActualisation -> 10 ; 10 -> volActualisation
+volActualisation -> 11 ; 11 -> preVolActualisation
+volActualisation -> 12 ; 12 -> volActualisationDone
+priceActualisation -> 13 ; 13 -> priceActualisationDone
+{priceActualisationDone, volActualisationDone} -> 14 ; 14 -> ppaPeriod
+ppaPeriod -> 15 ; 15 -> ppaPeriod
+ppaPeriod -> 16 ; 16 -> terminal
+
+{rank=same preVolActualisation priceActualisation}
+{rank=same priceActualisationDone volActualisationDone}
+
+
+}

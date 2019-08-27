@@ -20,6 +20,7 @@ module Language.FCL.Pretty (
   -- ** Leijen.Text exports
   (<>),
   (PP.<+>),
+  (PP.</>),
   (PP.<$$>),
   (PP.<//>),
   PP.dquotes,
@@ -40,8 +41,10 @@ module Language.FCL.Pretty (
   PP.vcat,
   PP.vsep,
   PP.angles,
+  PP.comma,
 
   -- ** Utils
+  (</+>),
   (<$$+>),
   (<$$$>),
   (<$$$+>),
@@ -143,6 +146,9 @@ instance (Pretty a, Pretty b) => Pretty (Map a b) where
 -------------------------------------------------------------------------------
 -- Utils
 -------------------------------------------------------------------------------
+
+(</+>) :: Doc -> Doc -> Doc
+lhs </+> rhs = lhs </> indent 2 rhs
 
 (<$$+>) :: Doc -> Doc -> Doc
 d1 <$$+> d2 = d1 <$$> indent 3 d2

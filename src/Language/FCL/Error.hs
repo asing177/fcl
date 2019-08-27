@@ -16,6 +16,8 @@ module Language.FCL.Error (
 import Protolude hiding (Overflow, Underflow, DivideByZero)
 
 import Data.Serialize (Serialize)
+import Test.QuickCheck
+import Generic.Random
 
 import Language.FCL.Address
 import Language.FCL.Pretty hiding ((<>))
@@ -36,8 +38,6 @@ data EvalFail
   | DivideByZero                        -- ^ Division by zero
   | StatePreconditionError WorkflowState WorkflowState -- ^ Invalid workflow state entry
   | Impossible Text                     -- ^ Internal error
-  | HugeInteger Text                    -- ^ SafeInteger bounds exceeded
-  | HugeString Text                     -- ^ SafeString bounds exceeded
   | NoSuchPrimOp Name                   -- ^ Prim op name lookup fail
   | LookupFail Text                     -- ^ Foldable/Traversable type lookup fail
   | ModifyFail Text                     -- ^ Map modify fail
@@ -49,6 +49,9 @@ data EvalFail
   | PrecNotSatBefore Method DateTime DateTime
   | PrecNotSatCaller Method (Set (Address AAccount)) (Address AAccount)
   deriving (Eq, Show, Generic, Serialize)
+
+instance Arbitrary EvalFail where
+  arbitrary = genericArbitraryU
 
 instance Pretty EvalFail where
   ppr e = case e of
@@ -68,8 +71,6 @@ instance Pretty EvalFail where
                                           <$$+> "Required state is" <+> ppr w1
                                             <+> ", but actual is" <+> ppr w2
     Impossible err                     -> "Internal error:" <+> ppr err
-    HugeInteger err                    -> "SafeInteger bounds exceeded:" <+> ppr err
-    HugeString err                     -> "SafeString bounds exceeded:" <+> ppr err
     NoSuchPrimOp nm                    -> "No such primop:" <+> ppr nm
     LookupFail k                       -> "Lookup fail with key:" <+> ppr k
     ModifyFail k                       -> "Modify map failure, no value with key:" <+> ppr k

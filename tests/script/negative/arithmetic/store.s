@@ -1,5 +1,5 @@
-decimal<2> m = 0.11;
-decimal<1> n;
+global decimal<2> m = 0.11;
+global decimal<1> n;
 
 @initial
 init() {

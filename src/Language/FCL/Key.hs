@@ -8,6 +8,7 @@ Cryptography.
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE BangPatterns #-}
+{-# LANGUAGE TypeApplications #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 {-# OPTIONS_GHC -fno-warn-incomplete-uni-patterns #-}
 
@@ -30,6 +31,7 @@ module Language.FCL.Key (
   signS,
   signWith,
   signSWith,
+  signGen,
   verify,
   InvalidSignature(..),
 
@@ -162,7 +164,8 @@ import qualified Crypto.PubKey.ECC.Types as ECC
 import qualified Crypto.PubKey.ECC.ECDSA as ECDSA
 
 import Crypto.Number.ModArithmetic (inverse)
-import Math.NumberTheory.Moduli (sqrtModP)
+import Math.NumberTheory.Moduli.Sqrt (sqrtsModPrime)
+import Math.NumberTheory.UniqueFactorisation (isPrime)
 
 import Crypto.Cipher.AES (AES256)
 import Crypto.Cipher.TripleDES (DES_EDE3)
@@ -171,7 +174,7 @@ import Crypto.Cipher.Types (Cipher(..), BlockCipher(..), IV, makeIV, blockSize)
 import System.Directory (doesFileExist)
 import System.Posix.Files (setFileMode, ownerReadMode)
 
-import qualified Language.FCL.SafeString as SS
+import Test.QuickCheck hiding (generate)
 import qualified Language.FCL.Hash as Hash
 
 -------------------------------------------------------------------------------
@@ -191,6 +194,14 @@ import qualified Language.FCL.Hash as Hash
 -- > Pub1 + Pub2 = (x1 + x2 (mod n)) G
 newtype PubKey = PubKey ECDSA.PublicKey
   deriving (Show, Eq, Generic)
+
+instance Arbitrary PubKey where
+  arbitrary = arbitrary >>= \(Positive d) ->
+    pure $ fst (new' d)
+
+instance Arbitrary ECDSA.PrivateKey where
+  arbitrary = arbitrary >>= \(Positive d) ->
+    pure $ snd (new' d)
 
 instance Hash.Hashable PubKey where
   toHash  = Hash.toHash . extractPoint
@@ -270,6 +281,21 @@ sign priv msg = do
     Nothing -> sign priv msg
 
     Just sig -> return sig
+  where
+    n = ECC.ecc_n (ECC.common_curve sec_p256k1)
+
+-- | Generate signature in the Gen monad
+signGen
+  :: ECDSA.PrivateKey
+  -> ByteString
+  -> Gen ECDSA.Signature
+signGen priv msg = do
+  k <- arbitrary `suchThat` (\x -> x >= 1 && x <= (n - 1))
+  if validKeypairKPrecondition priv k msg
+    then signGen priv msg
+    else case ECDSA.signWith k priv SHA3_256 msg of
+           Nothing -> signGen priv msg
+           Just sig -> pure sig
   where
     n = ECC.ecc_n (ECC.common_curve sec_p256k1)
 
@@ -653,20 +679,18 @@ decodeKey = S.decode
 
 putSignature :: S.Putter ECDSA.Signature
 putSignature (ECDSA.Signature r s) = do
-    S.put $ safeEncInteger r
+    S.put $ encInteger r
     S.put ':'
-    S.put $ safeEncInteger s
+    S.put $ encInteger s
   where
-    safeEncInteger :: Integer -> SS.SafeString
-    safeEncInteger = SS.fromBytes' . show
+    encInteger :: Integer -> ByteString
+    encInteger = show
 
 getSignature :: S.Get ECDSA.Signature
 getSignature = do
-  rSS <- S.get
+  rBS <- S.get
   _ <- S.get :: S.Get Char
-  sSS <- S.get
-  let rBS = SS.toBytes rSS
-  let sBS = SS.toBytes sSS
+  sBS <- S.get
   let read' = head . reads . BSC.unpack
   let mRS = do
         r' <- read' rBS
@@ -682,6 +706,12 @@ data InvalidSignature
   | SignatureSplittingFail ByteString
   deriving (Show, Eq, Generic, S.Serialize)
 
+instance Arbitrary InvalidSignature where
+  arbitrary = oneof
+    [ InvalidSignature <$> (ECDSA.Signature <$> arbitrary <*> arbitrary) <*> (toS <$> arbitrary @Text)
+    , DecodeSignatureFail <$> (toS <$> arbitrary @Text)
+    , SignatureSplittingFail <$> (toS <$> arbitrary @Text)
+    ]
 -- XXX Wrap ECDSA.Signature in newtype to prevent orphan instances
 instance S.Serialize ECDSA.Signature where
   put = S.put . encodeSig
@@ -896,7 +926,7 @@ recover_ sig@(ECDSA.Signature r s) msg =
   let hash = os2ip (Hash.sha256Raw msg)
       [x0] = fmap (\x -> mod x p) $ takeWhile (<p) [(r + i*n) | i <- [0..h]]
       Just invr = inverse r n
-      Just y0 = sqrtModP (x0^3 + a*x0 + b) p
+      Just (y0:_) = sqrtsModPrime (x0^3 + a*x0 + b) <$> isPrime p
       p0 = ECC.Point x0 y0
       q0 = ECC.pointAddTwoMuls sec_p256k1 (invr * s) p0
                                           (invr * (-hash)) g

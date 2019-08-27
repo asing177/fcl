@@ -1,6 +1,6 @@
-type T { C }
+type t { C }
 
 @initial
-run(T arg) {
+run(t arg) {
   case(arg) { }
 }
