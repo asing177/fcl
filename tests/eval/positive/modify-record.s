@@ -1,25 +1,25 @@
-// Colors are either monochrome or defined by hue-saturation-brightness. All
+// colors are either monochrome or defined by hue-saturation-brightness. All
 // int values should be in the range 0-255.
-type Color {
+type color {
   Monochrome(int brightness);
   HSB(int hue, int saturation, int brightness);
 }
 
-global Color myColor = Monochrome(0);
+global color mycolor = Monochrome(0);
 
 @initial
 go() {
-  myColor = increaseBrightness(myColor);
+  mycolor = increaseBrightness(mycolor);
   terminate()
 }
 
 // Calculate the average brightness of two colors.
-averageBrightness(Color c1, Color c2) {
+averageBrightness(color c1, color c2) {
   (c1.brightness + c2.brightness) / 2
 }
 
 // Increment a color's brightness by 1 if that color is not yet maximally bright.
-increaseBrightness(Color c) {
+increaseBrightness(color c) {
   if (c.brightness <= 255) {
     c.brightness = c.brightness + 1;
   };
