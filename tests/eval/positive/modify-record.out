@@ -1,0 +1,32 @@
+*** Deltas ***
+[ ModifyGlobal
+    Name { unName = "mycolor" }
+    (VConstr (MkNameUpper "Monochrome") [ VNum (NumDecimal 1) ])
+, ModifyState WorkflowState { places = fromList [ PlaceStart ] }
+, ModifyGlobal
+    Name { unName = "mycolor" }
+    (VConstr (MkNameUpper "Monochrome") [ VNum (NumDecimal 2) ])
+, ModifyState WorkflowState { places = fromList [ PlaceStart ] }
+, ModifyGlobal
+    Name { unName = "mycolor" }
+    (VConstr (MkNameUpper "Monochrome") [ VNum (NumDecimal 3) ])
+, ModifyState WorkflowState { places = fromList [ PlaceStart ] }
+, ModifyState WorkflowState { places = fromList [ PlaceEnd ] }
+, Terminate
+]
+
+*** Globals ***
+fromList
+  [ ( Key { unKey = "mycolor" }
+    , VConstr (MkNameUpper "Monochrome") [ VNum (NumDecimal 3) ]
+    )
+  , ( Key { unKey = "testAddr" }
+    , VAccount (Address "fwBVDsVh8SYQy98CzYpNPcbyTRczVUZ96HszhNRB8Ve")
+    )
+  , ( Key { unKey = "testAddr2" }
+    , VAccount (Address "Fw68hsis6JPW4ed3ER1VC959TTf9DqberLxrq5uECKxh")
+    )
+  , ( Key { unKey = "testAddr3" }
+    , VAccount (Address "4Stv5gWGt78D3p919HFcKEschSmyGKGrAX2G35xJgdhw")
+    )
+  ]

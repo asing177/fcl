@@ -10,6 +10,11 @@ global color mycolor = Monochrome(0);
 @initial
 go() {
   mycolor = increaseBrightness(mycolor);
+  transitionTo(@initial)
+}
+
+@initial
+end() {
   terminate()
 }
 
