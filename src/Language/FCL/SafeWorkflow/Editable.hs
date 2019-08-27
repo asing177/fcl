@@ -89,7 +89,13 @@ type PlaceId = Int
 
 -- | Place labels for safe workflow editing.
 data PEditLabel
-  = LPlace Name PlaceId   -- ^ Label for a place
+  -- | Label for a place
+  = LPlace { lPlaceName :: Name      -- ^ Name of the place (used for rendering and code generation)
+           , lPlaceId   :: PlaceId   -- ^ Identfier of the place (only used internally)
+           }
+  -- TODO: we might need IDs for these too
+  | LInitial              -- ^ Label for the initial place
+  | LTerminal             -- ^ Label for the terminal place
   deriving (Eq, Ord, Show)
 
 -- | Newtype wrapper for pretty pritning `PEditLabel`s
@@ -99,6 +105,9 @@ newtype PrettyPLabel = PrettyPLabel PEditLabel
 instance Pretty PrettyPLabel where
   ppr = \case
     PrettyPLabel (LPlace name _) -> ppr name
+    -- TODO: magic names
+    PrettyPLabel LInitial        -> "__initial__"
+    PrettyPLabel LTerminal       -> "__terminal__"
 
 instance Show PrettyPLabel where
   show = show . ppr
@@ -310,9 +319,7 @@ instance DisplayableWorkflow PrettyEditableSW where
       -- | Annotated places (initial and terminal are NOT in this)
       placeAnnotMap :: Map Place PrettyPLabel
       placeAnnotMap = getPlaceAnnotations
-                    . constructAnnTransitions
-                        (panic "The label of the initial place has been used")
-                        (panic "The label of the terminal place has been used")
+                    . constructAnnTransitions (PrettyPLabel LInitial) (PrettyPLabel LTerminal)
                     $ wf
 
       mkAnnotPlace :: Place -> PrettyPLabel -> Graphviz
