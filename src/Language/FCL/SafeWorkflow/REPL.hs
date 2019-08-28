@@ -6,7 +6,7 @@ module Language.FCL.SafeWorkflow.REPL
 
 import Protolude hiding (sequence)
 
-import Data.List.List2
+import Data.List.List2 (List2(..))
 import Data.Monoid (Dual(..))
 
 import Control.Monad.Gen
@@ -79,7 +79,7 @@ finish
   -> SWREPLM ()
 finish holeId atomName = do
   transId <- gen
-  let cont = Edit.Atom (LFinished atomName transId)
+  let cont = Edit.Atom (LSimple atomName transId)
   loggedModify (replaceHole holeId cont)
 
 -- | Replace a hole with a parallel subworkflow.
@@ -93,8 +93,8 @@ parallel
 parallel holeId numBranches splitName joinName names = do
   splitId <- gen
   joinId  <- gen
-  let splitLabel = LFinished splitName splitId
-      joinLabel  = LFinished joinName  joinId
+  let splitLabel = LSimple splitName splitId
+      joinLabel  = LSimple joinName  joinId
   branchLabels <- forM names $ \(inName, outName) -> do
     inId  <- gen
     outId <- gen

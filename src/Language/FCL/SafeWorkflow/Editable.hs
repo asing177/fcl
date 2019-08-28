@@ -11,6 +11,7 @@ module Language.FCL.SafeWorkflow.Editable
   , PEditLabel(..)
   , PrettyTLabel(..)
   , PrettyPLabel(..)
+  , Condition(..)
   , EditableSW
   , PlaceId
   , TransId
@@ -45,7 +46,7 @@ import Language.FCL.SafeWorkflow hiding
   , pattern ACF
   , PlaceId
   )
-import Language.FCL.AST (Name(..), Transition(..), WorkflowState(..), Place(..))
+import Language.FCL.AST (Name(..), Transition(..), WorkflowState(..), Place(..), Expr)
 import Language.FCL.Pretty (Doc, Pretty, ppr, hsep, prettyPrint)
 import Language.FCL.Analysis (inferStaticWorkflowStates)
 import Language.FCL.Graphviz hiding (AnnotatedTransition)
@@ -68,9 +69,32 @@ type TransId = Int
 
 -- | Transition labels for safe workflow editing.
 data TEditLabel
-  = LHole HoleId           -- ^ Label for holes
-  | LFinished Name TransId -- ^ Label for finished transitions
+  -- | Label for holes
+  = LHole { holeId :: HoleId          -- ^ Hole identifier
+          }
+  -- | Label for simple finished transitions
+  | LSimple { simpleName :: Name      -- ^ Transition name
+            , simpleId   :: TransId   -- ^ Transition identifier
+            }
+  -- | Label for a transition inside an @If@ condition
+  | LIfCond { ifcName :: Name         -- ^ Transition name
+            , ifcId   :: TransId      -- ^ Transition identifier
+            , ifcCond :: Condition    -- ^ Condition for this transition to be activated
+            }
   deriving (Eq, Ord, Show)
+
+data Condition
+  = CExpr { condExpr :: Expr  -- ^ AST of the If condition
+          , condLvl  :: Int   -- ^ Level of nesting (hihger integer -> deeper nesting)
+          }
+  | CDefault
+  deriving (Eq, Show)
+
+instance Ord Condition where
+  (<=) CExpr{} CDefault          = True
+  (<=) CDefault CExpr{}          = False
+  (<=) CDefault CDefault         = True
+  (<=) (CExpr _ l1) (CExpr _ l2) = l1 <= l2
 
 -- | Newtype wrapper for pretty pritning `TEditLabel`s
 newtype PrettyTLabel = PrettyTLabel TEditLabel
@@ -78,8 +102,9 @@ newtype PrettyTLabel = PrettyTLabel TEditLabel
 
 instance Pretty PrettyTLabel where
   ppr = \case
-    PrettyTLabel (LFinished name id) -> ppr name
-    PrettyTLabel (LHole      id) -> "_" <> ppr id
+    PrettyTLabel (LHole id) -> "_" <> ppr id
+    PrettyTLabel (LSimple name _) -> ppr name
+    PrettyTLabel (LIfCond name _ _) -> ppr name
 
 instance Show PrettyTLabel where
   show = show . ppr
