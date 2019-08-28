@@ -240,7 +240,7 @@ data InferState = InferState
 emptyInferState :: InferState
 emptyInferState = InferState 0 mempty mempty mempty emptyContext
 
-data TMeta = Global | Temp | FuncArg | HelperFunc | PatternVar
+data TMeta = Global | Temp | MethArg | HelperArg | HelperFunc | PatternVar
   deriving (Show, Eq, Ord, Generic, Serialize, A.FromJSON, A.ToJSON)
 
 instance Arbitrary TMeta where
@@ -250,7 +250,8 @@ instance Pretty TMeta where
   ppr = \case
     Global -> "global variable"
     Temp -> "temporary variable"
-    FuncArg -> "method argument"
+    MethArg -> "method argument"
+    HelperArg -> "helper argument"
     HelperFunc -> "helper function"
     PatternVar -> "variable bound by a pattern"
 --------------------------------------------------------------------------------
@@ -278,8 +279,8 @@ lookupContext v = foldr mplus Nothing . map (Map.lookup v) . unContext
 
 -- | Extend the context with a new binding in the current scope. Ensure that
 -- there is no shadowing.
-extendContextInferM :: (Name, TMeta, TypeInfo) -> InferM ()
-extendContextInferM (id, meta, info) = do
+extendContextInferM :: TMeta -> (Name, TypeInfo) -> InferM ()
+extendContextInferM meta (id, info) = do
   shadowed <- lookupContext id <$> gets context
   case shadowed of
     Nothing ->
@@ -434,7 +435,7 @@ methodSig adtInfo initInferState m@(Method _ precs lMethNm args body) =
     -- Typecheck body of method, generating constraints along the way
     (sig, resInferState) = runInferM adtInfo initInferState $ do
         tcPreconditions precs
-        sig@(Sig _argTys typ) <- functionSig (locVal lMethNm, args, body)
+        sig@(Sig _argTys typ) <- functionSig MethArg (locVal lMethNm, args, body)
         unless (typ == TTransition || typ == TError)
               (void $ throwErrInferM (MethodUnspecifiedTransition (locVal lMethNm)) (located body))
         pure sig
@@ -443,7 +444,7 @@ tcHelpers :: [Helper] -> InferM ()
 tcHelpers helpers =
   forM_ helpers $ \helper -> do
     helperInfo <- tcHelper helper
-    extendContextInferM (locVal (helperName helper), HelperFunc, helperInfo)
+    extendContextInferM HelperFunc (locVal (helperName helper), helperInfo)
 
 -- | Typechecks a 'Helper' function body and returns a TypeInfo of TFun,
 -- representing the type of a function. This differs from the 'Sig' value
@@ -453,7 +454,7 @@ tcHelper
   :: Helper
   -> InferM TypeInfo
 tcHelper (Helper fnm args body) = do
-  (Sig argTypes retType) <- functionSig (locVal fnm, args, body)
+  (Sig argTypes retType) <- functionSig HelperArg (locVal fnm, args, body)
   let tfun = TFun argTypes retType
   pure (TypeInfo tfun (InferredFromHelperDef (locVal fnm)) (located fnm))
 
@@ -461,12 +462,13 @@ tcHelper (Helper fnm args body) = do
 -- Given a triple of a function name, a list of arguments and an expression
 -- find the type signature of the expression body (using some initial state)
 functionSig
-  :: (Name, [Arg], LExpr)
+  :: TMeta
+  -> (Name, [Arg], LExpr)
   -> InferM Sig
-functionSig (fnm, args, body) = do
+functionSig meta (fnm, args, body) = do
   argInfos <- zipWithM (tcArg fnm) args [1..]
   bracketScopeTmpEnvM $ do
-    mapM_ extendContextInferM argInfos
+    mapM_ (extendContextInferM meta) argInfos
     retType <- tcLExprScoped body
     pure $ Sig (map argType args) (ttype retType)
 
@@ -479,36 +481,36 @@ adtExistsCheck _ _ = pure Nothing
 
 -- | Typechecks the argument and returns the type info of the function argument
 -- such that it can be added to the typing env in the manner the caller prefers.
-tcArg :: Name -> Arg -> Int -> InferM (Name, TMeta, TypeInfo)
+tcArg :: Name -> Arg -> Int -> InferM (Name, TypeInfo)
 tcArg fnm (Arg typ (Located loc anm)) argPos = do
     adtExistsCheck loc typ >>= \case
-      Nothing -> pure (anm, FuncArg, TypeInfo typ (FunctionArg argPos fnm) loc)
-      Just err -> pure (anm, FuncArg, err)
+      Nothing -> pure (anm, TypeInfo typ (FunctionArg argPos fnm) loc)
+      Just err -> pure (anm, err)
 
 -------------------------------------------------------------------------------
 -- Typechecker (w/ inference)
 -------------------------------------------------------------------------------
 
 tcDefn :: Def -> InferM ()
-tcDefn def = extendContextInferM =<< case def of
+tcDefn def = extendContextInferM Global =<< case def of
   -- GlobalDef variable can be any type
   GlobalDefNull typ precs (Located loc nm) -> do
     tcPreconditions precs
     adtExistsCheck loc typ >>= \case
-      Nothing -> pure (nm, Global, TypeInfo typ (VariableDefn nm) loc)
-      Just err -> pure (nm, Global, err)
+      Nothing -> pure (nm, TypeInfo typ (VariableDefn nm) loc)
+      Just err -> pure (nm, err)
 
   GlobalDef typ precs nm lexpr -> do
     tcPreconditions precs
     exprTypeInfo@(TypeInfo _ _ loc) <- tcLExpr lexpr
     adtExistsCheck loc typ >>= \case
-      Just err -> pure (nm, Global, err)
+      Just err -> pure (nm, err)
       Nothing -> do
         let typeInfo = TypeInfo typ (VariableDefn nm) loc
         case unifyDef nm lexpr typeInfo exprTypeInfo of
           Left terr -> void $ throwErrInferM terr loc
           Right _   -> pure ()
-        pure (nm, Global, typeInfo)
+        pure (nm, typeInfo)
   where
     -- Check if the stated definition type and the rhs expr type match
     unifyDef :: Name -> LExpr -> TypeInfo -> TypeInfo -> Either TypeErrInfo ()
@@ -590,10 +592,11 @@ tcLExpr le@(Located loc expr) = case expr of
 
       Nothing -> do -- New temp variable, instantiate it
         let typeInfo = TypeInfo eType (InferredFromExpr $ locVal e) eLoc
-        extendContextInferM (nm, Temp, typeInfo)
+        extendContextInferM Temp (nm, typeInfo)
 
-      Just (meta, varTypeInfo) -> if meta == Global || meta == Temp
-        then do -- can only assign to global or temp variable, so need to check this here
+      -- can only assign to mutable variable, so need to check this here
+      Just (meta, varTypeInfo) -> if meta == Global || meta == Temp || meta == HelperArg
+        then do
           tvar <- freshTVar
           let retTypeInfo = TypeInfo tvar (InferredFromAssignment nms) (located e)
           addConstraint e varTypeInfo retTypeInfo
@@ -723,10 +726,10 @@ tcCaseBranch
 tcCaseBranch tyExpected (CaseBranch (Located patLoc pat) body)
   = bracketScopeTmpEnvM $ do
       patContext <- tcPattern tyExpected pat
-      mapM_ extendContextInferM patContext
+      mapM_ (extendContextInferM PatternVar) patContext
       tcLExpr body
 
-type PatContext = [(Name, TMeta, TypeInfo)]
+type PatContext = [(Name, TypeInfo)]
 
 tcPattern
   :: TypeInfo -- ^ the expected type
@@ -738,7 +741,7 @@ tcPattern tyExpected (PatLit l) = do
     pure []
 
 tcPattern tyExpected (PatVar v)
-  = pure [(locVal v, PatternVar, TypeInfo (ttype tyExpected) (FromVariablePattern v) (located v))]
+  = pure [(locVal v, TypeInfo (ttype tyExpected) (FromVariablePattern v) (located v))]
 
 tcPattern _ PatWildCard = pure []
 
