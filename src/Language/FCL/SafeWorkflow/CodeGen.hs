@@ -1,5 +1,7 @@
 {-# LANGUAGE RecordWildCards #-}
-module Language.FCL.SafeWorkflow.CodeGen where
+module Language.FCL.SafeWorkflow.CodeGen
+  ( codeGenScript
+  ) where
 
 import Protolude
 
@@ -15,6 +17,7 @@ import Language.FCL.Pretty (prettyPrint)
 import Language.FCL.Prim (PrimOp(..))
 import Language.FCL.AST
   ( Name
+  , Script(..)
   , Method(..)
   , Transition(..)
   , WorkflowState(..)
@@ -46,8 +49,11 @@ type WFStateWithNames = WorkflowState
 type TrWithIds = Transition
 type TrWithNames = Transition
 
-codeGen :: EditableSW -> [Method]
-codeGen eswf = map (genMethod placeAnnots groupedTrs) $ M.keys groupedTrs where
+codeGenScript :: EditableSW -> Script
+codeGenScript esw = Script [] [] [] (codeGenMethods esw) []
+
+codeGenMethods :: EditableSW -> [Method]
+codeGenMethods eswf = map (codeGenMethod placeAnnots groupedTrs) $ M.keys groupedTrs where
 
   annTrs :: EditTransitions
   annTrs = constructAnnTransitions LInitial LTerminal eswf
@@ -112,22 +118,22 @@ noLocIf cond lhs rhs = noLoc $ EIf cond lhs rhs
 genTransitionCalls :: NonEmpty TrWithNames -> LExpr
 genTransitionCalls = foldl1 (noLocIf trivialCondition) . map genTransitionCall
 
-genMethod
+codeGenMethod
   :: PlaceAnnotations
   -> GropedTransitions
   -> Name
   -> Method
-genMethod placeAnnots groupedTrs methodName = Method inputState preconditions (noLoc methodName) args body where
+codeGenMethod placeAnnots groupedTrs methodName = Method inputState preconditions (noLoc methodName) args body where
   trs :: [EditTransition]
   trs = flip fromMaybe (M.lookup methodName groupedTrs) $
-    panic $ "genMethod: transition '" <> show methodName <> "' not found amongst grouped transitions"
+    panic $ "codeGenMethod: transition '" <> show methodName <> "' not found amongst grouped transitions"
 
   convertedTrs :: [TrWithNames]
   convertedTrs = map (convertTransition placeAnnots . getTrans) $ trs
 
   body :: LExpr
   body = case convertedTrs of
-    [] -> panic $ "genMethod: Empty transition list for method name: " <> show methodName
+    [] -> panic $ "codeGenMethod: Empty transition list for method name: " <> show methodName
     [tr] -> genTransitionCall tr
     trs -> genTransitionCalls (NE.fromList trs)
 
@@ -140,4 +146,4 @@ genMethod placeAnnots groupedTrs methodName = Method inputState preconditions (n
   inputState :: WorkflowState
   inputState = case convertedTrs of
     (Arrow from _) : _ -> from
-    [] -> panic $ "genMethod: Empty transition list for method name: " <> show methodName
+    [] -> panic $ "codeGenMethod: Empty transition list for method name: " <> show methodName

@@ -15,9 +15,11 @@ import Control.Monad.RWS
 import System.FilePath (FilePath, (</>))
 import System.Directory (createDirectoryIfMissing)
 
-import Language.FCL.AST (Name)
+import Language.FCL.AST (Name, Script)
 import Language.FCL.Graphviz (workflowWriteSVG)
 import Language.FCL.SafeWorkflow.Editable
+import Language.FCL.SafeWorkflow.CodeGen (codeGenScript)
+import Language.FCL.Pretty (prettyPrint)
 
 import qualified Language.FCL.SafeWorkflow.Editable as Edit
 
@@ -144,6 +146,16 @@ acf = panic "not implemented"
 printSW :: FilePath -> EditableSW -> IO ()
 printSW path = workflowWriteSVG path . prettify
 
+execCodeGen :: SWREPLM a -> Script
+execCodeGen = codeGenScript
+            . snd3
+            . runSWREPLPure defaultOpts
+  where
+    snd3 (_,x,_) = x
+
+execCodeGenThenPrintScript :: SWREPLM a -> IO ()
+execCodeGenThenPrintScript = putStr . prettyPrint . execCodeGen where
+
 simpleWhiteBoardExample1 :: SWREPLM ()
 simpleWhiteBoardExample1 = do
   parallel 1 2 "split" "join"
@@ -169,3 +181,16 @@ simpleWhiteBoardExample2 = do
   finish 222 "t4"
   finish 21  "t2"
   finish 1   "t1"
+
+simpleWhiteBoardExample3 :: SWREPLM ()
+simpleWhiteBoardExample3 = do
+  parallel 1 2 "split" "join"
+    [ ("lhsIn", "lhsOut")
+    , ("rhsIn", "rhsOut")
+    ]
+  finish 1 "t1"
+  choice 2 2
+  finish 1 "t2"
+  stayOrContinue 2
+  finish 1 "t2"
+  finish 2 "t2"
