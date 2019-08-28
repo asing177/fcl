@@ -107,18 +107,18 @@ lifecycle() {
     dayCounter = dayCounter + 1;
     if (dayCounter == (whichCouponPeriod * daysToCoupon)) {
         transitionTo(@couponObservation);
-    } else { if (dayCounter == daysToMaturity) {
+    } else if (dayCounter == daysToMaturity) {
         transitionTo(@finalObservation);
     } else {
         stay();
-    }}
+    }
 }
 
 @couponObservation [role: xP]
 observeForCoupon(decimal<4> observedPrice1, decimal<4> observedPrice2) {
     if ((((observedPrice1 / fixingUnderlying1) > autocallTriggerLevel) && ((observedPrice2 / fixingUnderlying2) > autocallTriggerLevel))) {
         transitionTo(@earlyCall);
-    } else { if ((((observedPrice1 / fixingUnderlying1) > couponBarrierLevel) && ((observedPrice2 / fixingUnderlying2) > couponBarrierLevel))) {
+    } else if ((((observedPrice1 / fixingUnderlying1) > couponBarrierLevel) && ((observedPrice2 / fixingUnderlying2) > couponBarrierLevel))) {
         couponRate = targetRate;
         transitionTo(@couponSettlement);
     } else {
@@ -129,7 +129,7 @@ observeForCoupon(decimal<4> observedPrice1, decimal<4> observedPrice2) {
             whichCouponPeriod = whichCouponPeriod + 1;
         };
         transitionTo(@registered);
-    }}
+    }
 }
 
 @earlyCall [roles: {p1,p2}]
@@ -154,7 +154,7 @@ settleCoupon() {
 observeForMaturity(decimal<4> observedPrice1, decimal<4> observedPrice2, decimal<4> observedFX) {
     if ((((observedPrice1 / fixingUnderlying1) > 1) && ((observedPrice2 / fixingUnderlying2) > 1))) {
         transitionTo(@repayCashFixing);
-    } else { if ((((observedPrice1 / fixingUnderlying1) > strikeLevel) && ((observedPrice2 / fixingUnderlying2) > strikeLevel))) {
+    } else if ((((observedPrice1 / fixingUnderlying1) > strikeLevel) && ((observedPrice2 / fixingUnderlying2) > strikeLevel))) {
         transitionTo(@repayCashStrike);
     } else {
         assetRedeemed = underlying2;
@@ -165,7 +165,7 @@ observeForMaturity(decimal<4> observedPrice1, decimal<4> observedPrice2, decimal
             redemptionStockPrice = round(4, (fixingUnderlying1 / observedFX));
         };
         transitionTo(@repayStock);
-    }}
+    }
 }
 
 @repayCashFixing [roles: {p1, p2}]
