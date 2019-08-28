@@ -7,6 +7,7 @@
 module Language.FCL.WorkflowNet (
   Token,
   Marking,
+  WorkflowState,
   Transition(..),
   WorkflowNet(..),
   ColorTransition(..),
@@ -19,7 +20,7 @@ import Protolude
 
 import Algebra.Lattice (JoinSemiLattice(..), (\/), joins1)
 
-import Language.FCL.AST hiding (Transition)
+import Language.FCL.AST hiding (Transition, WorkflowState)
 
 import Data.Map (insertWith)
 import qualified Data.Map as Map
@@ -33,6 +34,9 @@ type Token a = a
 -- | A Marking is a mapping of places to tokens, designating a _state_ of the
 -- workflow net.
 type Marking a = Map Place (Token a)
+
+-- | A WorkflowState is a set of currently activated places.
+type WorkflowState = Set Place
 
 -- | A Transition is a transformation of a set of input places to a set of
 -- output places. Each of the set of input places must be marked by a token in
@@ -82,7 +86,7 @@ type TransitionMap a =
 data ColorTransition a where
   ColorTransition
     :: JoinSemiLattice a
-    => (Method -> (a -> a) -> Map (Set Place) [(a -> a)])
+    => (Method -> (a -> a) -> Map WorkflowState [(a -> a)])
     -> ColorTransition a
 
 -- | For Colored Workflow nets the 'a' represents the color. For non colored
@@ -92,6 +96,12 @@ data WorkflowNet a = WorkflowNet
   { transitions :: TransitionMap a
   }
 
+-- | Creates a workflownet from a script. It infers the input places for each
+-- transition (method) in the script, then applies an abstract function to the method
+-- to determine the dataflow for each output state. The dataflow is represented by
+-- state-transofrming functions (possibly multiple due branching inside the method).
+-- The workflownet is just a data structure that contains these dataflow functions
+-- for each method.
 createWorkflowNet
   :: Script            -- ^ Initial Script
   -> a                 -- ^ Input token mark of the initial state
@@ -122,7 +132,15 @@ insertMethodTransitions initial (ColorTransition colorizer) wfn method =
     inputPlaces :: Set Place
     inputPlaces = places . methodInputPlaces $ method
 
+    -- | Calculates the dataflow functions for the output states.
     outputPlaces :: Map (Set Place) [(a -> a)]
+    -- QUESTION: can this be changed to identity? (all the tests PASS)
+    -- ANSWER: `initial \/` means that the state cannot get any worse than the original state.  <-- invariant
+    --         `identity` would probably do as well, because in `fireUnsafe`
+    --         we are applying the function to the join of input results,
+    --         and since the results are always joined, the above invariant will always hold.
+    -- QUESTION: Should the invariant hold for every type of analysis or just for undefinedness?
+    -- ANSWER: It probably should due the monotonicity of dataflow analyses.
     outputPlaces = colorizer method (initial \/)
 
 -- | A transition fires iff:
@@ -191,9 +209,9 @@ enabledTransitions marking wfn =
     enabledTransitionsMap = Map.filterWithKey (checkSubset markedPlaces) (transitions wfn)
 
     -- Check if a transition's input places are a subset of the current marking
-    checkSubset :: Set Place -> (Name, Set Place) -> Map (Set Place) [(a -> a)] -> Bool
-    checkSubset markingPlaces (_, inputPlaces) _ =
-      inputPlaces `isSubsetOf` markingPlaces
+    checkSubset :: WorkflowState -> (Name, Set Place) -> Map (Set Place) [(a -> a)] -> Bool
+    checkSubset currentState (_, inputPlaces) _ =
+      inputPlaces `isSubsetOf` currentState
 
 getTransitions :: TransitionMap a -> [Transition a]
 getTransitions tmap = Map.foldMapWithKey toTransitions tmap
