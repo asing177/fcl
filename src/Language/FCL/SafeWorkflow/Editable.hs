@@ -7,15 +7,13 @@
 {-# OPTIONS_GHC -fno-warn-incomplete-record-updates #-}
 module Language.FCL.SafeWorkflow.Editable
   ( Continuation(..)
+  , CGMetadata(..)
   , TEditLabel(..)
   , PEditLabel(..)
   , PrettyTLabel(..)
-  , PrettyPLabel(..)
-  , Condition(..)
   , EditableSW
   , PlaceId
   , TransId
-  , HoleId
   , ANDBranchLabels(..)
 
   , pattern Hole
@@ -46,7 +44,7 @@ import Language.FCL.SafeWorkflow hiding
   , pattern ACF
   , PlaceId
   )
-import Language.FCL.AST (Name(..), Transition(..), WorkflowState(..), Place(..), Expr)
+import Language.FCL.AST (Name(..), Transition(..), WorkflowState(..), Place(..), Expr(..))
 import Language.FCL.Pretty (Doc, Pretty, ppr, hsep, prettyPrint)
 import Language.FCL.Analysis (inferStaticWorkflowStates)
 import Language.FCL.Graphviz hiding (AnnotatedTransition)
@@ -57,45 +55,34 @@ import qualified Language.FCL.Graphviz     as GV
 
 -- TODO: Separate metadata (name) from the datastructure.
 -- Only store IDs and maintain a metadata table.
+-- TODO: Maybe only do this for methods (e.g.: preconditions)
 
--- NOTE: Reeediting an already finished transition could be done by
+-- NOTE: Reediting an already finished transition could be done by
 -- transforming it back to a Hole first, then editing it.
+-- NOTE: If we ever allow reediting, we will need a smarter way to index holes,
+-- because the current implementation would generate clashing IDs
 
--- | Identifier of a hole in an editable workflow.
-type HoleId = Int
 
 -- | Identifier of a transition in an editable workflow
 type TransId = Int
 
--- TODO: holes are not compatible with XOR conditions
--- | Transition labels for safe workflow editing.
-data TEditLabel
-  -- | Label for holes
-  = LHole { holeId :: HoleId          -- ^ Hole identifier
-          }
-  -- | Label for simple finished transitions
-  | LSimple { simpleName :: Name      -- ^ Transition name
-            , simpleId   :: TransId   -- ^ Transition identifier
-            }
-  -- | Label for a transition inside an @If@ condition
-  | LIfCond { ifcName :: Name         -- ^ Transition name
-            , ifcId   :: TransId      -- ^ Transition identifier
-            , ifcCond :: Condition    -- ^ Condition for this transition to be activated
-            }
+-- NOTE: global would be for methods (e.g.: preconditions)
+-- | Local transiion metadata forcode generation
+data CGMetadata = CGMetadata
+  { cgmCode   :: Expr         -- ^ Code to be generated into the transition
+  , cgmIfCond :: Maybe Expr   -- ^ Possible @If@ condition for deterministic branhcing (NOTE: the conditions in a given method should always be mutually exclusive and should always cover the entire event-space)
+  }
   deriving (Eq, Ord, Show)
 
-data Condition
-  = CExpr { condExpr :: Expr  -- ^ AST of the If condition
-          , condLvl  :: Int   -- ^ Level of nesting (hihger integer -> deeper nesting)
-          }
-  | CDefault
-  deriving (Eq, Show)
-
-instance Ord Condition where
-  (<=) CExpr{} CDefault          = True
-  (<=) CDefault CExpr{}          = False
-  (<=) CDefault CDefault         = True
-  (<=) (CExpr _ l1) (CExpr _ l2) = l1 <= l2
+-- TODO: holes are not compatible with XOR conditions
+-- | Transition labels for safe workflow editing.
+data TEditLabel = TEL
+  { trId          :: TransId      -- ^ Unique identifier for the transition
+  , trMethodName  :: Name         -- ^ Name of the method this transition is part of (can be non-unique across transitions)
+  , trIsEditable  :: Bool         -- ^ Only for rendering
+  , trCGMetadata  :: CGMetadata   -- ^ Metadata for code generation
+  }
+  deriving (Eq, Ord, Show)
 
 -- | Newtype wrapper for pretty pritning `TEditLabel`s
 newtype PrettyTLabel = PrettyTLabel TEditLabel
@@ -103,9 +90,9 @@ newtype PrettyTLabel = PrettyTLabel TEditLabel
 
 instance Pretty PrettyTLabel where
   ppr = \case
-    PrettyTLabel (LHole id) -> "_" <> ppr id
-    PrettyTLabel (LSimple name _) -> ppr name
-    PrettyTLabel (LIfCond name _ _) -> ppr name
+    PrettyTLabel TEL{..}
+      | trIsEditable -> " " <> ppr trId
+      | otherwise    -> ppr trMethodName
 
 instance Show PrettyTLabel where
   show = show . ppr
@@ -153,8 +140,9 @@ prettify = bimap PrettyPLabel PrettyTLabel
 -- | A `Hole` is an `Atom` annotated with a hole label.
 -- These are the plugin points of the workflows, this where
 -- the workflow can be edited.
-pattern Hole :: Int -> EditableSW
-pattern Hole n = SW.Atom (LHole n)
+pattern Hole :: TransId -> EditableSW
+pattern Hole id <- SW.Atom (TEL id _ True _)
+  where Hole id = SW.Atom $ TEL id (Name $ "_" <> show id) True (CGMetadata ENoOp Nothing)
 
 -- | Labels for the places inside AND branches before
 -- and after the subworkflow.
@@ -191,10 +179,11 @@ data Continuation
   | ACF
   deriving (Eq, Ord, Show)
 
+-- TODO: if we ever allow reediting, we will need a smarter way to index holes
 fromContinuation
-  :: (HoleId -> HoleId -> HoleId) -- ^ Make a new index from the parent and the current one
-  -> HoleId                       -- ^ Parent index
-  -> Continuation                 -- ^ Construct to fill the hole with
+  :: (TransId -> TransId -> TransId) -- ^ Make a new index from the parent and the current one
+  -> TransId                       -- ^ Parent index
+  -> Continuation                 -- ^ Construct to replace the given transition with
   -> EditableSW
 fromContinuation mkIx parent = \case
   Atom{..}   -> SW.Atom atomLabel
@@ -227,10 +216,10 @@ fromContinuation mkIx parent = \case
   ACF -> panic "not implemented"
 
   where
-    mkIx' :: Int -> HoleId
+    mkIx' :: Int -> TransId
     mkIx' = mkIx parent
 
-    mkBranch :: HoleId -> ANDBranchLabels -> ANDBranch PEditLabel TEditLabel
+    mkBranch :: TransId -> ANDBranchLabels -> ANDBranch PEditLabel TEditLabel
     mkBranch holeId ANDBranchLabels{..} = ANDBranch inLabel outLabel (Hole holeId)
 
     mkBranches :: List2 ANDBranchLabels -> List2 (ANDBranch PEditLabel TEditLabel)
@@ -238,32 +227,33 @@ fromContinuation mkIx parent = \case
 
 countHoles :: EditableSW -> Int
 countHoles = \case
-  sw@(Hole found)           -> 1
+  sw@(Hole _)               -> 1
   sw@(SW.Atom _)            -> 0
   sw@SW.AND{..}             -> sum $ fmap (countHoles . branchWorkflow) andBranches
-  (SW.Loop _ into exit out)   -> sum $ map countHoles [into, exit, out]
+  (SW.Loop _ into exit out) -> sum $ map countHoles [into, exit, out]
   (SW.SimpleLoop exit body) -> sum $ map countHoles [exit, body]
-  sw@(SW.ACF _ acfMap)        -> sum $ M.map (sum . fmap countHoles) acfMap
+  sw@(SW.ACF _ acfMap)      -> sum $ M.map (sum . fmap countHoles) acfMap
 
-replaceHole :: HoleId -> Continuation -> EditableSW -> EditableSW
+replaceHole :: TransId -> Continuation -> EditableSW -> EditableSW
 replaceHole holeId cont esw
   | countHoles esw > 1 = replaceHoleWithIndexing mkIxWithPrefix holeId cont esw
   | otherwise          = replaceHoleWithIndexing (\_ x -> x)    holeId cont esw
   where
-    mkIxWithPrefix :: HoleId -> HoleId -> HoleId
+    mkIxWithPrefix :: TransId -> TransId -> TransId
     mkIxWithPrefix parent ix = 10*parent + ix
 
+-- TODO: implement "condition push-down"
 replaceHoleWithIndexing
-  :: (HoleId -> HoleId -> HoleId) -- ^ Make a new index from the parent and the current one
-  -> HoleId                       -- ^ Look for a hole with this identifier
+  :: (TransId -> TransId -> TransId) -- ^ Make a new index from the parent and the current one
+  -> TransId                       -- ^ Look for a hole with this identifier
   -> Continuation                 -- ^ Construct to fill the hole with
   -> EditableSW                   -- ^ The workflow to replace the hole in
   -> EditableSW
 replaceHoleWithIndexing mkIx holeId cont = \case
-  sw@(Hole found)
-    | holeId == found -> fromContinuation mkIx found cont
+  sw@(SW.Atom TEL{..})
+    | trId == holeId && trIsEditable -> fromContinuation mkIx trId cont
+  -- TODO: | trId == holeId && not trIsEditable -> panic "..."
     | otherwise -> sw
-  sw@(SW.Atom _) -> sw
   sw@SW.AND{..} ->
     sw { andBranches = (mapANDBranchWF $ replaceHoleWithIndexing mkIx holeId cont) <$> andBranches }
   (SW.GenLoop mExitLabel into exit out) ->

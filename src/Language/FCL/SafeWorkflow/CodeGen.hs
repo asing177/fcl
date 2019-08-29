@@ -7,15 +7,13 @@ module Language.FCL.SafeWorkflow.CodeGen
 
 import Protolude
 
-import Data.Function (on)
-import Data.List ((!!))
 import Data.List.List2 (List2(..))
 
 import qualified Data.Set as S
 import qualified Data.Map as M
 import qualified Data.List.List2 as L2
 
-import Language.FCL.Pretty (Pretty(..), prettyPrint, vsep, listOf, tupleOf, (<+>))
+import Language.FCL.Pretty (Pretty(..), prettyPrint, vsep, listOf, (<+>))
 import Language.FCL.Prim (PrimOp(..))
 import Language.FCL.AST
   ( Name
@@ -82,72 +80,35 @@ groupTransitions trs = if any hasAnyBranchingErrors branchingErrors
     groupedTrs = foldl insert mempty . map extractName $ trs
 
     extractName :: EditTransition -> (Name, EditTransition)
-    extractName tr@(AnnTransition (LSimple name _) _) = (name, tr)
-    extractName tr@(AnnTransition (LIfCond name _ _) _) = (name, tr)
-    extractName tr = panic "groupTransitions: " -- TODO:
+    extractName tr@(AnnTransition TEL{..} _) = (trMethodName, tr)
 
     insert :: GropedTransitions -> (Name, EditTransition) -> GropedTransitions
     insert trs (name, tr) = M.insertWith (++) name [tr] trs
 
 data BranchingErrors = BranchingErrors
-  { multipleDefaults  ::  [TransId]
-  , unexpectedHoles   ::  [HoleId]
-  , unexpectedSimples ::  [TransId]
-  , clashingIndices   ::  [(TransId, TransId)]
+  { unexpectedNoConds ::  [TransId]
   } deriving (Eq, Ord, Show)
 
 instance Pretty BranchingErrors where
   ppr BranchingErrors{..} = vsep
-    [ "multipleDefaults:" <+> listOf multipleDefaults
-    , "unexpectedHoles" <+> listOf unexpectedHoles
-    , "unexpectedSimples" <+> listOf unexpectedSimples
-    , "clashingIndices" <+> listOf (map (\(x,y) -> tupleOf [x,y]) clashingIndices)
+    [ "unexpectedNoConds" <+> listOf unexpectedNoConds
     ]
 
 hasAnyBranchingErrors :: BranchingErrors -> Bool
 hasAnyBranchingErrors BranchingErrors{..}
-  =  not (null multipleDefaults)
-  || not (null unexpectedHoles)
-  || not (null unexpectedSimples)
-  || not (null clashingIndices)
+  =  not (null unexpectedNoConds)
 
 collectBranchingErrors :: [EditTransition] -> BranchingErrors
 collectBranchingErrors trs = BranchingErrors
-  (mapMaybe mGetDefaultCondId trs)
-  (mapMaybe mGetHoleId        trs)
-  (mapMaybe mGetSimpleId      trs)
-  (collectClashingIndices     trs)
+  (mapMaybe mGetNoCondId trs)
 
   where
 
-    mGetHoleId :: EditTransition -> Maybe HoleId
-    mGetHoleId (AnnTransition LHole{..} _) = Just holeId
-    mGetHoleId _ = Nothing
+    mGetNoCondId :: EditTransition -> Maybe TransId
+    mGetNoCondId (AnnTransition TEL{..} _)
+      | isJust (cgmIfCond trCGMetadata) = Just trId
+    mGetNoCondId _ = Nothing
 
-    mGetSimpleId :: EditTransition -> Maybe TransId
-    mGetSimpleId (AnnTransition LSimple{..} _) = Just simpleId
-    mGetSimpleId _ = Nothing
-
-    mGetDefaultCondId :: EditTransition -> Maybe TransId
-    mGetDefaultCondId (AnnTransition (LIfCond _ id CDefault) _) = Just id
-    mGetDefaultCondId _ = Nothing
-
-    collectClashingIndices :: [EditTransition] -> [(TransId, TransId)]
-    collectClashingIndices trs = do
-      let idIx = [ (id,ix) | AnnTransition (LIfCond _ id (CExpr _ ix)) _ <- trs ]
-      n <- [0     .. length idIx - 1]
-      k <- [n + 1 .. length idIx - 1]
-      let (id1, ix1) = idIx !! n
-          (id2, ix2) = idIx !! k
-      if ix1 == ix2 then [(id1,id2)] else []
-
--- asd :: [EditTransition]
--- asd =
---   [ AnnTransition (LIfCond undefined 0 (CExpr undefined 0)) undefined
---   , AnnTransition (LIfCond undefined 1 (CExpr undefined 1)) undefined
---   , AnnTransition (LIfCond undefined 2 (CExpr undefined 1)) undefined
---   , AnnTransition (LIfCond undefined 3 (CExpr undefined 1)) undefined
---   ]
 
 -- | Looks up the real names of the `Place`s inside a `WorkflowState`
 -- from the `Place` annotation map.
@@ -194,19 +155,24 @@ trivialCondition = noLoc . ELit . noLoc . LBool $ True
 noLocIf :: LExpr -> LExpr -> LExpr -> LExpr
 noLocIf cond lhs rhs = noLoc $ EIf cond lhs rhs
 
+-- TODO: add codegen for cgCode !!
+-- QUESTION: should it be here, or in a separate function?
 genIfCondTransCalls :: List2 ETrWithNames -> LExpr
-genIfCondTransCalls (L2.reverse -> List2 t1 t2 trs) = foldl alg defaultBranch (t2:trs) where
+genIfCondTransCalls (List2 t1 t2 trs) = foldl alg defaultBranch (t2:trs) where
   alg :: LExpr -> ETrWithNames -> LExpr
-  alg ast (AnnTransition LIfCond{..} tr)
-    | CExpr cond _ <- ifcCond = noLocIf
-      (noLoc . condExpr $ ifcCond)
-      (genUnAnnotTransCall tr)
+  alg ast (AnnTransition TEL{..} tr)
+    | CGMetadata code (Just cond) <- trCGMetadata = noLocIf
+      (noLoc cond)
+      (noLoc $ ESeq (noLoc code) $ genUnAnnotTransCall tr)
       ast
+  -- NOTE: should never come here
   alg _ annTr = panic $ "genIfCondTransCall: Transition '"
     <> show annTr
-    <> "' is not a non-default if-conditioned transition."
+    <> "' does not contain an If condition."
 
-  -- NOTE: the deepest branch should always be a "default" branch
+  -- NOTE: Since the conditions are assumed to be mutually exclusive
+  -- and should cover the entire event space, we can pick any branch
+  -- to be the default one.
   defaultBranch :: LExpr
   defaultBranch = genUnAnnotTransCall . getTrans $ t1
 
@@ -227,7 +193,7 @@ codeGenMethod placeAnnots groupedTrs methodName = Method inputState precondition
   body = case convertedTrs of
     [] -> panic $ "codeGenMethod: Empty transition list for method name: " <> show methodName
     [tr] -> genUnAnnotTransCall . getTrans $ tr
-    trs -> genIfCondTransCalls . L2.fromList . sortIfCondTrs $ trs
+    trs -> genIfCondTransCalls . L2.fromList $ trs
 
   preconditions :: Preconditions
   preconditions = Preconditions []
@@ -240,6 +206,3 @@ codeGenMethod placeAnnots groupedTrs methodName = Method inputState precondition
     (AnnTransition _ (Arrow from _)) : _ -> from
     [] -> panic $ "codeGenMethod: Empty transition list for method name: " <> show methodName
 
-  -- NOTE: partial function, only works if all elements are @IfCond@s
-  sortIfCondTrs :: [EditTransition] -> [EditTransition]
-  sortIfCondTrs = sortBy (compare `on` ifcCond . getAnnot)

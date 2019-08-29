@@ -15,7 +15,7 @@ import Control.Monad.RWS
 import System.FilePath (FilePath, (</>))
 import System.Directory (createDirectoryIfMissing)
 
-import Language.FCL.AST (Name, Script)
+import Language.FCL.AST (Name, Script, Expr(..))
 import Language.FCL.Graphviz (workflowWriteSVG)
 import Language.FCL.SafeWorkflow.Editable
 import Language.FCL.SafeWorkflow.CodeGen (codeGenScript)
@@ -72,19 +72,22 @@ loggedModify transform = do
   tell $ Dual [sw']
   put sw'
 
+noCode :: CGMetadata
+noCode = CGMetadata ENoOp Nothing
+
 -- | Finish a hole, replace it with a simple transition.
 finish
-  :: HoleId       -- ^ Identifier of hole to be replaced
+  :: TransId       -- ^ Identifier of hole to be replaced
   -> Name         -- ^ Name of the new transition
   -> SWREPLM ()
 finish holeId atomName = do
   transId <- gen
-  let cont = Edit.Atom (LSimple atomName transId)
+  let cont = Edit.Atom (TEL transId atomName True noCode)
   loggedModify (replaceHole holeId cont)
 
 -- | Replace a hole with a parallel subworkflow.
 parallel
-  :: HoleId                 -- ^ Identifier of hole to be replaced
+  :: TransId                 -- ^ Identifier of hole to be replaced
   -> Int                    -- ^ Number of parallel threads (AND branches)
   -> Name                   -- ^ Name of splitting transition
   -> Name                   -- ^ Name of joining transition
@@ -93,8 +96,8 @@ parallel
 parallel holeId numBranches splitName joinName names = do
   splitId <- gen
   joinId  <- gen
-  let splitLabel = LSimple splitName splitId
-      joinLabel  = LSimple joinName  joinId
+  let splitLabel = TEL splitId splitName False noCode
+      joinLabel  = TEL joinId  joinName  False noCode
   branchLabels <- forM names $ \(inName, outName) -> do
     inId  <- gen
     outId <- gen
@@ -104,7 +107,7 @@ parallel holeId numBranches splitName joinName names = do
 
 -- | Replace a hole with a branching subworkflow.
 choice
-  :: HoleId       -- ^ Identifier of hole to be replaced
+  :: TransId       -- ^ Identifier of hole to be replaced
   -> Int          -- ^ Number of possible choices (XOR branches)
   -> SWREPLM ()
 choice holeId n = loggedModify (replaceHole holeId (Edit.IfXOR undefined undefined))
@@ -112,14 +115,14 @@ choice holeId n = loggedModify (replaceHole holeId (Edit.IfXOR undefined undefin
 -- | Replace a hole with a "stay-or-continue" construct.
 -- Stay in the current state or progress forward.
 stayOrContinue
-  :: HoleId       -- ^ Identifier of hole to be replaced
+  :: TransId       -- ^ Identifier of hole to be replaced
   -> SWREPLM ()
 stayOrContinue holeId = loggedModify (replaceHole holeId Edit.SimpleLoop)
 
 -- | Replace a hole with a "loop-or-continue" construct.
 -- Loop in the the current state with the option to exit.
 loopOrContinue
-  :: HoleId       -- ^ Identifier of hole to be replaced
+  :: TransId       -- ^ Identifier of hole to be replaced
   -> Name         -- ^ Name for the breakpoint
   -> SWREPLM ()
 loopOrContinue holeId breakPointName = do
@@ -129,7 +132,7 @@ loopOrContinue holeId breakPointName = do
 
 -- | Replace a hole wth a sequence of two subworkflows.
 sequence
-  :: HoleId       -- ^ Identifier of hole to be replaced
+  :: TransId       -- ^ Identifier of hole to be replaced
   -> Name         -- ^ Name for the place in-between the the two subworklows
   -> SWREPLM ()
 sequence holeId inbetweenName = do
@@ -139,7 +142,7 @@ sequence holeId inbetweenName = do
 
 -- TODO: See "ACF Continutation" note in Language.FCL.SafeWorkflow.Editable
 acf
-  :: HoleId       -- ^ Identifier of hole to be replaced
+  :: TransId       -- ^ Identifier of hole to be replaced
   -> SWREPLM ()
 acf = panic "not implemented"
 
