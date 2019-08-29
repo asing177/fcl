@@ -67,6 +67,7 @@ type HoleId = Int
 -- | Identifier of a transition in an editable workflow
 type TransId = Int
 
+-- TODO: holes are not compatible with XOR conditions
 -- | Transition labels for safe workflow editing.
 data TEditLabel
   -- | Label for holes
@@ -162,6 +163,7 @@ data ANDBranchLabels = ANDBranchLabels
   , outLabel :: PEditLabel
   } deriving (Eq, Ord, Show)
 
+-- TODO: add smart constructors
 -- | `Continuation`s are used to replace holes in `EditableSW`s.
 data Continuation
   = Atom { atomLabel       :: TEditLabel   -- ^ Label to be put on the transition
@@ -170,8 +172,17 @@ data Continuation
          , andJoinLabel     :: TEditLabel            -- ^ Label to be put on the joining transition
          , andBranchLabels  :: List2 ANDBranchLabels -- ^ In and Out annotations of each branch in the AND-split
          }
-  | XOR  { xorNumBranches  :: Int         -- ^ Number of branches in the XOR-split
-         }
+  -- | XOR-spliting by having an @if@ statement in a single method.
+  -- Should be labelled by `LIfCond`. The second label should always
+  -- have the `CDefault` condition.
+  | IfXOR  { ifXorThenLabel :: TEditLabel   -- ^ Label for the _then_ branch
+           , ifXorElseLabel :: TEditLabel   -- ^ Label for the _else_ branch
+           }
+  -- | XOR-spliting by having multiple methods (undetermiinistic semantics).
+  -- Should be labelled by `LSimple`.
+  | UndetXOR { undetXorFst :: TEditLabel    -- ^ Label for the first path
+             , undetXorSnd :: TEditLabel    -- ^ Label for the second path
+             }
   | SimpleLoop
   | Loop { exitLabel :: PEditLabel -- ^ Label for the exit place
          }
@@ -189,8 +200,11 @@ fromContinuation mkIx parent = \case
   Atom{..}   -> SW.Atom atomLabel
   AND{..}    -> SW.AND andSplitLabel andJoinLabel $ mkBranches andBranchLabels
   SimpleLoop -> SW.SimpleLoop (Hole $ mkIx' 1) (Hole $ mkIx' 2)
+  -- TODO: conditions for this too
   Loop{..}   -> SW.Loop exitLabel (Hole $ mkIx' 1) (Hole $ mkIx' 2) (Hole $ mkIx' 3)
-  XOR{..}    -> foldl SW.XOR (Hole $ mkIx' 1) $ map (Hole . mkIx') [2..xorNumBranches]
+  -- TODO: finish this
+  IfXOR{..}     -> SW.XOR (Hole $ mkIx' 1) (Hole $ mkIx' 2)
+  UndetXOR{..}  -> SW.XOR (Hole $ mkIx' 1) (Hole $ mkIx' 2)
   Seq{..}    -> SW.Seq inbetweenLabel (Hole $ mkIx' 1) (Hole $ mkIx' 2)
   {- TODO: ACF Continuation
 

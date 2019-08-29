@@ -107,7 +107,7 @@ choice
   :: HoleId       -- ^ Identifier of hole to be replaced
   -> Int          -- ^ Number of possible choices (XOR branches)
   -> SWREPLM ()
-choice holeId n = loggedModify (replaceHole holeId (Edit.XOR n))
+choice holeId n = loggedModify (replaceHole holeId (Edit.IfXOR undefined undefined))
 
 -- | Replace a hole with a "stay-or-continue" construct.
 -- Stay in the current state or progress forward.
