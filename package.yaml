@@ -85,6 +85,7 @@ library:
     # Control Structures
   - mtl
   - transformers
+  - monad-gen
 
   # Text
   - text
@@ -160,6 +161,8 @@ library:
     - Language.FCL.Reachability.Utils
     - Language.FCL.Reachability.SplitAndMerge
     - Language.FCL.Reachability.StructuredTransition
+    - Language.FCL.SafeWorkflow
+    - Language.FCL.SafeWorkflow.Simple
     - Language.FCL.Analysis
     - Language.FCL.Graphviz
     - Language.FCL.Hash
@@ -229,4 +232,3 @@ tests:
     - quickcheck-instances
     - aeson-pretty
     - mtl
-    - monad-gen

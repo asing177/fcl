@@ -17,39 +17,58 @@ import qualified Data.Set as S
 import qualified Data.Map as M
 
 import Language.FCL.AST (Name(..), Place(..), WorkflowState(..), Transition(..), makeWorkflowState, startState, endState, wfUnion)
+import Language.FCL.SafeWorkflow
+  ( SafeWorkflow(..)
+  , pattern XOR
+  , pattern Seq
+  , pattern SimpleLoop
+  , pattern Loop
+  , unsafeMkACF
+  , ACFArrow(..)
+  , ACFPlace(..)
 
-import Test.Workflow.SafeWorkflow
+  , pattern XOR3
+  , pattern GenXOR
+  )
+import Language.FCL.SafeWorkflow.Simple
+  ( SimpleSafeWorkflow
+  , pattern SAtom
+  , pattern SAND
+  , pattern SAND2
+  )
+
+
 import Test.Workflow.SafeWorkflow.Extended
 
 -------------------------------------------------
 -- Basic building blocks of safe workflow nets --
 -------------------------------------------------
 
-namedBasicNets :: [([Char], SafeWorkflow)]
+namedBasicNets :: [([Char], SimpleSafeWorkflow)]
 namedBasicNets =
   [ ( "atom"
-    , Atom
+    , SAtom
     )
   , ( "XOR"
-    , XOR Atom (XOR Atom Atom)
+    , XOR SAtom (XOR SAtom SAtom)
     )
   , ( "AND"
-    , AND [Atom, Atom, Atom]
+    , SAND [SAtom, SAtom, SAtom]
     )
   , ( "Seq"
-    , Seq Atom Atom
+    , Seq SAtom SAtom
     )
   , ( "SimpleLoop"
-    , SimpleLoop Atom Atom
+    , SimpleLoop SAtom SAtom
     )
   , ( "Loop"
-    , Loop Atom Atom Atom
+    , Loop SAtom SAtom SAtom
     )
   , ( "toRightGenXOR"
-    , GenXOR Atom Atom Atom Atom Atom
+    , GenXOR SAtom SAtom SAtom SAtom SAtom
     )
   , ( "toLeftGenXOR"
-    , GenXOR Atom Atom Atom Atom Atom
+    , GenXOR SAtom SAtom SAtom SAtom SAtom
     )
   ]
 
@@ -57,38 +76,38 @@ namedBasicNets =
 -- Already existing examples reproduced using safe workflow nets --
 -------------------------------------------------------------------
 
-namedExampleNets :: [([Char], SafeWorkflow)]
+namedExampleNets :: [([Char], SimpleSafeWorkflow)]
 namedExampleNets =
   [ ( "swap"
-    ,  XOR Atom (Loop Atom Atom (XOR Atom Atom))
+    ,  XOR SAtom (Loop SAtom SAtom (XOR SAtom SAtom))
     )
   , ( "concurrent"
-    ,  AND [Atom, Atom]
+    ,  SAND [SAtom, SAtom]
     )
   , ( "amendment"
-    ,  Seq (AND [Atom, Atom]) (SimpleLoop (XOR (Seq Atom Atom) Atom) Atom)
+    ,  Seq (SAND [SAtom, SAtom]) (SimpleLoop (XOR (Seq SAtom SAtom) SAtom) SAtom)
     )
   , ( "graph"
-    ,  Seq (XOR (Seq Atom Atom) (Seq Atom Atom)) Atom
+    ,  Seq (XOR (Seq SAtom SAtom) (Seq SAtom SAtom)) SAtom
     )
   , ( "novation" -- not exactly the same, but isomorphic
-    ,  Seq (AND2 Atom Atom) (Loop (AND2 Atom Atom) Atom (AND2 Atom Atom))
+    ,  Seq (SAND2 SAtom SAtom) (Loop (SAND2 SAtom SAtom) SAtom (SAND2 SAtom SAtom))
     )
   , ( "loan-contract"
-    ,  Seq Atom (Loop Atom (XOR (Seq Atom (SimpleLoop Atom Atom)) Atom) Atom)
+    ,  Seq SAtom (Loop SAtom (XOR (Seq SAtom (SimpleLoop SAtom SAtom)) SAtom) SAtom)
     )
   , ( "zcb"
-    ,  XOR Atom (Loop Atom (Seq Atom Atom) (XOR Atom Atom))
+    ,  XOR SAtom (Loop SAtom (Seq SAtom SAtom) (XOR SAtom SAtom))
     )
   , ( "product"
-    , Seq Atom (XOR (Seq Atom (SimpleLoop (XOR3 Atom Atom Atom) (XOR (Seq Atom (XOR3 (Seq Atom Atom) (Seq Atom Atom) (Seq Atom Atom))) (Loop Atom (Seq Atom Atom) (XOR Atom (Seq Atom Atom)))))) Atom)
+    , Seq SAtom (XOR (Seq SAtom (SimpleLoop (XOR3 SAtom SAtom SAtom) (XOR (Seq SAtom (XOR3 (Seq SAtom SAtom) (Seq SAtom SAtom) (Seq SAtom SAtom))) (Loop SAtom (Seq SAtom SAtom) (XOR SAtom (Seq SAtom SAtom)))))) SAtom)
     )
   , ( "gas-forward-simple"
-    ,  Seq Atom (XOR (GenXOR Atom (SimpleLoop Atom Atom) Atom Atom Atom) Atom)
+    ,  Seq SAtom (XOR (GenXOR SAtom (SimpleLoop SAtom SAtom) SAtom SAtom SAtom) SAtom)
     )
   , ( "gas-forward"
-    , let gasForwardNominationSubNet = SimpleLoop Atom (Seq (AND2 Atom (SimpleLoop Atom Atom)) (SimpleLoop Atom Atom)) in
-        Seq Atom (XOR (GenXOR Atom (SimpleLoop Atom Atom) Atom gasForwardNominationSubNet Atom) Atom)
+    , let gasForwardNominationSubNet = SimpleLoop SAtom (Seq (SAND2 SAtom (SimpleLoop SAtom SAtom)) (SimpleLoop SAtom SAtom)) in
+        Seq SAtom (XOR (GenXOR SAtom (SimpleLoop SAtom SAtom) SAtom gasForwardNominationSubNet SAtom) SAtom)
     )
   ]
 
@@ -97,19 +116,19 @@ namedExampleNets =
 ---------------------------------------------------
 
 -- | Just some arbitrarily generated examples.
-namedArbitraryNets :: [([Char], SafeWorkflow)]
+namedArbitraryNets :: [([Char], SimpleSafeWorkflow)]
 namedArbitraryNets = zipWith (\id net -> ("arbitrary-" <> show id, net)) [0..]
-  [ Atom
-  , unsafeMkACF $ M.fromList [(ACFArrow Entry (P 1),Atom :| []),(ACFArrow (P 1) Exit,Atom :| [])]
-  , unsafeMkACF $ M.fromList [(ACFArrow Entry Exit,Atom :| [])]
-  , unsafeMkACF $ M.fromList [(ACFArrow Entry (P 7391920812667194482),Atom :| []),(ACFArrow Entry Exit,Atom :| []),(ACFArrow (P 7391920812667194482) Exit,Atom :| [])]
-  , unsafeMkACF $ M.fromList [(ACFArrow Entry (P 10000000000),AND {andBranches = List2 Atom Atom []} :| []),(ACFArrow (P 10000000000) (P 20000000000),Atom :| []),(ACFArrow (P 20000000000) (P 30000000000),Atom :| []),(ACFArrow (P 30000000000) (P 40000000000),Atom :| []),(ACFArrow (P 40000000000) (P 50000000000),Atom :| []),(ACFArrow (P 50000000000) Exit,Atom :| [])]
-  , unsafeMkACF $ M.fromList [(ACFArrow Entry Exit,Atom :| [])]
-  , unsafeMkACF $ M.fromList [(ACFArrow Entry (P 10000000000),Atom :| []),(ACFArrow (P 10000000000) (P 20000000000),Atom :| []),(ACFArrow (P 20000000000) Exit,Atom :| [])]
-  , unsafeMkACF $ M.fromList [(ACFArrow Entry (P 10000000000),Atom :| []),(ACFArrow Entry (P 20000000000),Atom :| []),(ACFArrow Entry Exit,Atom :| []),(ACFArrow (P 10000000000) (P 20000000000),GenLoop {gLoopIn = Just Atom, gLoopExit = Atom, gLoopOut = Atom} :| []),(ACFArrow (P 20000000000) Exit,Atom :| [])]
-  , unsafeMkACF $ M.fromList [(ACFArrow Entry (P 10000000000),AND {andBranches = List2 Atom Atom []} :| []),(ACFArrow Entry Exit,Atom :| []),(ACFArrow (P 10000000000) (P 10093128181),Atom :| []),(ACFArrow (P 10000000000) (P 20000000000),GenLoop {gLoopIn = Nothing, gLoopExit = Atom, gLoopOut = Atom} :| []),(ACFArrow (P 10093128181) (P 30000000000),Atom :| []),(ACFArrow (P 20000000000) (P 30000000000),GenLoop {gLoopIn = Nothing, gLoopExit = Atom, gLoopOut = Atom} :| []),(ACFArrow (P 30000000000) Exit,Atom :| [])]
-  , unsafeMkACF $ M.fromList [(ACFArrow Entry Exit,Atom :| [])]
-  , unsafeMkACF $ M.fromList [(ACFArrow Entry (P 10000000000),Atom :| []),(ACFArrow Entry (P 20000000000),Atom :| []),(ACFArrow (P 10000000000) (P 20000000000),Atom :| []),(ACFArrow (P 10000000000) Exit,Atom :| []),(ACFArrow (P 20000000000) Exit,Atom :| [])]
+  [ SAtom
+  , unsafeMkACF $ M.fromList [(ACFArrow Entry (P 1),SAtom :| []),(ACFArrow (P 1) Exit,SAtom :| [])]
+  , unsafeMkACF $ M.fromList [(ACFArrow Entry Exit,SAtom :| [])]
+  , unsafeMkACF $ M.fromList [(ACFArrow Entry (P 7391920812667194482),SAtom :| []),(ACFArrow Entry Exit,SAtom :| []),(ACFArrow (P 7391920812667194482) Exit,SAtom :| [])]
+  , unsafeMkACF $ M.fromList [(ACFArrow Entry (P 10000000000),SAND (List2 SAtom SAtom []) :| []),(ACFArrow (P 10000000000) (P 20000000000),SAtom :| []),(ACFArrow (P 20000000000) (P 30000000000),SAtom :| []),(ACFArrow (P 30000000000) (P 40000000000),SAtom :| []),(ACFArrow (P 40000000000) (P 50000000000),SAtom :| []),(ACFArrow (P 50000000000) Exit,SAtom :| [])]
+  , unsafeMkACF $ M.fromList [(ACFArrow Entry Exit,SAtom :| [])]
+  , unsafeMkACF $ M.fromList [(ACFArrow Entry (P 10000000000),SAtom :| []),(ACFArrow (P 10000000000) (P 20000000000),SAtom :| []),(ACFArrow (P 20000000000) Exit,SAtom :| [])]
+  , unsafeMkACF $ M.fromList [(ACFArrow Entry (P 10000000000),SAtom :| []),(ACFArrow Entry (P 20000000000),SAtom :| []),(ACFArrow Entry Exit,SAtom :| []),(ACFArrow (P 10000000000) (P 20000000000),GenLoop {gLoopIn = Just SAtom, gLoopExit = SAtom, gLoopOut = SAtom} :| []),(ACFArrow (P 20000000000) Exit,SAtom :| [])]
+  , unsafeMkACF $ M.fromList [(ACFArrow Entry (P 10000000000),SAND (List2 SAtom SAtom []) :| []),(ACFArrow Entry Exit,SAtom :| []),(ACFArrow (P 10000000000) (P 10093128181),SAtom :| []),(ACFArrow (P 10000000000) (P 20000000000),GenLoop {gLoopIn = Nothing, gLoopExit = SAtom, gLoopOut = SAtom} :| []),(ACFArrow (P 10093128181) (P 30000000000),SAtom :| []),(ACFArrow (P 20000000000) (P 30000000000),GenLoop {gLoopIn = Nothing, gLoopExit = SAtom, gLoopOut = SAtom} :| []),(ACFArrow (P 30000000000) Exit,SAtom :| [])]
+  , unsafeMkACF $ M.fromList [(ACFArrow Entry Exit,SAtom :| [])]
+  , unsafeMkACF $ M.fromList [(ACFArrow Entry (P 10000000000),SAtom :| []),(ACFArrow Entry (P 20000000000),SAtom :| []),(ACFArrow (P 10000000000) (P 20000000000),SAtom :| []),(ACFArrow (P 10000000000) Exit,SAtom :| []),(ACFArrow (P 20000000000) Exit,SAtom :| [])]
   ]
 
 -- | Cases generated by QuickCheck that revealed bugs in the Split-and-Merge
@@ -118,7 +137,7 @@ namedCrossValidWitnessNets :: [([Char], ExtendedFCSW)]
 namedCrossValidWitnessNets =
   [ ( "local loop inside AND branch"
     , EFCSW $ ExtendedSW
-        (Seq (AND2 Atom Atom) Atom) $
+        (Seq (SAND2 SAtom SAtom) SAtom) $
         S.fromList
           [ Arrow (makeWorkflowState [Name "3"]) (makeWorkflowState [Name "5"])
           , Arrow (makeWorkflowState [Name "5"]) (makeWorkflowState [Name "5"])
@@ -126,7 +145,7 @@ namedCrossValidWitnessNets =
     )
   , ( "looping AND branches"
     , EFCSW $ ExtendedSW
-        Atom $
+        SAtom $
         S.fromList
           [ Arrow startState (makeWorkflowState [Name "1", Name "2"])
           , Arrow (makeWorkflowState [Name "1"]) (makeWorkflowState [Name "2"])
@@ -135,28 +154,28 @@ namedCrossValidWitnessNets =
     )
   , ( "local backward jump to dead-end state"
     , EFCSW $ ExtendedSW
-        (Seq (AND2 Atom Atom) Atom) $
+        (Seq (SAND2 SAtom SAtom) SAtom) $
         S.fromList
           [ Arrow (makeWorkflowState [Name "1"]) (makeWorkflowState [Name "3"])
           ]
     )
   , ( "incorrect direct backward jump to AND branch"
     , EFCSW $ ExtendedSW
-        (Seq (AND2 Atom Atom) Atom) $
+        (Seq (SAND2 SAtom SAtom) SAtom) $
         S.fromList
           [ Arrow (makeWorkflowState [Name "1"]) (makeWorkflowState [Name "2", Name "3"])
           ]
     )
   , ( "incorrect direct backward jump to before AND-split"
     , EFCSW $ ExtendedSW
-        (Seq (AND2 Atom Atom) Atom) $
+        (Seq (SAND2 SAtom SAtom) SAtom) $
         S.fromList
           [ Arrow (makeWorkflowState [Name "1"]) (makeWorkflowState [Name "3"] `wfUnion` startState)
           ]
     )
   , ( "incorrect direct forward jump to AND branches"
     , EFCSW $ ExtendedSW
-        (AND2 Atom Atom) $
+        (SAND2 SAtom SAtom) $
         S.fromList
           [ Arrow startState (makeWorkflowState [Name "1", Name "2"])
           ]
@@ -169,7 +188,7 @@ namedSoundButNotSafeWitnessNets :: [([Char], ExtendedFCSW)]
 namedSoundButNotSafeWitnessNets =
   [ ( "all transitions are direct"
     , EFCSW $ ExtendedSW
-        Atom $
+        SAtom $
         S.fromList
           [ Arrow startState (makeWorkflowState [Name "a", Name "b"])
           , Arrow (makeWorkflowState [Name "a", Name "b"]) endState
@@ -177,7 +196,7 @@ namedSoundButNotSafeWitnessNets =
     )
   , ( "some transitions are direct"
     , EFCSW $ ExtendedSW
-        Atom $
+        SAtom $
         S.fromList
           [ Arrow startState (makeWorkflowState [Name "a1", Name "b"])
           , Arrow (makeWorkflowState [Name "a1"]) (makeWorkflowState [Name "a2"])
@@ -186,21 +205,21 @@ namedSoundButNotSafeWitnessNets =
     )
   , ( "correct direct backward jump to AND-join"
     , EFCSW $ ExtendedSW
-        (Seq (AND2 Atom Atom) Atom) $
+        (Seq (SAND2 SAtom SAtom) SAtom) $
         S.fromList
           [ Arrow (makeWorkflowState [Name "1"]) (makeWorkflowState [Name "3", Name "5"])
           ]
     )
   , ( "correct direct backward jump to AND branches"
     , EFCSW $ ExtendedSW
-        (Seq (AND2 Atom Atom) Atom) $
+        (Seq (SAND2 SAtom SAtom) SAtom) $
         S.fromList
           [ Arrow (makeWorkflowState [Name "1"]) (makeWorkflowState [Name "3", Name "4"])
           ]
     )
   , ( "correct indirect backward jump to AND-join"
     , EFCSW $ ExtendedSW
-        (Seq (AND2 Atom Atom) Atom) $
+        (Seq (SAND2 SAtom SAtom) SAtom) $
         S.fromList
           [ Arrow (makeWorkflowState [Name "1"]) (makeWorkflowState [Name "6", Name "7"])
           , Arrow (makeWorkflowState [Name "6"]) (makeWorkflowState [Name "3"])
@@ -209,7 +228,7 @@ namedSoundButNotSafeWitnessNets =
     )
   , ( "correct indirect backward jump to AND branches"
     , EFCSW $ ExtendedSW
-        (Seq (AND2 Atom Atom) Atom) $
+        (Seq (SAND2 SAtom SAtom) SAtom) $
         S.fromList
           [ Arrow (makeWorkflowState [Name "1"]) (makeWorkflowState [Name "6", Name "7"])
           , Arrow (makeWorkflowState [Name "6"]) (makeWorkflowState [Name "3"])
@@ -218,14 +237,14 @@ namedSoundButNotSafeWitnessNets =
     )
   , ( "correct direct forward jump into AND-join"
     , EFCSW $ ExtendedSW
-        (AND2 Atom Atom) $
+        (SAND2 SAtom SAtom) $
         S.fromList
           [ Arrow startState (makeWorkflowState [Name "2", Name "4"])
           ]
     )
   , ( "correct direct forward jump to AND branches"
     , EFCSW $ ExtendedSW
-        (AND2 Atom Atom) $
+        (SAND2 SAtom SAtom) $
         S.fromList
           [ Arrow startState (makeWorkflowState [Name "2", Name "3"])
           ]
