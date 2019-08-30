@@ -1344,6 +1344,7 @@ tcNotOp opLoc torig e1 = do
   tinfo <- tcLExpr e1
   case ttype tinfo of
     TBool       -> return $ tBoolInfo torig eLoc
+    t@TNum{}    -> pure $ TypeInfo t torig eLoc
     invalidUnOp -> do
       throwErrInferM (InvalidUnOp Not invalidUnOp) opLoc
       return $ TypeInfo TError torig eLoc
