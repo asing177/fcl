@@ -43,6 +43,7 @@
 * Add information of the calling method in deltas when transferring assets
 * Remove SafeInteger and SafeString modules
 * Constrain workflows to be free choice Petri nets, hence making soundness checking more efficient
+* Allow `else if` branches
 
 ## 0.1
 

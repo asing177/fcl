@@ -562,12 +562,10 @@ ifElseExpr = do
   where
     -- Parse either an else block, or a noop expr
     elseBranch :: Parser LExpr
-    elseBranch = do
-      loc <- location
-      Text.Parsec.option
-        (Located loc $ ENoOp)
-        (try (reserved Token.else_) *> block
-          <?> "else statement")
+    elseBranch
+      = (try (reserved Token.else_) *> (block <|> mkLocated ifElseExpr))
+        <|> (mkLocated . pure) ENoOp
+        <?> "else statement"
 
 beforeExpr :: Parser Expr
 beforeExpr = do

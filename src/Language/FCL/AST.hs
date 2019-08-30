@@ -804,12 +804,14 @@ instance Pretty Expr where
                         Located _ e' = e
     EIf c e1 e2      -> token Token.if_ <+> parens (ppr c) <+> lbrace
                    <$$> (indent 2 . if e1' == ENoOp then identity else semify) (ppr e1)
-                   <$$> (if e2' == ENoOp
-                           then mempty
-                           else rbrace <+> token Token.else_ <+> lbrace
-                          <$$> (indent 2 . semify . ppr) e2
+                   <$$> (case e2' of
+                          ENoOp -> mempty <$$> rbrace
+                          EIf{} -> rbrace <+> token Token.else_ <+> ppr e2
+                          _ -> rbrace <+> token Token.else_ <+> lbrace
+                                <$$> (indent 2 . semify . ppr) e2
+                                <$$> rbrace
                         )
-                   <$$> rbrace
+
                       where
                         Located _ e1' = e1
                         Located _ e2' = e2
