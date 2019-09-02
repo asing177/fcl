@@ -1,31 +1,43 @@
 *** Deltas ***
 [ ModifyGlobal
     Name { unName = "bob" }
-    (VConstr
-       (MkNameUpper "Pers")
-       [ VText "robert"
-       , VConstr
-           (MkNameUpper "Addr") [ VText "main st" , VText "springfield" ]
-       ])
+    VConstr
+      { vConstrName = MkNameUpper "Pers"
+      , vConstrParams =
+          [ VText "robert"
+          , VConstr
+              { vConstrName = MkNameUpper "Addr"
+              , vConstrParams = [ VText "main st" , VText "springfield" ]
+              }
+          ]
+      }
 , ModifyGlobal
     Name { unName = "bob" }
-    (VConstr
-       (MkNameUpper "Pers")
-       [ VText "robert"
-       , VConstr
-           (MkNameUpper "Addr") [ VText "posh st" , VText "springfield" ]
-       ])
+    VConstr
+      { vConstrName = MkNameUpper "Pers"
+      , vConstrParams =
+          [ VText "robert"
+          , VConstr
+              { vConstrName = MkNameUpper "Addr"
+              , vConstrParams = [ VText "posh st" , VText "springfield" ]
+              }
+          ]
+      }
 ]
 
 *** Globals ***
 fromList
   [ ( Key { unKey = "bob" }
     , VConstr
-        (MkNameUpper "Pers")
-        [ VText "robert"
-        , VConstr
-            (MkNameUpper "Addr") [ VText "posh st" , VText "springfield" ]
-        ]
+        { vConstrName = MkNameUpper "Pers"
+        , vConstrParams =
+            [ VText "robert"
+            , VConstr
+                { vConstrName = MkNameUpper "Addr"
+                , vConstrParams = [ VText "posh st" , VText "springfield" ]
+                }
+            ]
+        }
     )
   , ( Key { unKey = "testAddr" }
     , VAccount (Address "fwBVDsVh8SYQy98CzYpNPcbyTRczVUZ96HszhNRB8Ve")

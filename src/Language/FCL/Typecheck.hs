@@ -66,15 +66,10 @@ import qualified Data.Map as Map
 -------------------------------------------------------------------------------
 
 -- | Type signature
-data Sig = Sig [Type] Type
-  deriving (Eq, Show, Generic, Serialize)
-
-instance ToJSON Sig where
-  toJSON = genericToJSON (defaultOptions { sumEncoding = ObjectWithSingleField })
-
-instance FromJSON Sig where
-  parseJSON = genericParseJSON (defaultOptions { sumEncoding = ObjectWithSingleField })
-
+data Sig = Sig
+  { sigTypes :: [Type]
+  , sigType :: Type
+  } deriving (Eq, Show, Generic, Serialize, ToJSON, FromJSON)
 
 -- | Type error metadata
 -- This type uses ByteString for ad-hoc error messages so that we can get a

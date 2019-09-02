@@ -358,7 +358,10 @@ data Value
   | VMap (Map Value Value)         -- ^ Map of values to values
   | VSet (Set Value)               -- ^ Set of values
   | VUndefined                     -- ^ Undefined
-  | VConstr NameUpper [Value]      -- ^ Constructor
+  | VConstr                        -- ^ Constructor
+    { vConstrName :: NameUpper
+    , vConstrParams :: [Value]
+    }
   deriving (Eq, Ord, Show, Generic, Serialize, Hash.Hashable)
 
 instance ToJSONKey Value where
@@ -1042,15 +1045,10 @@ instance FromJSON WorkflowState where
          ("{", "}") -> WorkflowState . Set.fromList . fmap (makePlace . Name . T.strip) . T.splitOn (T.pack ",") . T.dropEnd 1 . T.drop 1 $ t
          _ -> WorkflowState . Set.fromList . fmap (makePlace . Name . T.strip) . T.splitOn (T.pack ",") $ t
 
-data Transition
-  = Arrow WorkflowState WorkflowState
-  deriving (Eq, Ord, Show, Generic, Serialize, Hash.Hashable, NFData)
-
-instance ToJSON Transition where
-  toJSON = genericToJSON (defaultOptions { sumEncoding = ObjectWithSingleField })
-
-instance FromJSON Transition where
-  parseJSON = genericParseJSON (defaultOptions { sumEncoding = ObjectWithSingleField })
+data Transition = Arrow
+  { tFrom :: WorkflowState
+  , tTo :: WorkflowState
+  } deriving (Eq, Ord, Show, Generic, Serialize, Hash.Hashable, ToJSON, FromJSON, NFData)
 
 instance Pretty Transition where
   ppr (Arrow from to) = token Token.transition <+> ppr from <+> token Token.rarrow <+> ppr to

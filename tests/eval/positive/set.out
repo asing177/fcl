@@ -3,27 +3,39 @@
     Name { unName = "investors" }
     (VMap
        (fromList
-          [ ( VConstr (MkNameUpper "BigInvestor") []
+          [ ( VConstr
+                { vConstrName = MkNameUpper "BigInvestor" , vConstrParams = [] }
             , VSet
                 (fromList
                    [ VAccount (Address "fwBVDsVh8SYQy98CzYpNPcbyTRczVUZ96HszhNRB8Ve")
                    ])
             )
-          , ( VConstr (MkNameUpper "MedInvestor") [] , VSet (fromList []) )
-          , ( VConstr (MkNameUpper "SmallInvestor") [] , VSet (fromList []) )
+          , ( VConstr
+                { vConstrName = MkNameUpper "MedInvestor" , vConstrParams = [] }
+            , VSet (fromList [])
+            )
+          , ( VConstr
+                { vConstrName = MkNameUpper "SmallInvestor" , vConstrParams = [] }
+            , VSet (fromList [])
+            )
           ]))
 , ModifyGlobal
     Name { unName = "investors" }
     (VMap
        (fromList
-          [ ( VConstr (MkNameUpper "BigInvestor") []
+          [ ( VConstr
+                { vConstrName = MkNameUpper "BigInvestor" , vConstrParams = [] }
             , VSet
                 (fromList
                    [ VAccount (Address "fwBVDsVh8SYQy98CzYpNPcbyTRczVUZ96HszhNRB8Ve")
                    ])
             )
-          , ( VConstr (MkNameUpper "MedInvestor") [] , VSet (fromList []) )
-          , ( VConstr (MkNameUpper "SmallInvestor") []
+          , ( VConstr
+                { vConstrName = MkNameUpper "MedInvestor" , vConstrParams = [] }
+            , VSet (fromList [])
+            )
+          , ( VConstr
+                { vConstrName = MkNameUpper "SmallInvestor" , vConstrParams = [] }
             , VSet
                 (fromList
                    [ VAccount (Address "Fw68hsis6JPW4ed3ER1VC959TTf9DqberLxrq5uECKxh")
@@ -34,19 +46,22 @@
     Name { unName = "investors" }
     (VMap
        (fromList
-          [ ( VConstr (MkNameUpper "BigInvestor") []
+          [ ( VConstr
+                { vConstrName = MkNameUpper "BigInvestor" , vConstrParams = [] }
             , VSet
                 (fromList
                    [ VAccount (Address "fwBVDsVh8SYQy98CzYpNPcbyTRczVUZ96HszhNRB8Ve")
                    ])
             )
-          , ( VConstr (MkNameUpper "MedInvestor") []
+          , ( VConstr
+                { vConstrName = MkNameUpper "MedInvestor" , vConstrParams = [] }
             , VSet
                 (fromList
                    [ VAccount (Address "4Stv5gWGt78D3p919HFcKEschSmyGKGrAX2G35xJgdhw")
                    ])
             )
-          , ( VConstr (MkNameUpper "SmallInvestor") []
+          , ( VConstr
+                { vConstrName = MkNameUpper "SmallInvestor" , vConstrParams = [] }
             , VSet
                 (fromList
                    [ VAccount (Address "Fw68hsis6JPW4ed3ER1VC959TTf9DqberLxrq5uECKxh")
@@ -57,32 +72,44 @@
     Name { unName = "investors" }
     (VMap
        (fromList
-          [ ( VConstr (MkNameUpper "BigInvestor") []
+          [ ( VConstr
+                { vConstrName = MkNameUpper "BigInvestor" , vConstrParams = [] }
             , VSet
                 (fromList
                    [ VAccount (Address "fwBVDsVh8SYQy98CzYpNPcbyTRczVUZ96HszhNRB8Ve")
                    ])
             )
-          , ( VConstr (MkNameUpper "MedInvestor") []
+          , ( VConstr
+                { vConstrName = MkNameUpper "MedInvestor" , vConstrParams = [] }
             , VSet
                 (fromList
                    [ VAccount (Address "4Stv5gWGt78D3p919HFcKEschSmyGKGrAX2G35xJgdhw")
                    ])
             )
-          , ( VConstr (MkNameUpper "SmallInvestor") [] , VSet (fromList []) )
+          , ( VConstr
+                { vConstrName = MkNameUpper "SmallInvestor" , vConstrParams = [] }
+            , VSet (fromList [])
+            )
           ]))
 , ModifyGlobal
     Name { unName = "investors" }
     (VMap
        (fromList
-          [ ( VConstr (MkNameUpper "BigInvestor") [] , VSet (fromList []) )
-          , ( VConstr (MkNameUpper "MedInvestor") []
+          [ ( VConstr
+                { vConstrName = MkNameUpper "BigInvestor" , vConstrParams = [] }
+            , VSet (fromList [])
+            )
+          , ( VConstr
+                { vConstrName = MkNameUpper "MedInvestor" , vConstrParams = [] }
             , VSet
                 (fromList
                    [ VAccount (Address "4Stv5gWGt78D3p919HFcKEschSmyGKGrAX2G35xJgdhw")
                    ])
             )
-          , ( VConstr (MkNameUpper "SmallInvestor") [] , VSet (fromList []) )
+          , ( VConstr
+                { vConstrName = MkNameUpper "SmallInvestor" , vConstrParams = [] }
+            , VSet (fromList [])
+            )
           ]))
 , ModifyState WorkflowState { places = fromList [ PlaceEnd ] }
 , Terminate
@@ -93,14 +120,21 @@ fromList
   [ ( Key { unKey = "investors" }
     , VMap
         (fromList
-           [ ( VConstr (MkNameUpper "BigInvestor") [] , VSet (fromList []) )
-           , ( VConstr (MkNameUpper "MedInvestor") []
+           [ ( VConstr
+                 { vConstrName = MkNameUpper "BigInvestor" , vConstrParams = [] }
+             , VSet (fromList [])
+             )
+           , ( VConstr
+                 { vConstrName = MkNameUpper "MedInvestor" , vConstrParams = [] }
              , VSet
                  (fromList
                     [ VAccount (Address "4Stv5gWGt78D3p919HFcKEschSmyGKGrAX2G35xJgdhw")
                     ])
              )
-           , ( VConstr (MkNameUpper "SmallInvestor") [] , VSet (fromList []) )
+           , ( VConstr
+                 { vConstrName = MkNameUpper "SmallInvestor" , vConstrParams = [] }
+             , VSet (fromList [])
+             )
            ])
     )
   , ( Key { unKey = "testAddr" }
