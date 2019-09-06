@@ -1,6 +1,5 @@
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE OverloadedLists #-}
-{-# OPTIONS_GHC -Wwarn #-}
 module Language.FCL.SafeWorkflow.REPL
   ( module Language.FCL.SafeWorkflow.REPL
   ) where
@@ -11,12 +10,14 @@ import Data.List.List2 (List2(..))
 import Data.Monoid (Dual(..))
 
 import Control.Monad.Gen
-import Control.Monad.RWS
+import Control.Monad.RWS hiding (sequence)
 
 import System.FilePath (FilePath, (</>))
 import System.Directory (createDirectoryIfMissing)
 
-import Language.FCL.AST (Name, Script, Expr(..))
+import Numeric.Lossless.Decimal (Decimal(..))
+
+import Language.FCL.AST (Name, Script, Expr(..), Lit(..), UnOp(..), BinOp(..))
 import Language.FCL.Graphviz (workflowWriteSVG)
 import Language.FCL.SafeWorkflow.Editable
 import Language.FCL.SafeWorkflow.CodeGen (codeGenScript)
@@ -74,31 +75,37 @@ loggedModify transform = do
   put sw'
 
 noCode :: CGMetadata
-noCode = CGMetadata ENoOp Nothing
+noCode = CGMetadata Nothing Nothing
+
+withoutCond :: Expr -> CGMetadata
+withoutCond code = CGMetadata (Just code) Nothing
 
 -- | Finish a hole, replace it with a simple transition.
 finish
   :: TransId       -- ^ Identifier of hole to be replaced
   -> Name         -- ^ Name of the new transition
+  -> Expr         -- ^ Code for the transition
   -> SWREPLM ()
-finish holeId atomName = do
+finish holeId atomName code = do
   transId <- gen
-  let cont = Edit.Atom (TEL transId atomName True noCode)
+  let cont = Edit.Atom (TEL transId atomName False $ withoutCond code)
   loggedModify (replaceHole holeId cont)
 
 -- | Replace a hole with a parallel subworkflow.
 parallel
   :: TransId                 -- ^ Identifier of hole to be replaced
-  -> Int                    -- ^ Number of parallel threads (AND branches)
   -> Name                   -- ^ Name of splitting transition
+  -> Expr                   -- ^ Code for the splitting transitions
   -> Name                   -- ^ Name of joining transition
+  -> Expr                   -- ^ Code for the joining transitions
   -> List2 (Name, Name)     -- ^ Names for the places inside the AND-branches
   -> SWREPLM ()
-parallel holeId numBranches splitName joinName names = do
+parallel holeId splitName splitCode joinName joinCode names = do
   splitId <- gen
   joinId  <- gen
-  let splitLabel = TEL splitId splitName False noCode
-      joinLabel  = TEL joinId  joinName  False noCode
+  let splitLabel  = TEL splitId splitName False $ withoutCond splitCode
+      joinLabel   = TEL joinId  joinName  False $ withoutCond joinCode
+      numBranches = length names
   branchLabels <- forM names $ \(inName, outName) -> do
     inId  <- gen
     outId <- gen
@@ -106,12 +113,21 @@ parallel holeId numBranches splitName joinName names = do
   let cont = Edit.AND splitLabel joinLabel branchLabels
   loggedModify (replaceHole holeId cont)
 
+-- TODO: only single condition then automatically negate it?
 -- | Replace a hole with a branching subworkflow.
 choice
   :: TransId       -- ^ Identifier of hole to be replaced
-  -> Int          -- ^ Number of possible choices (XOR branches)
+  -- -> Name          -- ^ Name of the @then@ transition
+  -- -> Name          -- ^ Name of the @else@ transition
+  -> Expr          -- ^ The condition for the @then@ branch (this will be negated for the @else@ branch)
   -> SWREPLM ()
-choice holeId n = loggedModify (replaceHole holeId (Edit.IfXOR undefined undefined))
+choice holeId {- thenName elseName -} thenCond = do
+  thenId <- gen
+  elseId <- gen
+  -- NOTE: since the transitions are editable, the names don't matter for rendering
+  let thenLabel = TEL thenId "" True (CGMetadata Nothing $ Just thenCond)
+      elseLabel = TEL elseId "" True (CGMetadata Nothing $ Just (neg thenCond))
+  loggedModify (replaceHole holeId (Edit.IfXOR thenLabel elseLabel))
 
 -- | Replace a hole with a "stay-or-continue" construct.
 -- Stay in the current state or progress forward.
@@ -160,41 +176,100 @@ execCodeGen = codeGenScript
 execCodeGenThenPrintScript :: SWREPLM a -> IO ()
 execCodeGenThenPrintScript = putStr . prettyPrint . execCodeGen where
 
-simpleWhiteBoardExample1 :: SWREPLM ()
-simpleWhiteBoardExample1 = do
-  parallel 1 2 "split" "join"
-    [ ("lhsIn", "lhsOut")
-    , ("rhsIn", "rhsOut")
-    ]
-  finish 1 "t1"
-  choice 2 2
-  finish 1 "t2"
-  stayOrContinue 2
-  finish 1 "t3"
-  finish 2 "t4"
+trueCond :: Expr
+trueCond = ELit . noLoc . LBool $ True
 
-simpleWhiteBoardExample2 :: SWREPLM ()
-simpleWhiteBoardExample2 = do
-  parallel 1 2 "split" "join"
-    [ ("lhsIn", "lhsOut")
-    , ("rhsIn", "rhsOut")
-    ]
-  choice 2 2
-  stayOrContinue 22
-  finish 221 "t3"
-  finish 222 "t4"
-  finish 21  "t2"
-  finish 1   "t1"
+zeroLTOne :: Expr
+zeroLTOne = EBinOp (noLoc Lesser)
+  (noLoc $ ELit $ noLoc $ LNum $ Decimal 0 0)
+  (noLoc $ ELit $ noLoc $ LNum $ Decimal 0 1)
+
+xLTFive :: Expr
+xLTFive = EBinOp (noLoc Lesser)
+  (noLoc $ EVar $ noLoc $ "x")
+  (noLoc $ ELit $ noLoc $ LNum $ Decimal 0 5)
+
+xEQZero :: Expr
+xEQZero = EBinOp (noLoc Equal)
+  (noLoc $ EVar $ noLoc $ "x")
+  (noLoc $ ELit $ noLoc $ LNum $ Decimal 0 0)
+
+xAssign :: Integer -> Expr
+xAssign n = EAssign ["x"]
+  (noLoc $ ELit $ noLoc $ LNum $ Decimal 0 n)
+
+neg :: Expr -> Expr
+neg = EUnOp (noLoc Not) . noLoc
+
+-- simpleWhiteBoardExample1 :: SWREPLM ()
+-- simpleWhiteBoardExample1 = do
+--   parallel 1 2 "split" "join"
+--     [ ("lhsIn", "lhsOut")
+--     , ("rhsIn", "rhsOut")
+--     ]
+--   finish 1 "t1"
+--   choice 2 trueCond (neg trueCond)
+--   finish 1 "t2"
+--   stayOrContinue 2
+--   finish 1 "t3"
+--   finish 2 "t4"
+
+-- simpleWhiteBoardExample2 :: SWREPLM ()
+-- simpleWhiteBoardExample2 = do
+--   parallel 1 2 "split" "join"
+--     [ ("lhsIn", "lhsOut")
+--     , ("rhsIn", "rhsOut")
+--     ]
+--   choice 2 trueCond (neg trueCond)
+--   stayOrContinue 22
+--   finish 221 "t3"
+--   finish 222 "t4"
+--   finish 21  "t2"
+--   finish 1   "t1"
 
 simpleWhiteBoardExample3 :: SWREPLM ()
 simpleWhiteBoardExample3 = do
-  parallel 1 2 "split" "join"
+  parallel 1
+    "split" (xAssign 10)
+    "join"  (xAssign 20)
     [ ("lhsIn", "lhsOut")
     , ("rhsIn", "rhsOut")
     ]
-  finish 1 "t1"
-  choice 2 2
-  finish 1 "t2"
-  stayOrContinue 2
-  finish 1 "t2"
-  finish 2 "t2"
+  finish 1 "t1" $ xAssign 1
+  choice 2 zeroLTOne
+  finish 8 "t2" $ xAssign 2
+  stayOrContinue 9
+  finish 1 "t2" $ xAssign 3
+  finish 2 "t2" $ xAssign 4
+
+choiceInChoiceLeft :: SWREPLM ()
+choiceInChoiceLeft = do
+  choice 1 xLTFive
+  choice 1 xEQZero
+  finish 2 "t1" $ xAssign 1
+  finish 3 "t1" $ xAssign 2
+  finish 4 "t1" $ xAssign 3
+
+choiceInChoiceRight :: SWREPLM ()
+choiceInChoiceRight = do
+  choice 1 xLTFive
+  finish 1 "t1" $ xAssign 1
+  choice 2 xEQZero
+  finish 4 "t1" $ xAssign 2
+  finish 5 "t1" $ xAssign 3
+
+seqInChoiceLeft :: SWREPLM ()
+seqInChoiceLeft = do
+  choice 1 xLTFive
+  sequence 1 "inbetween"
+  finish 11 "t1" $ xAssign 1
+  finish 12 "t2" $ xAssign 2
+  finish 2  "t1" $ xAssign 3
+
+seqInChoiceRight :: SWREPLM ()
+seqInChoiceRight = do
+  choice 1 xLTFive
+  sequence 2 "inbetween"
+  finish 21 "t1" $ xAssign 1
+  finish 22 "t2" $ xAssign 2
+  finish 1  "t1" $ xAssign 3

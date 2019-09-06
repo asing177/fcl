@@ -20,6 +20,7 @@ module Language.FCL.SafeWorkflow.Editable
 
   , replaceHole
   , prettify
+  , noLoc
   )
   where
 
@@ -44,7 +45,7 @@ import Language.FCL.SafeWorkflow hiding
   , pattern ACF
   , PlaceId
   )
-import Language.FCL.AST (Name(..), Transition(..), WorkflowState(..), Place(..), Expr(..))
+import Language.FCL.AST (Name(..), Transition(..), WorkflowState(..), Place(..), Expr(..), BinOp(..), UnOp(..), Located(..), Loc(..))
 import Language.FCL.Pretty (Doc, Pretty, ppr, hsep, prettyPrint)
 import Language.FCL.Analysis (inferStaticWorkflowStates)
 import Language.FCL.Graphviz hiding (AnnotatedTransition)
@@ -69,7 +70,7 @@ type TransId = Int
 -- NOTE: global would be for methods (e.g.: preconditions)
 -- | Local transiion metadata forcode generation
 data CGMetadata = CGMetadata
-  { cgmCode   :: Expr         -- ^ Code to be generated into the transition
+  { cgmCode   :: Maybe Expr   -- ^ Code to be generated into the transition (`Nothing` -> `ENoOp`)
   , cgmIfCond :: Maybe Expr   -- ^ Possible @If@ condition for deterministic branhcing (NOTE: the conditions in a given method should always be mutually exclusive and should always cover the entire event-space)
   }
   deriving (Eq, Ord, Show)
@@ -91,7 +92,7 @@ newtype PrettyTLabel = PrettyTLabel TEditLabel
 instance Pretty PrettyTLabel where
   ppr = \case
     PrettyTLabel TEL{..}
-      | trIsEditable -> " " <> ppr trId
+      | trIsEditable -> "_" <> ppr trId
       | otherwise    -> ppr trMethodName
 
 instance Show PrettyTLabel where
@@ -142,7 +143,12 @@ prettify = bimap PrettyPLabel PrettyTLabel
 -- the workflow can be edited.
 pattern Hole :: TransId -> EditableSW
 pattern Hole id <- SW.Atom (TEL id _ True _)
-  where Hole id = SW.Atom $ TEL id (Name $ "_" <> show id) True (CGMetadata ENoOp Nothing)
+  where Hole id = SW.Atom $ TEL id (Name $ "_" <> show id) True (CGMetadata Nothing Nothing)
+
+-- -- | A `Hole` with a `Maybe` condition.
+-- pattern MCHole :: TransId -> Expr -> EditableSW
+-- pattern MCHole id mCond <- SW.Atom (TEL id _ True _(CGMetadata Nothing mCond)
+--   where MCHole id mCond =  SW.Atom $ TEL id (Name $ "_" <> show id) True (CGMetadata Nothing mCond)
 
 -- | Labels for the places inside AND branches before
 -- and after the subworkflow.
@@ -161,40 +167,71 @@ data Continuation
          , andBranchLabels  :: List2 ANDBranchLabels -- ^ In and Out annotations of each branch in the AND-split
          }
   -- | XOR-spliting by having an @if@ statement in a single method.
-  -- Should be labelled by `LIfCond`. The second label should always
-  -- have the `CDefault` condition.
   | IfXOR  { ifXorThenLabel :: TEditLabel   -- ^ Label for the _then_ branch
            , ifXorElseLabel :: TEditLabel   -- ^ Label for the _else_ branch
            }
   -- | XOR-spliting by having multiple methods (undetermiinistic semantics).
-  -- Should be labelled by `LSimple`.
   | UndetXOR { undetXorFst :: TEditLabel    -- ^ Label for the first path
              , undetXorSnd :: TEditLabel    -- ^ Label for the second path
              }
+  -- TODO: add condition
   | SimpleLoop
+  -- TODO: add condition
   | Loop { exitLabel :: PEditLabel -- ^ Label for the exit place
          }
-  | Seq  { inbetweenLabel :: PEditLabel -- ^ Label for the palce inbetween the two transitions
+  | Seq  { inbetweenLabel :: PEditLabel -- ^ Label for the place inbetween the two transitions
          }
+  -- NOTE: Completely incomplete
   | ACF
   deriving (Eq, Ord, Show)
 
+noLoc :: a -> Located a
+noLoc = Located NoLoc
+
+guardedBy :: TEditLabel -> Expr -> TEditLabel
+-- guardedBy lbl _
+--   | Just code <- cgmCode . trCGMetadata $ lbl
+--   = panic $ "guardedBy: Label already contains code (no code displayed means NoOp): " <> prettyPrint code
+guardedBy lbl@TEL{..} newCond
+  | CGMetadata{..} <- trCGMetadata
+  = case cgmIfCond of
+    Nothing -> lbl { trCGMetadata = trCGMetadata { cgmIfCond = Just newCond } }
+    Just origCond -> let combinedCond = EBinOp (noLoc And) (noLoc origCond) (noLoc newCond)
+      in lbl { trCGMetadata = trCGMetadata { cgmIfCond = Just combinedCond } }
+
+mGuardedBy :: TEditLabel -> Maybe Expr -> TEditLabel
+mGuardedBy lbl = \case
+  Nothing   -> lbl
+  Just cond -> lbl `guardedBy` cond
+
+holeWithMCond :: TransId -> Maybe Expr -> EditableSW
+holeWithMCond id mCond = SW.Atom $ TEL id (Name $ "_" <> show id) True (CGMetadata Nothing mCond)
+
+-- NOTE: if the label to replaced already has a condition, preserve it
 -- TODO: if we ever allow reediting, we will need a smarter way to index holes
 fromContinuation
-  :: (TransId -> TransId -> TransId) -- ^ Make a new index from the parent and the current one
+  :: TEditLabel                       -- ^ Label for the transition being replaced
+  -> (TransId -> TransId -> TransId) -- ^ Make a new index from the parent and the current one
   -> TransId                       -- ^ Parent index
   -> Continuation                 -- ^ Construct to replace the given transition with
   -> EditableSW
-fromContinuation mkIx parent = \case
-  Atom{..}   -> SW.Atom atomLabel
-  AND{..}    -> SW.AND andSplitLabel andJoinLabel $ mkBranches andBranchLabels
-  SimpleLoop -> SW.SimpleLoop (Hole $ mkIx' 1) (Hole $ mkIx' 2)
+fromContinuation (cgmIfCond.trCGMetadata -> mCond) mkIx parent = \case
+  Atom{..}   -> SW.Atom (atomLabel `mGuardedBy` mCond)
+  AND{..}    -> SW.AND (andSplitLabel `mGuardedBy` mCond) andJoinLabel $ mkBranches andBranchLabels
   -- TODO: conditions for this too
-  Loop{..}   -> SW.Loop exitLabel (Hole $ mkIx' 1) (Hole $ mkIx' 2) (Hole $ mkIx' 3)
+  SimpleLoop -> SW.SimpleLoop (holeWithMCond (mkIx' 1) mCond) (holeWithMCond (mkIx' 2) mCond)
+  -- TODO: conditions for this too
+  Loop{..}   -> SW.Loop exitLabel (holeWithMCond (mkIx' 1) mCond) (Hole $ mkIx' 2) (Hole $ mkIx' 3)
   -- TODO: finish this
-  IfXOR{..}     -> SW.XOR (Hole $ mkIx' 1) (Hole $ mkIx' 2)
-  UndetXOR{..}  -> SW.XOR (Hole $ mkIx' 1) (Hole $ mkIx' 2)
-  Seq{..}    -> SW.Seq inbetweenLabel (Hole $ mkIx' 1) (Hole $ mkIx' 2)
+  IfXOR{..} -> do
+    let thenLabel = ifXorThenLabel `mGuardedBy` mCond
+        elseLabel = ifXorElseLabel `mGuardedBy` mCond
+    SW.XOR (SW.Atom thenLabel) (SW.Atom elseLabel)
+  UndetXOR{..}  -> SW.XOR (holeWithMCond (mkIx' 1) mCond) (holeWithMCond (mkIx' 2) mCond)
+  Seq{..}    -> SW.Seq
+    inbetweenLabel
+    (holeWithMCond (mkIx' 1) mCond)
+    (Hole $ mkIx' 2)
   {- TODO: ACF Continuation
 
      Handling this will probably require place annotations.
@@ -250,8 +287,8 @@ replaceHoleWithIndexing
   -> EditableSW                   -- ^ The workflow to replace the hole in
   -> EditableSW
 replaceHoleWithIndexing mkIx holeId cont = \case
-  sw@(SW.Atom TEL{..})
-    | trId == holeId && trIsEditable -> fromContinuation mkIx trId cont
+  sw@(SW.Atom lbl@TEL{..})
+    | trId == holeId && trIsEditable -> fromContinuation lbl mkIx trId cont
   -- TODO: | trId == holeId && not trIsEditable -> panic "..."
     | otherwise -> sw
   sw@SW.AND{..} ->

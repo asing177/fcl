@@ -28,8 +28,6 @@ import Language.FCL.AST
   , Expr(..)
   , Lit(..)
   , LExpr
-  , Loc(..)
-  , Located(..)
   )
 import Language.FCL.SafeWorkflow (AnnTransition(..), AnnTransitions(..), constructAnnTransitions)
 import Language.FCL.SafeWorkflow.Editable
@@ -98,7 +96,9 @@ hasAnyBranchingErrors :: BranchingErrors -> Bool
 hasAnyBranchingErrors BranchingErrors{..}
   =  not (null unexpectedNoConds)
 
+-- NOTE: no branching errors for non-branching control-flow
 collectBranchingErrors :: [EditTransition] -> BranchingErrors
+collectBranchingErrors [_] = BranchingErrors []
 collectBranchingErrors trs = BranchingErrors
   (mapMaybe mGetNoCondId trs)
 
@@ -106,7 +106,7 @@ collectBranchingErrors trs = BranchingErrors
 
     mGetNoCondId :: EditTransition -> Maybe TransId
     mGetNoCondId (AnnTransition TEL{..} _)
-      | isJust (cgmIfCond trCGMetadata) = Just trId
+      | isNothing (cgmIfCond trCGMetadata) = Just trId
     mGetNoCondId _ = Nothing
 
 
@@ -143,9 +143,6 @@ genUnAnnotTransCall :: TrWithNames -> LExpr
 genUnAnnotTransCall (Arrow from to) =
   noLoc $ ECall (Left TransitionTo) [toExprLit to]
 
-noLoc :: a -> Located a
-noLoc = Located NoLoc
-
 toExprLit :: WFStateWithNames -> LExpr
 toExprLit = noLoc . ELit . noLoc . LState
 
@@ -155,27 +152,32 @@ trivialCondition = noLoc . ELit . noLoc . LBool $ True
 noLocIf :: LExpr -> LExpr -> LExpr -> LExpr
 noLocIf cond lhs rhs = noLoc $ EIf cond lhs rhs
 
+genAnnotTransCall :: ETrWithNames -> LExpr
+genAnnotTransCall (AnnTransition TEL{..} tr)
+  | CGMetadata (Just code) _ <- trCGMetadata = noLoc $ ESeq
+    (noLoc code)
+    (genUnAnnotTransCall tr)
+genAnnotTransCall annTr = panic $ "genAnnotTransCall: Transition '"
+  <> show annTr
+  <> "' does not contain code to be generated."
+
 -- TODO: add codegen for cgCode !!
 -- QUESTION: should it be here, or in a separate function?
 genIfCondTransCalls :: List2 ETrWithNames -> LExpr
-genIfCondTransCalls (List2 t1 t2 trs) = foldl alg defaultBranch (t2:trs) where
+genIfCondTransCalls (List2 t1 t2 trs) = foldl alg (noLoc ENoOp) (t1:t2:trs) where
   alg :: LExpr -> ETrWithNames -> LExpr
-  alg ast (AnnTransition TEL{..} tr)
-    | CGMetadata code (Just cond) <- trCGMetadata = noLocIf
+  alg ast annTr@(AnnTransition TEL{..} tr)
+    | CGMetadata _ (Just cond) <- trCGMetadata = noLocIf
       (noLoc cond)
-      (noLoc $ ESeq (noLoc code) $ genUnAnnotTransCall tr)
+      (genAnnotTransCall annTr)
       ast
   -- NOTE: should never come here
   alg _ annTr = panic $ "genIfCondTransCall: Transition '"
     <> show annTr
-    <> "' does not contain an If condition."
+    <> "' does not contain an If condition to generate code from."
 
-  -- NOTE: Since the conditions are assumed to be mutually exclusive
-  -- and should cover the entire event space, we can pick any branch
-  -- to be the default one.
-  defaultBranch :: LExpr
-  defaultBranch = genUnAnnotTransCall . getTrans $ t1
-
+-- TODO: add verification step for CGMetadata
+-- check whether every transition has some proper code to be generated
 codeGenMethod
   :: PlaceAnnotations
   -> GropedTransitions
@@ -192,7 +194,7 @@ codeGenMethod placeAnnots groupedTrs methodName = Method inputState precondition
   body :: LExpr
   body = case convertedTrs of
     [] -> panic $ "codeGenMethod: Empty transition list for method name: " <> show methodName
-    [tr] -> genUnAnnotTransCall . getTrans $ tr
+    [tr] -> genAnnotTransCall tr
     trs -> genIfCondTransCalls . L2.fromList $ trs
 
   preconditions :: Preconditions
