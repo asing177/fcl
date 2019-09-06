@@ -45,7 +45,7 @@ import Language.FCL.SafeWorkflow hiding
   , pattern ACF
   , PlaceId
   )
-import Language.FCL.AST (Name(..), Transition(..), WorkflowState(..), Place(..), Expr(..), BinOp(..), UnOp(..), Located(..), Loc(..))
+import Language.FCL.AST (Name(..), Transition(..), WorkflowState(..), Place(..), Expr(..), BinOp(..), Located(..), Loc(..))
 import Language.FCL.Pretty (Doc, Pretty, ppr, hsep, prettyPrint)
 import Language.FCL.Analysis (inferStaticWorkflowStates)
 import Language.FCL.Graphviz hiding (AnnotatedTransition)
@@ -75,7 +75,8 @@ data CGMetadata = CGMetadata
   }
   deriving (Eq, Ord, Show)
 
--- TODO: holes are not compatible with XOR conditions
+-- TODO: add IF condition annotations (ids to group if conditions)
+-- TODO: separate continuations from edit labels better
 -- | Transition labels for safe workflow editing.
 data TEditLabel = TEL
   { trId          :: TransId      -- ^ Unique identifier for the transition
@@ -171,9 +172,7 @@ data Continuation
            , ifXorElseLabel :: TEditLabel   -- ^ Label for the _else_ branch
            }
   -- | XOR-spliting by having multiple methods (undetermiinistic semantics).
-  | UndetXOR { undetXorFst :: TEditLabel    -- ^ Label for the first path
-             , undetXorSnd :: TEditLabel    -- ^ Label for the second path
-             }
+  | UndetXOR
   -- TODO: add condition
   | SimpleLoop
   -- TODO: add condition
@@ -227,7 +226,7 @@ fromContinuation (cgmIfCond.trCGMetadata -> mCond) mkIx parent = \case
     let thenLabel = ifXorThenLabel `mGuardedBy` mCond
         elseLabel = ifXorElseLabel `mGuardedBy` mCond
     SW.XOR (SW.Atom thenLabel) (SW.Atom elseLabel)
-  UndetXOR{..}  -> SW.XOR (holeWithMCond (mkIx' 1) mCond) (holeWithMCond (mkIx' 2) mCond)
+  UndetXOR  -> SW.XOR (holeWithMCond (mkIx' 1) mCond) (holeWithMCond (mkIx' 2) mCond)
   Seq{..}    -> SW.Seq
     inbetweenLabel
     (holeWithMCond (mkIx' 1) mCond)

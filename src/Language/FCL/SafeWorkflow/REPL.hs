@@ -4,7 +4,7 @@ module Language.FCL.SafeWorkflow.REPL
   ( module Language.FCL.SafeWorkflow.REPL
   ) where
 
-import Protolude hiding (sequence)
+import Protolude hiding (sequence, option)
 
 import Data.List.List2 (List2(..))
 import Data.Monoid (Dual(..))
@@ -113,15 +113,21 @@ parallel holeId splitName splitCode joinName joinCode names = do
   let cont = Edit.AND splitLabel joinLabel branchLabels
   loggedModify (replaceHole holeId cont)
 
+option
+  :: TransId
+  -> SWREPLM ()
+option holeId = do
+  loggedModify (replaceHole holeId Edit.UndetXOR)
+
 -- TODO: only single condition then automatically negate it?
 -- | Replace a hole with a branching subworkflow.
-choice
+conditional
   :: TransId       -- ^ Identifier of hole to be replaced
   -- -> Name          -- ^ Name of the @then@ transition
   -- -> Name          -- ^ Name of the @else@ transition
   -> Expr          -- ^ The condition for the @then@ branch (this will be negated for the @else@ branch)
   -> SWREPLM ()
-choice holeId {- thenName elseName -} thenCond = do
+conditional holeId {- thenName elseName -} thenCond = do
   thenId <- gen
   elseId <- gen
   -- NOTE: since the transitions are editable, the names don't matter for rendering
@@ -208,7 +214,7 @@ neg = EUnOp (noLoc Not) . noLoc
 --     , ("rhsIn", "rhsOut")
 --     ]
 --   finish 1 "t1"
---   choice 2 trueCond (neg trueCond)
+--   conditional 2 trueCond (neg trueCond)
 --   finish 1 "t2"
 --   stayOrContinue 2
 --   finish 1 "t3"
@@ -220,7 +226,7 @@ neg = EUnOp (noLoc Not) . noLoc
 --     [ ("lhsIn", "lhsOut")
 --     , ("rhsIn", "rhsOut")
 --     ]
---   choice 2 trueCond (neg trueCond)
+--   conditional 2 trueCond (neg trueCond)
 --   stayOrContinue 22
 --   finish 221 "t3"
 --   finish 222 "t4"
@@ -236,40 +242,58 @@ simpleWhiteBoardExample3 = do
     , ("rhsIn", "rhsOut")
     ]
   finish 1 "t1" $ xAssign 1
-  choice 2 zeroLTOne
+  conditional 2 zeroLTOne
   finish 8 "t2" $ xAssign 2
   stayOrContinue 9
   finish 1 "t2" $ xAssign 3
   finish 2 "t2" $ xAssign 4
 
-choiceInChoiceLeft :: SWREPLM ()
-choiceInChoiceLeft = do
-  choice 1 xLTFive
-  choice 1 xEQZero
+conditionalInConditionalLeft :: SWREPLM ()
+conditionalInConditionalLeft = do
+  conditional 1 xLTFive
+  conditional 1 xEQZero
   finish 2 "t1" $ xAssign 1
   finish 3 "t1" $ xAssign 2
   finish 4 "t1" $ xAssign 3
 
-choiceInChoiceRight :: SWREPLM ()
-choiceInChoiceRight = do
-  choice 1 xLTFive
+conditionalInConditionalRight :: SWREPLM ()
+conditionalInConditionalRight = do
+  conditional 1 xLTFive
   finish 1 "t1" $ xAssign 1
-  choice 2 xEQZero
+  conditional 2 xEQZero
   finish 4 "t1" $ xAssign 2
   finish 5 "t1" $ xAssign 3
 
-seqInChoiceLeft :: SWREPLM ()
-seqInChoiceLeft = do
-  choice 1 xLTFive
+seqInConditionalLeft :: SWREPLM ()
+seqInConditionalLeft = do
+  conditional 1 xLTFive
   sequence 1 "inbetween"
   finish 11 "t1" $ xAssign 1
   finish 12 "t2" $ xAssign 2
   finish 2  "t1" $ xAssign 3
 
-seqInChoiceRight :: SWREPLM ()
-seqInChoiceRight = do
-  choice 1 xLTFive
+seqInConditionalRight :: SWREPLM ()
+seqInConditionalRight = do
+  conditional 1 xLTFive
   sequence 2 "inbetween"
   finish 21 "t1" $ xAssign 1
   finish 22 "t2" $ xAssign 2
   finish 1  "t1" $ xAssign 3
+
+simpleOption :: SWREPLM ()
+simpleOption = do
+  option 1
+  finish 1 "t1" $ xAssign 1
+  finish 2 "t2" $ xAssign 2
+
+-- FIXME: you should be able to do undeterministic branching
+-- inside a deterministic IF condition
+-- TODO: disallow this
+optionInConditionalLeft :: SWREPLM ()
+optionInConditionalLeft = do
+  conditional 1 xLTFive
+  option 1
+  finish 11 "t1" $ xAssign 1
+  finish 12 "t2" $ xAssign 2
+  finish 2  "t1" $ xAssign 3
+
