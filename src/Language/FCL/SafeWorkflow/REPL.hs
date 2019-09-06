@@ -139,19 +139,32 @@ conditional holeId {- thenName elseName -} thenCond = do
 -- Stay in the current state or progress forward.
 stayOrContinue
   :: TransId       -- ^ Identifier of hole to be replaced
+  -> Expr          -- ^ Condition to satisfy in order to continue
   -> SWREPLM ()
-stayOrContinue holeId = loggedModify (replaceHole holeId Edit.SimpleLoop)
+stayOrContinue holeId cond = do
+  fallThroughId <- gen
+  jumpBackId    <- gen
+  let jumpBackLabel    = TEL jumpBackId    "" True (CGMetadata Nothing $ Just (neg cond))
+      fallThroughLabel = TEL fallThroughId "" True (CGMetadata Nothing $ Just cond)
+  loggedModify (replaceHole holeId $ Edit.SimpleLoop jumpBackLabel fallThroughLabel)
 
 -- | Replace a hole with a "loop-or-continue" construct.
 -- Loop in the the current state with the option to exit.
 loopOrContinue
   :: TransId       -- ^ Identifier of hole to be replaced
+  -> Expr         -- ^ Condition to exit from the loop
   -> Name         -- ^ Name for the breakpoint
   -> SWREPLM ()
-loopOrContinue holeId breakPointName = do
+loopOrContinue holeId cond breakPointName = do
   breakPointId <- gen
-  let cont = Edit.Loop (LPlace breakPointName breakPointId)
-  loggedModify (replaceHole holeId cont)
+  beforeId     <- gen
+  afterId      <- gen
+  jumpBackId   <- gen
+  let breakPointLabel = LPlace breakPointName breakPointId
+      beforeLabel     = TEL beforeId   "" True (CGMetadata Nothing Nothing)
+      afterLabel      = TEL afterId    "" True (CGMetadata Nothing $ Just cond)
+      jumpBackLabel   = TEL jumpBackId "" True (CGMetadata Nothing $ Just (neg cond))
+  loggedModify (replaceHole holeId $ Edit.Loop breakPointLabel beforeLabel afterLabel jumpBackLabel)
 
 -- | Replace a hole wth a sequence of two subworkflows.
 sequence
@@ -242,11 +255,11 @@ simpleWhiteBoardExample3 = do
     , ("rhsIn", "rhsOut")
     ]
   finish 1 "t1" $ xAssign 1
-  conditional 2 zeroLTOne
+  conditional 2 xLTFive
   finish 8 "t2" $ xAssign 2
-  stayOrContinue 9
-  finish 1 "t2" $ xAssign 3
-  finish 2 "t2" $ xAssign 4
+  stayOrContinue 9 xEQZero
+  finish 11 "t2" $ xAssign 3
+  finish 12 "t2" $ xAssign 4
 
 conditionalInConditionalLeft :: SWREPLM ()
 conditionalInConditionalLeft = do

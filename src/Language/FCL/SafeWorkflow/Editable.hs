@@ -168,15 +168,18 @@ data Continuation
          , andBranchLabels  :: List2 ANDBranchLabels -- ^ In and Out annotations of each branch in the AND-split
          }
   -- | XOR-spliting by having an @if@ statement in a single method.
-  | IfXOR  { ifXorThenLabel :: TEditLabel   -- ^ Label for the _then_ branch
-           , ifXorElseLabel :: TEditLabel   -- ^ Label for the _else_ branch
+  | IfXOR  { ifXorThenLabel :: TEditLabel   -- ^ Label for the _then_ branch (just for the condition)
+           , ifXorElseLabel :: TEditLabel   -- ^ Label for the _else_ branch (just for the condition)
            }
   -- | XOR-spliting by having multiple methods (undetermiinistic semantics).
   | UndetXOR
-  -- TODO: add condition
-  | SimpleLoop
-  -- TODO: add condition
-  | Loop { exitLabel :: PEditLabel -- ^ Label for the exit place
+  | SimpleLoop  { sLoopJumpBackLabel    :: TEditLabel -- ^ Label for the jump-back branch    (just for the condition)
+                , sLoopFallThroughLabel :: TEditLabel -- ^ Label for the fall-through branch (just for the condition)
+                }
+  | Loop { exitLabel            :: PEditLabel            -- ^ Label for the exit place
+         , loopBeforeLabel        :: TEditLabel   -- ^ Label for the transition before the breakpoint (just for the condition)
+         , loopAfterLabel :: TEditLabel         -- ^ Label for the transition after the breakpoint (exiting from the loop) (just for the condition)
+         , loopJumpBackLabel    :: TEditLabel    -- ^ Label for the jump-back branch (just for the condition)
          }
   | Seq  { inbetweenLabel :: PEditLabel -- ^ Label for the place inbetween the two transitions
          }
@@ -217,10 +220,15 @@ fromContinuation
 fromContinuation (cgmIfCond.trCGMetadata -> mCond) mkIx parent = \case
   Atom{..}   -> SW.Atom (atomLabel `mGuardedBy` mCond)
   AND{..}    -> SW.AND (andSplitLabel `mGuardedBy` mCond) andJoinLabel $ mkBranches andBranchLabels
-  -- TODO: conditions for this too
-  SimpleLoop -> SW.SimpleLoop (holeWithMCond (mkIx' 1) mCond) (holeWithMCond (mkIx' 2) mCond)
-  -- TODO: conditions for this too
-  Loop{..}   -> SW.Loop exitLabel (holeWithMCond (mkIx' 1) mCond) (Hole $ mkIx' 2) (Hole $ mkIx' 3)
+  SimpleLoop{..} -> SW.SimpleLoop
+    (SW.Atom $ sLoopJumpBackLabel    `mGuardedBy` mCond)
+    (SW.Atom $ sLoopFallThroughLabel `mGuardedBy` mCond)
+  -- TODO: check whether the labelling of the fall-through and jump-back branches are correct
+  Loop{..} -> SW.Loop
+    exitLabel
+    (SW.Atom $ loopBeforeLabel `mGuardedBy` mCond)
+    (SW.Atom $ loopAfterLabel)
+    (SW.Atom $ loopJumpBackLabel)
   -- TODO: finish this
   IfXOR{..} -> do
     let thenLabel = ifXorThenLabel `mGuardedBy` mCond
