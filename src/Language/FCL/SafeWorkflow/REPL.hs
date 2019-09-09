@@ -4,7 +4,7 @@ module Language.FCL.SafeWorkflow.REPL
   ( module Language.FCL.SafeWorkflow.REPL
   ) where
 
-import Protolude hiding (sequence, option)
+import Protolude hiding (Type, sequence, option)
 
 import Data.List.List2 (List2(..))
 import Data.Monoid (Dual(..))
@@ -251,6 +251,12 @@ xAssign n = EAssign ["x"]
 neg :: Expr -> Expr
 neg = EUnOp (noLoc Not) . noLoc
 
+role :: Name -> Expr
+role = EVar . noLoc
+
+mkArg :: Type -> Name -> Arg
+mkArg ty name = Arg ty (noLoc name)
+
 -- simpleWhiteBoardExample1 :: SWREPLM ()
 -- simpleWhiteBoardExample1 = do
 --   parallel 1 2 "split" "join"
@@ -329,6 +335,9 @@ simpleOption = do
   option 1
   finish 1 "t1" $ xAssign 1
   finish 2 "t2" $ xAssign 2
+  addPrecondition "t1" PrecRoles  (role "alice")
+  addPrecondition "t2" PrecRoles  (role "bob")
+  addArgs "t1" [mkArg TBool "b"]
 
 -- FIXME: you shouldm't be able to do undeterministic branching
 -- inside a deterministic IF condition
