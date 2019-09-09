@@ -17,7 +17,7 @@ import System.Directory (createDirectoryIfMissing)
 
 import Numeric.Lossless.Decimal (Decimal(..))
 
-import Language.FCL.AST (Name, Script, Expr(..), Lit(..), UnOp(..), BinOp(..))
+import Language.FCL.AST
 import Language.FCL.Graphviz (workflowWriteSVG)
 import Language.FCL.SafeWorkflow.Editable
 import Language.FCL.SafeWorkflow.CodeGen (codeGenScript)
@@ -39,23 +39,38 @@ defaultOpts = Options
   , loggingEnabled = False
   }
 
--- | Edit history for thesafe workflow REPL.
+-- TODO: extend history with global and method annotation edits
+-- | Edit history for the safe workflow REPL.
 type History = Dual [EditableSW]
+
+data MethodAnnotation = MethodAnnotation
+  { mAnnPreconds  :: Preconditions
+  , mAnnArgs      :: [Arg]
+  } deriving (Eq, Ord, Show)
+
+data REPLState = REPLState
+  { globalVariables   :: [Def]
+  , methodAnnotations :: Map Name MethodAnnotation
+  , editableWorkflow  :: EditableSW
+  } deriving (Eq, Ord, Show)
 
 -- | Safe workflow REPL (read eval print loop) monad
 -- Keeps track of the safe workflow being edited,
 -- and has logging capabilities too.
-type SWREPLM = RWST Options History EditableSW (Gen TransId)
+type SWREPLM = RWST Options History REPLState (Gen TransId)
 
-runSWREPLPure :: Options -> SWREPLM a -> (a, EditableSW, History)
-runSWREPLPure opts actionM = runGen $ runRWST actionM opts (Hole 1)
+initState :: REPLState
+initState = REPLState mempty mempty (Hole 1)
+
+runSWREPLPure :: Options -> SWREPLM a -> (a, REPLState, History)
+runSWREPLPure opts actionM = runGen $ runRWST actionM opts initState
 
 runSWREPLWithLogging :: SWREPLM () -> IO ()
 runSWREPLWithLogging
   = void
   . runSWREPLIOWithOpts (defaultOpts {loggingEnabled = True})
 
-runSWREPLIOWithOpts :: Options -> SWREPLM a -> IO (a, EditableSW, History)
+runSWREPLIOWithOpts :: Options -> SWREPLM a -> IO (a, REPLState, History)
 runSWREPLIOWithOpts opts@Options{..} actionM = do
   let r@(_, _, Dual history) = runSWREPLPure opts actionM
       history' = Hole 1 : reverse history
@@ -69,10 +84,10 @@ runSWREPLIOWithOpts opts@Options{..} actionM = do
 -- | Updates the stored workflow and logs the new result.
 loggedModify :: (EditableSW -> EditableSW) -> SWREPLM ()
 loggedModify transform = do
-  sw <- get
-  let sw' = transform sw
+  s@REPLState{..} <- get
+  let sw' = transform editableWorkflow
   tell $ Dual [sw']
-  put sw'
+  put $ s { editableWorkflow = sw' }
 
 noCode :: CGMetadata
 noCode = CGMetadata Nothing Nothing
@@ -185,8 +200,10 @@ acf = panic "not implemented"
 printSW :: FilePath -> EditableSW -> IO ()
 printSW path = workflowWriteSVG path . prettify
 
+-- TODO: extnd code gen with globals and method annotations
 execCodeGen :: SWREPLM a -> Script
 execCodeGen = codeGenScript
+            . editableWorkflow
             . snd3
             . runSWREPLPure defaultOpts
   where
