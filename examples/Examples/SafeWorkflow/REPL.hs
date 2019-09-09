@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedLists #-}
+{-# LANGUAGE QuasiQuotes #-}
 module Examples.SafeWorkflow.REPL where
 
 import Protolude hiding (Type, sequence, option)
@@ -11,6 +12,11 @@ import Language.FCL.AST
 import Language.FCL.Address (Address(..))
 import Language.FCL.SafeWorkflow.Editable (noLoc)
 import Language.FCL.SafeWorkflow.REPL
+
+import Examples.SafeWorkflow.TH
+
+-- TODO: remove this
+import Language.FCL.Pretty
 
 xLTFive :: Expr
 xLTFive = EBinOp (noLoc Lesser)
@@ -114,19 +120,43 @@ loanContract = do
   addGlobalSimple "loan_contract"   TText
 
   sequence 1 "negotiate_terms"
-  finish 1 "propose_contract" $ ENoOp
+  finish 1 "propose_contract" [fcl|
+    {borrower = borrower_arg;
+    lender = lender_arg;
+    principle = principle_arg;
+    currency = currency_arg;
+    interest_rate = interest_rate_arg;}
+    |]
+
+  -- NOTE: no condition needed, since the branching is non-deterministic
   loopOrContinue 2 ENoOp "make_decision"
-  finish 4 "propose_terms" $ ENoOp
-  finish 6 "revise" $ ENoOp
+
+  finish 4 "propose_terms" [fcl|
+    {loan_contract = loan_contract_arg;}
+    |]
+
+  finish 6 "revise" ENoOp
   option 5
-  finish 2 "reject" $ ENoOp
+  finish 2 "reject" ENoOp
   sequence 1 "signed"
-  finish 1 "sign" $ ENoOp
+  finish 1 "sign" ENoOp
   sequence 2 "contract_active"
-  finish 1 "loan_start" $ ENoOp
+
+  finish 1 "loan_start" [fcl|
+    {transferHoldings(lender, currency, principle, borrower);}
+    |]
+
+  -- NOTE: no condition needed, since the branching is non-deterministic
   stayOrContinue 2 ENoOp
-  finish 15 "pay_interest" $ ENoOp
-  finish 14 "payback" $ ENoOp
+
+  finish 15 "pay_interest" [fcl|
+    {interest_payment = round(2,principle * interest_rate);
+    transferHoldings(borrower, currency, interest_payment, lender);}
+    |]
+
+  finish 14 "payback" [fcl|
+    {transferHoldings(lender, currency, principle, borrower);}
+    |]
 
   addRole "propose_terms" "lender"
   addRole "sign"          "borrower"

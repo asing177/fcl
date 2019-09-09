@@ -222,6 +222,7 @@ executables:
     dependencies:
       - fcl
       - template-haskell
+      - neat-interpolation
 
 tests:
   fcl-test:
