@@ -27,7 +27,7 @@ import Language.FCL.SafeWorkflow.Editable
 type EditTransition = AnnTransition TEditLabel
 type EditTransitions = AnnTransitions PEditLabel TEditLabel
 
-type GropedTransitions = Map Name [EditTransition]
+type GroupedTransitions = Map Name [EditTransition]
 type PlaceAnnotations = Map Place PEditLabel
 
 type WFStateWithIds = WorkflowState
@@ -43,28 +43,32 @@ data MethodAnnotation = MethodAnnotation
   , mAnnArgs      :: [Arg]
   } deriving (Eq, Ord, Show)
 
+type MethodAnnotations = Map Name MethodAnnotation
+
 data CGInfo = CGInfo
   { globalVariables   :: [Def]
-  , methodAnnotations :: Map Name MethodAnnotation
+  , methodAnnotations :: MethodAnnotations
   , editableWorkflow  :: EditableSW
   } deriving (Eq, Ord, Show)
 
-codeGenScript :: EditableSW -> Script
-codeGenScript esw = Script [] [] [] (codeGenMethods esw) []
+codeGenScript :: CGInfo -> Script
+codeGenScript cgInfo = Script [] [] [] (codeGenMethods cgInfo) []
 
-codeGenMethods :: EditableSW -> [Method]
-codeGenMethods eswf = map (codeGenMethod placeAnnots groupedTrs) $ M.keys groupedTrs where
+codeGenMethods :: CGInfo -> [Method]
+codeGenMethods CGInfo{..}
+  = map (codeGenMethod placeAnnots groupedTrs methodAnnotations)
+  $ M.keys groupedTrs where
 
   annTrs :: EditTransitions
-  annTrs = constructAnnTransitions LInitial LTerminal eswf
+  annTrs = constructAnnTransitions LInitial LTerminal editableWorkflow
 
-  groupedTrs :: GropedTransitions
+  groupedTrs :: GroupedTransitions
   groupedTrs = groupTransitions $ getTransitions annTrs
 
   placeAnnots :: PlaceAnnotations
   placeAnnots = getPlaceAnnotations annTrs
 
-groupTransitions :: [EditTransition] -> GropedTransitions
+groupTransitions :: [EditTransition] -> GroupedTransitions
 groupTransitions trs = if any hasAnyBranchingErrors branchingErrors
   then panic $ prettyPrint branchingErrors
   else groupedTrs
@@ -74,13 +78,13 @@ groupTransitions trs = if any hasAnyBranchingErrors branchingErrors
     branchingErrors :: Map Name BranchingErrors
     branchingErrors = M.map collectBranchingErrors groupedTrs
 
-    groupedTrs :: GropedTransitions
+    groupedTrs :: GroupedTransitions
     groupedTrs = foldl insert mempty . map extractName $ trs
 
     extractName :: EditTransition -> (Name, EditTransition)
     extractName tr@(AnnTransition TEL{..} _) = (trMethodName, tr)
 
-    insert :: GropedTransitions -> (Name, EditTransition) -> GropedTransitions
+    insert :: GroupedTransitions -> (Name, EditTransition) -> GroupedTransitions
     insert trs (name, tr) = M.insertWith (++) name [tr] trs
 
 data BranchingErrors = BranchingErrors
@@ -180,10 +184,11 @@ genIfCondTransCalls (List2 t1 t2 trs) = foldl alg (noLoc ENoOp) (t1:t2:trs) wher
 -- check whether every transition has some proper code to be generated
 codeGenMethod
   :: PlaceAnnotations
-  -> GropedTransitions
+  -> GroupedTransitions
+  -> MethodAnnotations
   -> Name
   -> Method
-codeGenMethod placeAnnots groupedTrs methodName = Method inputState preconditions (noLoc methodName) args body where
+codeGenMethod placeAnnots groupedTrs methodAnnots methodName = Method inputState preconditions (noLoc methodName) args body where
   trsWithIds :: [EditTransition]
   trsWithIds = flip fromMaybe (M.lookup methodName groupedTrs) $
     panic $ "codeGenMethod: transition '" <> show methodName <> "' not found amongst grouped transitions"
