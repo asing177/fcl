@@ -51,6 +51,13 @@ data CGInfo = CGInfo
   , editableWorkflow  :: EditableSW
   } deriving (Eq, Ord, Show)
 
+instance Semigroup MethodAnnotation where
+  (<>) (MethodAnnotation preconds1 args1) (MethodAnnotation preconds2 args2) =
+    MethodAnnotation (preconds1 <> preconds2) (args1 <> args2)
+
+instance Monoid MethodAnnotation where
+  mempty = MethodAnnotation mempty mempty
+
 codeGenScript :: CGInfo -> Script
 codeGenScript cgInfo = Script [] [] [] (codeGenMethods cgInfo) []
 
