@@ -330,7 +330,7 @@ simpleOption = do
   finish 1 "t1" $ xAssign 1
   finish 2 "t2" $ xAssign 2
 
--- FIXME: you should be able to do undeterministic branching
+-- FIXME: you shouldm't be able to do undeterministic branching
 -- inside a deterministic IF condition
 -- TODO: disallow this
 optionInConditionalLeft :: SWREPLM ()
