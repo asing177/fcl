@@ -11,6 +11,7 @@ Core AST for the FCL core language.
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE ViewPatterns #-}
+{-# LANGUAGE TypeFamilies #-}
 
 module Language.FCL.AST (
   -- ** Syntax
@@ -104,6 +105,9 @@ module Language.FCL.AST (
 
 import Protolude hiding (put, get, (<>), show, Show, putByteString, Type)
 import Prelude (show, Show(..))
+
+import qualified GHC.Exts as GHC (IsList(..))
+
 import Test.QuickCheck hiding (listOf)
 import qualified Test.QuickCheck as Q
 import Test.QuickCheck.Instances.Text ()
@@ -484,6 +488,13 @@ instance Pretty Precondition where
 newtype Preconditions = Preconditions
   { unPreconditions :: [(Precondition, LExpr)] }
   deriving (Eq, Ord, Show, Generic, Serialize, Hash.Hashable)
+
+instance GHC.IsList Preconditions where
+  type Item Preconditions = (Precondition, LExpr)
+
+  fromList xs = Preconditions xs
+
+  toList (Preconditions xs) = xs
 
 instance ToJSON Preconditions where
   toJSON (Preconditions p) = toJSON p
