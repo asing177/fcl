@@ -98,6 +98,7 @@ finish
 finish holeId atomName code = do
   transId <- gen
   let cont = Edit.Atom (TEL transId atomName False $ withoutCond code)
+  initMethodAnnots atomName
   loggedModify (replaceHole holeId cont)
 
 -- | Replace a hole with a parallel subworkflow.
@@ -120,6 +121,9 @@ parallel holeId splitName splitCode joinName joinCode names = do
     outId <- gen
     pure $ ANDBranchLabels (LPlace inName inId) (LPlace outName outId)
   let cont = Edit.AND splitLabel joinLabel branchLabels
+
+  initMethodAnnots splitName
+  initMethodAnnots joinName
   loggedModify (replaceHole holeId cont)
 
 option
@@ -191,6 +195,14 @@ acf
   -> SWREPLM ()
 acf = panic "not implemented"
 
+initMethodAnnots
+  :: Name
+  -> SWREPLM ()
+initMethodAnnots methodName = do
+  s@CGInfo{..} <- get
+  when (methodName `M.notMember` methodAnnotations) $
+    put $ s { methodAnnotations = M.insert methodName mempty methodAnnotations }
+
 -- TODO: add logging
 addPrecondition
   :: Name
@@ -203,6 +215,13 @@ addPrecondition methodName precondType precondExpr = do
         (fromPreconds [(precondType, noLoc precondExpr)])
         methodAnnotations
   put $ s { methodAnnotations = methodAnnots' }
+
+addRole
+  :: Name
+  -> Name
+  -> SWREPLM ()
+addRole methodName roleName =
+  addPrecondition methodName PrecRoles (role roleName)
 
 addArgs
   :: Name
@@ -288,31 +307,8 @@ mkArg ty name = Arg ty (noLoc name)
 account :: Word8 -> Expr
 account = ELit . noLoc . LAccount . Address . BS.singleton
 
--- simpleWhiteBoardExample1 :: SWREPLM ()
--- simpleWhiteBoardExample1 = do
---   parallel 1 2 "split" "join"
---     [ ("lhsIn", "lhsOut")
---     , ("rhsIn", "rhsOut")
---     ]
---   finish 1 "t1"
---   conditional 2 trueCond (neg trueCond)
---   finish 1 "t2"
---   stayOrContinue 2
---   finish 1 "t3"
---   finish 2 "t4"
-
--- simpleWhiteBoardExample2 :: SWREPLM ()
--- simpleWhiteBoardExample2 = do
---   parallel 1 2 "split" "join"
---     [ ("lhsIn", "lhsOut")
---     , ("rhsIn", "rhsOut")
---     ]
---   conditional 2 trueCond (neg trueCond)
---   stayOrContinue 22
---   finish 221 "t3"
---   finish 222 "t4"
---   finish 21  "t2"
---   finish 1   "t1"
+decimal :: Integer -> Type
+decimal = TNum . NPDecimalPlaces
 
 simpleWhiteBoardExample3 :: SWREPLM ()
 simpleWhiteBoardExample3 = do
@@ -368,11 +364,11 @@ simpleOption = do
   option 1
   finish 1 "t1" $ xAssign 1
   finish 2 "t2" $ xAssign 2
-  addPrecondition "t1" PrecRoles  (role "alice")
-  addPrecondition "t2" PrecRoles  (role "bob")
+  addPrecondition "t1" PrecRoles (role "alice")
+  addPrecondition "t2" PrecRoles (role "bob")
   addArgs "t1" [mkArg TBool "b"]
 
--- FIXME: you shouldm't be able to do undeterministic branching
+-- FIXME: you shouldn't be able to do undeterministic branching
 -- inside a deterministic IF condition
 -- TODO: disallow this
 optionInConditionalLeft :: SWREPLM ()
@@ -383,3 +379,34 @@ optionInConditionalLeft = do
   finish 12 "t2" $ xAssign 2
   finish 2  "t1" $ xAssign 3
 
+loanContract :: SWREPLM ()
+loanContract = do
+  addGlobalSimple "principle"     $ decimal 2
+  addGlobalSimple "interest_rate" $ decimal 2
+  addGlobalSimple "currency"      $ TAsset $ decimal 2
+  addGlobalSimple "borrower"        TAccount
+  addGlobalSimple "lender"          TAccount
+  addGlobalSimple "loan_contract"   TText
+
+  sequence 1 "negotiate_terms"
+  finish 1 "propose_contract" $ ENoOp
+  loopOrContinue 2 ENoOp "make_decision"
+  finish 4 "propose_terms" $ ENoOp
+  finish 6 "revise" $ ENoOp
+  option 5
+  finish 2 "reject" $ ENoOp
+  sequence 1 "signed"
+  finish 1 "sign" $ ENoOp
+  sequence 2 "contract_active"
+  finish 1 "loan_start" $ ENoOp
+  stayOrContinue 2 ENoOp
+  finish 15 "pay_interest" $ ENoOp
+  finish 14 "payback" $ ENoOp
+
+  addRole "propose_terms" "lender"
+  addRole "sign"          "borrower"
+  addRole "revise"        "borrower"
+  addRole "reject"        "borrower"
+  addRole "loan_start"    "lender"
+  addRole "loan_interest" "borrower"
+  addRole "payback"       "borrower"
