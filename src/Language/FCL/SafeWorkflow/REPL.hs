@@ -20,7 +20,7 @@ import Numeric.Lossless.Decimal (Decimal(..))
 import Language.FCL.AST
 import Language.FCL.Graphviz (workflowWriteSVG)
 import Language.FCL.SafeWorkflow.Editable
-import Language.FCL.SafeWorkflow.CodeGen (codeGenScript)
+import Language.FCL.SafeWorkflow.CodeGen (CGInfo(..), MethodAnnotation(..), codeGenScript)
 import Language.FCL.Pretty (prettyPrint)
 
 import qualified Language.FCL.SafeWorkflow.Editable as Edit
@@ -43,34 +43,23 @@ defaultOpts = Options
 -- | Edit history for the safe workflow REPL.
 type History = Dual [EditableSW]
 
-data MethodAnnotation = MethodAnnotation
-  { mAnnPreconds  :: Preconditions
-  , mAnnArgs      :: [Arg]
-  } deriving (Eq, Ord, Show)
-
-data REPLState = REPLState
-  { globalVariables   :: [Def]
-  , methodAnnotations :: Map Name MethodAnnotation
-  , editableWorkflow  :: EditableSW
-  } deriving (Eq, Ord, Show)
-
 -- | Safe workflow REPL (read eval print loop) monad
 -- Keeps track of the safe workflow being edited,
 -- and has logging capabilities too.
-type SWREPLM = RWST Options History REPLState (Gen TransId)
+type SWREPLM = RWST Options History CGInfo (Gen TransId)
 
-initState :: REPLState
-initState = REPLState mempty mempty (Hole 1)
+initInfo :: CGInfo
+initInfo = CGInfo mempty mempty (Hole 1)
 
-runSWREPLPure :: Options -> SWREPLM a -> (a, REPLState, History)
-runSWREPLPure opts actionM = runGen $ runRWST actionM opts initState
+runSWREPLPure :: Options -> SWREPLM a -> (a, CGInfo, History)
+runSWREPLPure opts actionM = runGen $ runRWST actionM opts initInfo
 
 runSWREPLWithLogging :: SWREPLM () -> IO ()
 runSWREPLWithLogging
   = void
   . runSWREPLIOWithOpts (defaultOpts {loggingEnabled = True})
 
-runSWREPLIOWithOpts :: Options -> SWREPLM a -> IO (a, REPLState, History)
+runSWREPLIOWithOpts :: Options -> SWREPLM a -> IO (a, CGInfo, History)
 runSWREPLIOWithOpts opts@Options{..} actionM = do
   let r@(_, _, Dual history) = runSWREPLPure opts actionM
       history' = Hole 1 : reverse history
@@ -84,7 +73,7 @@ runSWREPLIOWithOpts opts@Options{..} actionM = do
 -- | Updates the stored workflow and logs the new result.
 loggedModify :: (EditableSW -> EditableSW) -> SWREPLM ()
 loggedModify transform = do
-  s@REPLState{..} <- get
+  s@CGInfo{..} <- get
   let sw' = transform editableWorkflow
   tell $ Dual [sw']
   put $ s { editableWorkflow = sw' }

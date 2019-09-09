@@ -3,6 +3,8 @@
 {-# LANGUAGE ViewPatterns #-}
 module Language.FCL.SafeWorkflow.CodeGen
   ( codeGenScript
+  , CGInfo(..)
+  , MethodAnnotation(..)
   ) where
 
 import Protolude
@@ -16,19 +18,6 @@ import qualified Data.List.List2 as L2
 import Language.FCL.Pretty (Pretty(..), prettyPrint, vsep, listOf, (<+>))
 import Language.FCL.Prim (PrimOp(..))
 import Language.FCL.AST
-  ( Name
-  , Script(..)
-  , Method(..)
-  , Transition(..)
-  , WorkflowState(..)
-  , Place(..)
-  , Preconditions(..)
-  , Arg
-
-  , Expr(..)
-  , Lit(..)
-  , LExpr
-  )
 import Language.FCL.SafeWorkflow (AnnTransition(..), AnnTransitions(..), constructAnnTransitions)
 import Language.FCL.SafeWorkflow.Editable
 
@@ -48,6 +37,17 @@ type TrWithIds = Transition
 type TrWithNames = Transition
 
 type ETrWithNames = EditTransition
+
+data MethodAnnotation = MethodAnnotation
+  { mAnnPreconds  :: Preconditions
+  , mAnnArgs      :: [Arg]
+  } deriving (Eq, Ord, Show)
+
+data CGInfo = CGInfo
+  { globalVariables   :: [Def]
+  , methodAnnotations :: Map Name MethodAnnotation
+  , editableWorkflow  :: EditableSW
+  } deriving (Eq, Ord, Show)
 
 codeGenScript :: EditableSW -> Script
 codeGenScript esw = Script [] [] [] (codeGenMethods esw) []
