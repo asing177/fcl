@@ -54,6 +54,11 @@ import Language.FCL.SafeWorkflow.Simple (constructTransitionsWithoutPlaces, cons
 import qualified Language.FCL.SafeWorkflow as SW
 import qualified Language.FCL.Graphviz     as GV
 
+-- QUESTION: should these be as a separate form of annotation?
+-- TODO: Add roles
+-- TODO: Add method arguments
+-- TODO: Add global variables
+
 -- TODO: Separate metadata (name) from the datastructure.
 -- Only store IDs and maintain a metadata table.
 -- TODO: Maybe only do this for methods (e.g.: preconditions)
