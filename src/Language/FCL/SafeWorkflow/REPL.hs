@@ -10,6 +10,7 @@ import Data.List.List2 (List2(..))
 import Data.Monoid (Dual(..))
 
 import qualified Data.Map as M
+import qualified Data.ByteString as BS
 
 import Control.Monad.Gen
 import Control.Monad.RWS hiding (sequence)
@@ -20,6 +21,7 @@ import System.Directory (createDirectoryIfMissing)
 import Numeric.Lossless.Decimal (Decimal(..))
 
 import Language.FCL.AST
+import Language.FCL.Address (Address(..))
 import Language.FCL.Graphviz (workflowWriteSVG)
 import Language.FCL.SafeWorkflow.Editable
 import Language.FCL.SafeWorkflow.CodeGen (CGInfo(..), codeGenScript, fromPreconds, fromArgs)
@@ -213,6 +215,32 @@ addArgs methodName args = do
         methodAnnotations
   put $ s { methodAnnotations = methodAnnots' }
 
+addGlobal
+  :: Name
+  -> Type
+  -> Preconditions
+  -> Maybe Expr
+  -> SWREPLM ()
+addGlobal name ty preconds mDefaultVal = do
+  s@CGInfo{..} <- get
+  let newGlobal = case mDefaultVal of
+        Nothing     -> GlobalDefNull ty preconds (noLoc name)
+        Just defVal -> GlobalDef     ty preconds name (noLoc defVal)
+  put $ s { globalVariables = newGlobal : globalVariables }
+
+addGlobalSimple
+  :: Name
+  -> Type
+  -> SWREPLM ()
+addGlobalSimple name ty = addGlobal name ty [] Nothing
+
+addGlobalWithDefault
+  :: Name
+  -> Type
+  -> Expr
+  -> SWREPLM ()
+addGlobalWithDefault name ty def = addGlobal name ty [] (Just def)
+
 printSW :: FilePath -> EditableSW -> IO ()
 printSW path = workflowWriteSVG path . prettify
 
@@ -256,6 +284,9 @@ role = EVar . noLoc
 
 mkArg :: Type -> Name -> Arg
 mkArg ty name = Arg ty (noLoc name)
+
+account :: Word8 -> Expr
+account = ELit . noLoc . LAccount . Address . BS.singleton
 
 -- simpleWhiteBoardExample1 :: SWREPLM ()
 -- simpleWhiteBoardExample1 = do
@@ -332,6 +363,8 @@ seqInConditionalRight = do
 
 simpleOption :: SWREPLM ()
 simpleOption = do
+  addGlobalWithDefault "alice" TAccount (account 100)
+  addGlobalWithDefault "bob"   TAccount (account 101)
   option 1
   finish 1 "t1" $ xAssign 1
   finish 2 "t2" $ xAssign 2

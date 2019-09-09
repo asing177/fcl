@@ -62,7 +62,8 @@ instance Monoid MethodAnnotation where
   mempty = MethodAnnotation mempty mempty
 
 codeGenScript :: CGInfo -> Script
-codeGenScript cgInfo = Script [] [] [] (codeGenMethods cgInfo) []
+codeGenScript cgInfo@CGInfo{..} = Script [] globalVariables []
+  (codeGenMethods cgInfo) []
 
 codeGenMethods :: CGInfo -> [Method]
 codeGenMethods CGInfo{..}
