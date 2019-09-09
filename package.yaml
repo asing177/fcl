@@ -211,6 +211,18 @@ executables:
     dependencies:
     - fcl
 
+  examples:
+    main: Main.hs
+    source-dirs: examples
+    ghc-options:
+    - -O0
+    - -threaded
+    - -rtsopts
+    - -with-rtsopts=-N
+    dependencies:
+      - fcl
+      - template-haskell
+
 tests:
   fcl-test:
     main:                Main.hs
