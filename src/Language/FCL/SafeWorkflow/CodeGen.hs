@@ -202,11 +202,15 @@ codeGenMethod placeAnnots groupedTrs methodAnnots methodName = Method inputState
     [tr] -> genAnnotTransCall tr
     trs -> genIfCondTransCalls . L2.fromList $ trs
 
+  methodAnn :: MethodAnnotation
+  methodAnn = flip fromMaybe (M.lookup methodName methodAnnots)
+    $ panic "codeGenMethod: Method `" (show methodName :: Text) "' was not found in method annotation map."
+
   preconditions :: Preconditions
-  preconditions = Preconditions []
+  preconditions = mAnnPreconds methodAnn
 
   args :: [Arg]
-  args = []
+  args = mAnnArgs methodAnn
 
   inputState :: WorkflowState
   inputState = case convertedTrs of
