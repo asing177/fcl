@@ -9,6 +9,8 @@ import Protolude hiding (sequence, option)
 import Data.List.List2 (List2(..))
 import Data.Monoid (Dual(..))
 
+import qualified Data.Map as M
+
 import Control.Monad.Gen
 import Control.Monad.RWS hiding (sequence)
 
@@ -20,7 +22,7 @@ import Numeric.Lossless.Decimal (Decimal(..))
 import Language.FCL.AST
 import Language.FCL.Graphviz (workflowWriteSVG)
 import Language.FCL.SafeWorkflow.Editable
-import Language.FCL.SafeWorkflow.CodeGen (CGInfo(..), MethodAnnotation(..), codeGenScript)
+import Language.FCL.SafeWorkflow.CodeGen (CGInfo(..), codeGenScript, fromPreconds, fromArgs)
 import Language.FCL.Pretty (prettyPrint)
 
 import qualified Language.FCL.SafeWorkflow.Editable as Edit
@@ -70,6 +72,7 @@ runSWREPLIOWithOpts opts@Options{..} actionM = do
       printSW filePath log
   return r
 
+-- TODO: log method and global changes as well
 -- | Updates the stored workflow and logs the new result.
 loggedModify :: (EditableSW -> EditableSW) -> SWREPLM ()
 loggedModify transform = do
@@ -186,13 +189,35 @@ acf
   -> SWREPLM ()
 acf = panic "not implemented"
 
+-- TODO: add logging
+addPrecondition
+  :: Name
+  -> Precondition
+  -> Expr
+  -> SWREPLM ()
+addPrecondition methodName precondType precondExpr = do
+  s@CGInfo{..} <- get
+  let methodAnnots' = M.insertWith (<>) methodName
+        (fromPreconds [(precondType, noLoc precondExpr)])
+        methodAnnotations
+  put $ s { methodAnnotations = methodAnnots' }
+
+addArgs
+  :: Name
+  -> [Arg]
+  -> SWREPLM ()
+addArgs methodName args = do
+  s@CGInfo{..} <- get
+  let methodAnnots' = M.insertWith (<>) methodName
+        (fromArgs args)
+        methodAnnotations
+  put $ s { methodAnnotations = methodAnnots' }
+
 printSW :: FilePath -> EditableSW -> IO ()
 printSW path = workflowWriteSVG path . prettify
 
--- TODO: extnd code gen with globals and method annotations
 execCodeGen :: SWREPLM a -> Script
 execCodeGen = codeGenScript
-            . editableWorkflow
             . snd3
             . runSWREPLPure defaultOpts
   where

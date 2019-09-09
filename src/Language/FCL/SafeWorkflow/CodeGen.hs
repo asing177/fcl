@@ -5,6 +5,9 @@ module Language.FCL.SafeWorkflow.CodeGen
   ( codeGenScript
   , CGInfo(..)
   , MethodAnnotation(..)
+
+  , fromPreconds
+  , fromArgs
   ) where
 
 import Protolude
@@ -224,3 +227,8 @@ codeGenMethod placeAnnots groupedTrs methodAnnots methodName = Method inputState
     (AnnTransition _ (Arrow from _)) : _ -> from
     [] -> panic $ "codeGenMethod: Empty transition list for method name: " <> show methodName
 
+fromPreconds :: Preconditions -> MethodAnnotation
+fromPreconds = flip MethodAnnotation mempty
+
+fromArgs :: [Arg] -> MethodAnnotation
+fromArgs = MethodAnnotation mempty
