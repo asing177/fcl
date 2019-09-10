@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedLists #-}
 {-# LANGUAGE QuasiQuotes #-}
-module Examples.SafeWorkflow.DSL where
+module SafeWorkflow.DSL where
 
 import Protolude hiding (Type, sequence, option)
 
@@ -15,7 +15,7 @@ import Language.FCL.SafeWorkflow.CodeGen (noLoc)
 
 import qualified Language.FCL.SafeWorkflow.Builder as SW
 
-import Examples.SafeWorkflow.TH
+import SafeWorkflow.TH
 
 -- TODO: remove this
 import Language.FCL.Pretty

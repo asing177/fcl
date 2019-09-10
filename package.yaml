@@ -240,7 +240,7 @@ tests:
 
   workflow-builder-test:
     main: Main.hs
-    source-dirs: examples
+    source-dirs: tests/workflow-builder
     ghc-options:
     - -O0
     - -threaded
