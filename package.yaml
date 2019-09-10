@@ -211,19 +211,6 @@ executables:
     dependencies:
     - fcl
 
-  examples:
-    main: Main.hs
-    source-dirs: examples
-    ghc-options:
-    - -O0
-    - -threaded
-    - -rtsopts
-    - -with-rtsopts=-N
-    dependencies:
-      - fcl
-      - template-haskell
-      - neat-interpolation
-
 tests:
   fcl-test:
     main:                Main.hs
@@ -250,3 +237,16 @@ tests:
     - quickcheck-instances
     - aeson-pretty
     - mtl
+
+  workflow-builder-test:
+    main: Main.hs
+    source-dirs: examples
+    ghc-options:
+    - -O0
+    - -threaded
+    - -rtsopts
+    - -with-rtsopts=-N
+    dependencies:
+    - fcl
+    - template-haskell
+    - neat-interpolation

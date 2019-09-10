@@ -1,5 +1,5 @@
 {-# LANGUAGE TemplateHaskell #-}
-module Examples.SafeWorkflow.TH where
+module SafeWorkflow.TH where
 
 import Protolude
 import NeatInterpolation
