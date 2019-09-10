@@ -8,6 +8,7 @@ module Language.FCL.SafeWorkflow.CodeGen
 
   , fromPreconds
   , fromArgs
+  , noLoc
   ) where
 
 import Protolude
@@ -233,3 +234,6 @@ fromPreconds = flip MethodAnnotation mempty
 
 fromArgs :: [Arg] -> MethodAnnotation
 fromArgs = MethodAnnotation mempty
+
+noLoc :: a -> Located a
+noLoc = Located NoLoc

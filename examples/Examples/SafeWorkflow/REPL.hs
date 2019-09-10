@@ -10,8 +10,8 @@ import Numeric.Lossless.Decimal (Decimal(..))
 
 import Language.FCL.AST
 import Language.FCL.Address (Address(..))
-import Language.FCL.SafeWorkflow.Editable (noLoc)
 import Language.FCL.SafeWorkflow.REPL
+import Language.FCL.SafeWorkflow.CodeGen (noLoc)
 
 import Examples.SafeWorkflow.TH
 
@@ -120,7 +120,7 @@ loanContract = do
   addGlobalSimple "loan_contract"   TText
 
   sequence 1 "negotiate_terms"
-  finish 1 "propose_contract" [fcl|
+  finish 2 "propose_contract" [fcl|
     {borrower = borrower_arg;
     lender = lender_arg;
     principle = principle_arg;
@@ -129,33 +129,33 @@ loanContract = do
     |]
 
   -- NOTE: no condition needed, since the branching is non-deterministic
-  loopOrContinue 2 ENoOp "make_decision"
+  loopOrContinue 3 ENoOp "make_decision"
 
-  finish 4 "propose_terms" [fcl|
+  finish 6 "propose_terms" [fcl|
     {loan_contract = loan_contract_arg;}
     |]
 
-  finish 6 "revise" ENoOp
-  option 5
-  finish 2 "reject" ENoOp
-  sequence 1 "signed"
-  finish 1 "sign" ENoOp
-  sequence 2 "contract_active"
+  finish 8 "revise" ENoOp
+  option 7
+  finish 12 "reject" ENoOp
+  sequence 11 "signed"
+  finish 15 "sign" ENoOp
+  sequence 16 "contract_active"
 
-  finish 1 "loan_start" [fcl|
+  finish 19 "loan_start" [fcl|
     {transferHoldings(lender, currency, principle, borrower);}
     |]
 
   -- NOTE: no condition needed, since the branching is non-deterministic
-  stayOrContinue 2 ENoOp
+  stayOrContinue 20 ENoOp
 
-  finish 15 "pay_interest" [fcl|
-    {interest_payment = round(2,principle * interest_rate);
-    transferHoldings(borrower, currency, interest_payment, lender);}
+  finish 22 "payback" [fcl|
+    {transferHoldings(lender, currency, principle, borrower);}
     |]
 
-  finish 14 "payback" [fcl|
-    {transferHoldings(lender, currency, principle, borrower);}
+  finish 23 "pay_interest" [fcl|
+    {interest_payment = round(2,principle * interest_rate);
+    transferHoldings(borrower, currency, interest_payment, lender);}
     |]
 
   addRole "propose_terms" "lender"
@@ -177,3 +177,15 @@ loanContract = do
   addArgs "propose_terms"
     [ mkArg TText "loan_contract_arg"
     ]
+
+amendment :: SWREPLM ()
+amendment = do
+  sequence 1 "totalCalculated"
+  parallel 1
+    "init" ENoOp
+    "calculateTotal"  ENoOp
+    [ ("todoAlice", "doneAlice")
+    , ("todoBob",   "doneBob")
+    ]
+
+  -- finish 1

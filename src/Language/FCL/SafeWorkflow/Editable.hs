@@ -18,15 +18,12 @@ module Language.FCL.SafeWorkflow.Editable
 
   , pattern Hole
 
-  , replaceHole
   , prettify
-  , noLoc
   )
   where
 
 import Protolude
 
-import qualified GHC.Exts as GHC (IsList(..))
 import qualified GHC.Show (show)
 
 import Data.Text (unlines)
@@ -45,7 +42,7 @@ import Language.FCL.SafeWorkflow hiding
   , pattern ACF
   , PlaceId
   )
-import Language.FCL.AST (Name(..), Transition(..), WorkflowState(..), Place(..), Expr(..), BinOp(..), Located(..), Loc(..))
+import Language.FCL.AST (Name(..), Transition(..), WorkflowState(..), Place(..), Expr(..))
 import Language.FCL.Pretty (Doc, Pretty, ppr, hsep, prettyPrint)
 import Language.FCL.Analysis (inferStaticWorkflowStates)
 import Language.FCL.Graphviz hiding (AnnotatedTransition)
@@ -191,127 +188,6 @@ data Continuation
   -- NOTE: Completely incomplete
   | ACF
   deriving (Eq, Ord, Show)
-
-noLoc :: a -> Located a
-noLoc = Located NoLoc
-
-guardedBy :: TEditLabel -> Expr -> TEditLabel
--- guardedBy lbl _
---   | Just code <- cgmCode . trCGMetadata $ lbl
---   = panic $ "guardedBy: Label already contains code (no code displayed means NoOp): " <> prettyPrint code
-guardedBy lbl@TEL{..} newCond
-  | CGMetadata{..} <- trCGMetadata
-  = case cgmIfCond of
-    Nothing -> lbl { trCGMetadata = trCGMetadata { cgmIfCond = Just newCond } }
-    Just origCond -> let combinedCond = EBinOp (noLoc And) (noLoc origCond) (noLoc newCond)
-      in lbl { trCGMetadata = trCGMetadata { cgmIfCond = Just combinedCond } }
-
-mGuardedBy :: TEditLabel -> Maybe Expr -> TEditLabel
-mGuardedBy lbl = \case
-  Nothing   -> lbl
-  Just cond -> lbl `guardedBy` cond
-
-holeWithMCond :: TransId -> Maybe Expr -> EditableSW
-holeWithMCond id mCond = SW.Atom $ TEL id (Name $ "_" <> show id) True (CGMetadata Nothing mCond)
-
--- NOTE: if the label to replaced already has a condition, preserve it
--- TODO: if we ever allow reediting, we will need a smarter way to index holes
-fromContinuation
-  :: TEditLabel                       -- ^ Label for the transition being replaced
-  -> (TransId -> TransId -> TransId) -- ^ Make a new index from the parent and the current one
-  -> TransId                       -- ^ Parent index
-  -> Continuation                 -- ^ Construct to replace the given transition with
-  -> EditableSW
-fromContinuation (cgmIfCond.trCGMetadata -> mCond) mkIx parent = \case
-  Atom{..}   -> SW.Atom (atomLabel `mGuardedBy` mCond)
-  AND{..}    -> SW.AND (andSplitLabel `mGuardedBy` mCond) andJoinLabel $ mkBranches andBranchLabels
-  SimpleLoop{..} -> SW.SimpleLoop
-    (SW.Atom $ sLoopJumpBackLabel    `mGuardedBy` mCond)
-    (SW.Atom $ sLoopFallThroughLabel `mGuardedBy` mCond)
-  -- TODO: check whether the labelling of the fall-through and jump-back branches are correct
-  Loop{..} -> SW.Loop
-    exitLabel
-    (SW.Atom $ loopBeforeLabel `mGuardedBy` mCond)
-    (SW.Atom $ loopAfterLabel)
-    (SW.Atom $ loopJumpBackLabel)
-  -- TODO: finish this
-  IfXOR{..} -> do
-    let thenLabel = ifXorThenLabel `mGuardedBy` mCond
-        elseLabel = ifXorElseLabel `mGuardedBy` mCond
-    SW.XOR (SW.Atom thenLabel) (SW.Atom elseLabel)
-  UndetXOR  -> SW.XOR (holeWithMCond (mkIx' 1) mCond) (holeWithMCond (mkIx' 2) mCond)
-  Seq{..}    -> SW.Seq
-    inbetweenLabel
-    (holeWithMCond (mkIx' 1) mCond)
-    (Hole $ mkIx' 2)
-  {- TODO: ACF Continuation
-
-     Handling this will probably require place annotations.
-     The user could select a place and we would display which other places
-     it can be conencted to.
-
-     Implementation plan:
-      1. [DONE] Add place annotations to SafeWorkflows
-      2. Implement a function that given a place inside an ACF,
-         finds all the other places it can be connected to (inside said ACF).
-      3. Implement a function that connects two places in an ACF.
-      4. Probably will need a function that "merges" ACFs.
-         This will be needed to simplify the structure and coalesce
-         nested ACFs into a single one.
-         Example use case: See the n-ary XOR above. With the current
-         implementation we cannot connect places in different branches,
-         because they are inside different ACFs.
-  -}
-  ACF -> panic "not implemented"
-
-  where
-    mkIx' :: Int -> TransId
-    mkIx' = mkIx parent
-
-    mkBranch :: TransId -> ANDBranchLabels -> ANDBranch PEditLabel TEditLabel
-    mkBranch holeId ANDBranchLabels{..} = ANDBranch inLabel outLabel (Hole holeId)
-
-    mkBranches :: List2 ANDBranchLabels -> List2 (ANDBranch PEditLabel TEditLabel)
-    mkBranches = GHC.fromList . zipWith mkBranch [1..] . GHC.toList
-
-countHoles :: EditableSW -> Int
-countHoles = \case
-  sw@(Hole _)               -> 1
-  sw@(SW.Atom _)            -> 0
-  sw@SW.AND{..}             -> sum $ fmap (countHoles . branchWorkflow) andBranches
-  (SW.Loop _ into exit out) -> sum $ map countHoles [into, exit, out]
-  (SW.SimpleLoop exit body) -> sum $ map countHoles [exit, body]
-  sw@(SW.ACF _ acfMap)      -> sum $ M.map (sum . fmap countHoles) acfMap
-
-replaceHole :: TransId -> Continuation -> EditableSW -> EditableSW
-replaceHole holeId cont esw
-  | countHoles esw > 1 = replaceHoleWithIndexing mkIxWithPrefix holeId cont esw
-  | otherwise          = replaceHoleWithIndexing (\_ x -> x)    holeId cont esw
-  where
-    mkIxWithPrefix :: TransId -> TransId -> TransId
-    mkIxWithPrefix parent ix = 10*parent + ix
-
--- TODO: implement "condition push-down"
-replaceHoleWithIndexing
-  :: (TransId -> TransId -> TransId) -- ^ Make a new index from the parent and the current one
-  -> TransId                       -- ^ Look for a hole with this identifier
-  -> Continuation                 -- ^ Construct to fill the hole with
-  -> EditableSW                   -- ^ The workflow to replace the hole in
-  -> EditableSW
-replaceHoleWithIndexing mkIx holeId cont = \case
-  sw@(SW.Atom lbl@TEL{..})
-    | trId == holeId && trIsEditable -> fromContinuation lbl mkIx trId cont
-  -- TODO: | trId == holeId && not trIsEditable -> panic "..."
-    | otherwise -> sw
-  sw@SW.AND{..} ->
-    sw { andBranches = (mapANDBranchWF $ replaceHoleWithIndexing mkIx holeId cont) <$> andBranches }
-  (SW.GenLoop mExitLabel into exit out) ->
-    SW.GenLoop mExitLabel
-               (replaceHoleWithIndexing mkIx holeId cont <$> into)
-               (replaceHoleWithIndexing mkIx holeId cont exit)
-               (replaceHoleWithIndexing mkIx holeId cont out)
-  sw@(SW.ACF annots acfMap) ->
-    unsafeMkACF annots $ M.map (fmap $ replaceHoleWithIndexing mkIx holeId cont) acfMap
 
 pprTrsId :: Int -> Doc
 pprTrsId id = "__trans__" <> ppr id

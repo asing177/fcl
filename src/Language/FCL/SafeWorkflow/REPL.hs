@@ -1,10 +1,14 @@
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE OverloadedLists #-}
+{-# LANGUAGE ViewPatterns    #-}
+{-# OPTIONS_GHC -fno-warn-incomplete-record-updates #-}
 module Language.FCL.SafeWorkflow.REPL
   ( module Language.FCL.SafeWorkflow.REPL
   ) where
 
 import Protolude hiding (Type, sequence, option)
+
+import qualified GHC.Exts as GHC (IsList(..))
 
 import Data.List.List2 (List2(..))
 import Data.Monoid (Dual(..))
@@ -17,12 +21,23 @@ import Control.Monad.RWS hiding (sequence)
 import System.FilePath (FilePath, (</>))
 import System.Directory (createDirectoryIfMissing)
 
+import Language.FCL.SafeWorkflow hiding
+  ( Atom
+  , AND
+  , pattern SimpleLoop
+  , pattern Loop
+  , pattern XOR
+  , pattern Seq
+  , pattern ACF
+  , PlaceId
+  )
 import Language.FCL.AST
 import Language.FCL.Graphviz (workflowWriteSVG)
 import Language.FCL.SafeWorkflow.Editable
-import Language.FCL.SafeWorkflow.CodeGen (CGInfo(..), codeGenScript, fromPreconds, fromArgs)
+import Language.FCL.SafeWorkflow.CodeGen (CGInfo(..), codeGenScript, fromPreconds, fromArgs, noLoc)
 import Language.FCL.Pretty (prettyPrint)
 
+import qualified Language.FCL.SafeWorkflow          as SW
 import qualified Language.FCL.SafeWorkflow.Editable as Edit
 
 -- TODO: currently Options has no impact on any operation, refactor
@@ -48,6 +63,11 @@ type History = Dual [EditableSW]
 -- and has logging capabilities too.
 type SWREPLM = RWST Options History CGInfo (Gen TransId)
 
+putESW :: EditableSW -> SWREPLM ()
+putESW esw = do
+  s@CGInfo{..} <- get
+  put $ s { editableWorkflow = esw }
+
 initInfo :: CGInfo
 initInfo = CGInfo mempty mempty (Hole 1)
 
@@ -72,12 +92,11 @@ runSWREPLIOWithOpts opts@Options{..} actionM = do
 
 -- TODO: log method and global changes as well
 -- | Updates the stored workflow and logs the new result.
-loggedModify :: (EditableSW -> EditableSW) -> SWREPLM ()
-loggedModify transform = do
-  s@CGInfo{..} <- get
-  let sw' = transform editableWorkflow
-  tell $ Dual [sw']
-  put $ s { editableWorkflow = sw' }
+logAction :: SWREPLM a -> SWREPLM ()
+logAction action = do
+  action
+  CGInfo{..} <- get
+  tell $ Dual [editableWorkflow]
 
 printSW :: FilePath -> EditableSW -> IO ()
 printSW path = workflowWriteSVG path . prettify
@@ -91,6 +110,133 @@ execCodeGen = codeGenScript
 
 execCodeGenThenPrintScript :: SWREPLM a -> IO ()
 execCodeGenThenPrintScript = putStr . prettyPrint . execCodeGen where
+
+--------------------------
+-- Low level primitives --
+--------------------------
+
+guardedBy :: TEditLabel -> Expr -> TEditLabel
+-- guardedBy lbl _
+--   | Just code <- cgmCode . trCGMetadata $ lbl
+--   = panic $ "guardedBy: Label already contains code (no code displayed means NoOp): " <> prettyPrint code
+guardedBy lbl@TEL{..} newCond
+  | CGMetadata{..} <- trCGMetadata
+  = case cgmIfCond of
+    Nothing -> lbl { trCGMetadata = trCGMetadata { cgmIfCond = Just newCond } }
+    Just origCond -> let combinedCond = EBinOp (noLoc And) (noLoc origCond) (noLoc newCond)
+      in lbl { trCGMetadata = trCGMetadata { cgmIfCond = Just combinedCond } }
+
+mGuardedBy :: TEditLabel -> Maybe Expr -> TEditLabel
+mGuardedBy lbl = \case
+  Nothing   -> lbl
+  Just cond -> lbl `guardedBy` cond
+
+holeWithMCond :: TransId -> Maybe Expr -> EditableSW
+holeWithMCond id mCond = SW.Atom $ TEL id (Name $ "_" <> show id) True (CGMetadata Nothing mCond)
+
+-- NOTE: if the label to replaced already has a condition, preserve it
+-- TODO: if we ever allow reediting, we will need a smarter way to index holes
+fromContinuation
+  :: TEditLabel                       -- ^ Label for the transition being replaced
+  -> Continuation                 -- ^ Construct to replace the given transition with
+  -> Gen TransId EditableSW
+fromContinuation (cgmIfCond.trCGMetadata -> mCond) = \case
+  Atom{..}   -> pure $ SW.Atom (atomLabel `mGuardedBy` mCond)
+  AND{..}    -> pure $ SW.AND (andSplitLabel `mGuardedBy` mCond) andJoinLabel $ mkBranches andBranchLabels
+  SimpleLoop{..} -> pure $ SW.SimpleLoop
+    (SW.Atom $ sLoopJumpBackLabel    `mGuardedBy` mCond)
+    (SW.Atom $ sLoopFallThroughLabel `mGuardedBy` mCond)
+  -- TODO: check whether the labelling of the fall-through and jump-back branches are correct
+  Loop{..} -> pure $ SW.Loop
+    exitLabel
+    (SW.Atom $ loopBeforeLabel `mGuardedBy` mCond)
+    (SW.Atom $ loopAfterLabel)
+    (SW.Atom $ loopJumpBackLabel)
+  -- TODO: finish this
+  IfXOR{..} -> do
+    let thenLabel = ifXorThenLabel `mGuardedBy` mCond
+        elseLabel = ifXorElseLabel `mGuardedBy` mCond
+    pure $ SW.XOR (SW.Atom thenLabel) (SW.Atom elseLabel)
+  UndetXOR  -> do
+    lhsId <- gen
+    rhsId <- gen
+    pure $ SW.XOR (holeWithMCond lhsId mCond) (holeWithMCond rhsId mCond)
+  Seq{..} -> do
+    lhsId <- gen
+    rhsId <- gen
+    pure $ SW.Seq
+      inbetweenLabel
+      (holeWithMCond lhsId mCond)
+      (Hole rhsId)
+  {- TODO: ACF Continuation
+
+     Handling this will probably require place annotations.
+     The user could select a place and we would display which other places
+     it can be conencted to.
+
+     Implementation plan:
+      1. [DONE] Add place annotations to SafeWorkflows
+      2. Implement a function that given a place inside an ACF,
+         finds all the other places it can be connected to (inside said ACF).
+      3. Implement a function that connects two places in an ACF.
+      4. Probably will need a function that "merges" ACFs.
+         This will be needed to simplify the structure and coalesce
+         nested ACFs into a single one.
+         Example use case: See the n-ary XOR above. With the current
+         implementation we cannot connect places in different branches,
+         because they are inside different ACFs.
+  -}
+  ACF -> panic "not implemented"
+
+  where
+    mkBranch :: TransId -> ANDBranchLabels -> ANDBranch PEditLabel TEditLabel
+    mkBranch holeId ANDBranchLabels{..} = ANDBranch inLabel outLabel (Hole holeId)
+
+    mkBranches :: List2 ANDBranchLabels -> List2 (ANDBranch PEditLabel TEditLabel)
+    mkBranches = GHC.fromList . zipWith mkBranch [1..] . GHC.toList
+
+-- countHoles :: EditableSW -> Int
+-- countHoles = \case
+--   sw@(Hole _)               -> 1
+--   sw@(SW.Atom _)            -> 0
+--   sw@SW.AND{..}             -> sum $ fmap (countHoles . branchWorkflow) andBranches
+--   (SW.Loop _ into exit out) -> sum $ map countHoles [into, exit, out]
+--   (SW.SimpleLoop exit body) -> sum $ map countHoles [exit, body]
+--   sw@(SW.ACF _ acfMap)      -> sum $ M.map (sum . fmap countHoles) acfMap
+
+replaceHole
+  :: TransId
+  -> Continuation
+  -> SWREPLM ()
+replaceHole holeId cont = do
+  esw  <- gets editableWorkflow
+  esw' <- lift $ replaceHoleGenId holeId cont esw
+  putESW esw'
+
+replaceHoleGenId
+  :: TransId                      -- ^ Look for a hole with this identifier
+  -> Continuation                 -- ^ Construct to fill the hole with
+  -> EditableSW
+  -> Gen TransId EditableSW
+replaceHoleGenId holeId cont = \case
+  sw@(SW.Atom lbl@TEL{..})
+    | trId == holeId && trIsEditable -> fromContinuation lbl cont
+  -- TODO: | trId == holeId && not trIsEditable -> panic "..."
+    | otherwise -> pure sw
+  sw@SW.AND{..} -> do
+    andBranches' <- forM andBranches $ \br@ANDBranch{..} -> do
+      bfw <- replaceHoleGenId holeId cont branchWorkflow
+      pure $ br { branchWorkflow = bfw }
+    pure $ sw { andBranches = andBranches' }
+  (SW.GenLoop mExitLabel into exit out) -> do
+    into' <- traverse (replaceHoleGenId holeId cont) into
+    exit' <- replaceHoleGenId holeId cont exit
+    out'  <- replaceHoleGenId holeId cont out
+    pure $ SW.GenLoop mExitLabel into' exit' out'
+  sw@(SW.ACF annots acfMap) -> do
+    acfMap' <- mapM (mapM $ replaceHoleGenId holeId cont) acfMap
+    pure $ unsafeMkACF annots acfMap'
+
 
 -----------------------------
 -- Control-flow primitives --
@@ -112,7 +258,7 @@ finish holeId atomName code = do
   transId <- gen
   let cont = Edit.Atom (TEL transId atomName False $ withoutCond code)
   initMethodAnnots atomName
-  loggedModify (replaceHole holeId cont)
+  logAction (replaceHole holeId cont)
 
 -- | Replace a hole with a parallel subworkflow.
 parallel
@@ -137,13 +283,13 @@ parallel holeId splitName splitCode joinName joinCode names = do
 
   initMethodAnnots splitName
   initMethodAnnots joinName
-  loggedModify (replaceHole holeId cont)
+  logAction (replaceHole holeId cont)
 
 option
   :: TransId
   -> SWREPLM ()
 option holeId = do
-  loggedModify (replaceHole holeId Edit.UndetXOR)
+  logAction (replaceHole holeId Edit.UndetXOR)
 
 -- TODO: only single condition then automatically negate it?
 -- | Replace a hole with a branching subworkflow.
@@ -159,7 +305,7 @@ conditional holeId {- thenName elseName -} thenCond = do
   -- NOTE: since the transitions are editable, the names don't matter for rendering
   let thenLabel = TEL thenId "" True (CGMetadata Nothing $ Just thenCond)
       elseLabel = TEL elseId "" True (CGMetadata Nothing $ Just (neg thenCond))
-  loggedModify (replaceHole holeId (Edit.IfXOR thenLabel elseLabel))
+  logAction (replaceHole holeId (Edit.IfXOR thenLabel elseLabel))
 
 -- | Replace a hole with a "stay-or-continue" construct.
 -- Stay in the current state or progress forward.
@@ -172,7 +318,7 @@ stayOrContinue holeId cond = do
   jumpBackId    <- gen
   let jumpBackLabel    = TEL jumpBackId    "" True (CGMetadata Nothing $ Just (neg cond))
       fallThroughLabel = TEL fallThroughId "" True (CGMetadata Nothing $ Just cond)
-  loggedModify (replaceHole holeId $ Edit.SimpleLoop jumpBackLabel fallThroughLabel)
+  logAction (replaceHole holeId $ Edit.SimpleLoop jumpBackLabel fallThroughLabel)
 
 -- | Replace a hole with a "loop-or-continue" construct.
 -- Loop in the the current state with the option to exit.
@@ -190,7 +336,7 @@ loopOrContinue holeId cond breakPointName = do
       beforeLabel     = TEL beforeId   "" True (CGMetadata Nothing Nothing)
       afterLabel      = TEL afterId    "" True (CGMetadata Nothing $ Just cond)
       jumpBackLabel   = TEL jumpBackId "" True (CGMetadata Nothing $ Just (neg cond))
-  loggedModify (replaceHole holeId $ Edit.Loop breakPointLabel beforeLabel afterLabel jumpBackLabel)
+  logAction (replaceHole holeId $ Edit.Loop breakPointLabel beforeLabel afterLabel jumpBackLabel)
 
 -- | Replace a hole wth a sequence of two subworkflows.
 sequence
@@ -200,7 +346,7 @@ sequence
 sequence holeId inbetweenName = do
   inbetweenId <- gen
   let cont = Edit.Seq (LPlace inbetweenName inbetweenId)
-  loggedModify (replaceHole holeId cont)
+  logAction (replaceHole holeId cont)
 
 -- TODO: See "ACF Continutation" note in Language.FCL.SafeWorkflow.Editable
 acf
