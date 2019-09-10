@@ -165,3 +165,15 @@ loanContract = do
   addRole "loan_start"    "lender"
   addRole "loan_interest" "borrower"
   addRole "payback"       "borrower"
+
+  addArgs "propose_contract"
+    [ mkArg (decimal 2) "principle_arg"
+    , mkArg (TAsset $ decimal 2) "currency_arg"
+    , mkArg TAccount "borrower_arg"
+    , mkArg TAccount "lender_arg"
+    , mkArg (decimal 2) "interest_rate_arg"
+    ]
+
+  addArgs "propose_terms"
+    [ mkArg TText "loan_contract_arg"
+    ]
