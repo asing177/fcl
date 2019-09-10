@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedLists #-}
 {-# LANGUAGE QuasiQuotes #-}
-module Examples.SafeWorkflow.REPL where
+module SafeWorkflow.REPL where
 
 import Protolude hiding (Type, sequence, option)
 
