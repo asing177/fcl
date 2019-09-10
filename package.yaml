@@ -165,7 +165,7 @@ library:
     - Language.FCL.SafeWorkflow
     - Language.FCL.SafeWorkflow.CodeGen
     - Language.FCL.SafeWorkflow.Editable
-    - Language.FCL.SafeWorkflow.REPL
+    - Language.FCL.SafeWorkflow.Builder
     - Language.FCL.SafeWorkflow.Simple
     - Language.FCL.Analysis
     - Language.FCL.Graphviz

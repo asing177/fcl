@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedLists #-}
 {-# LANGUAGE QuasiQuotes #-}
-module Examples.SafeWorkflow.REPL where
+module Examples.SafeWorkflow.DSL where
 
 import Protolude hiding (Type, sequence, option)
 
@@ -10,8 +10,10 @@ import Numeric.Lossless.Decimal (Decimal(..))
 
 import Language.FCL.AST
 import Language.FCL.Address (Address(..))
-import Language.FCL.SafeWorkflow.REPL
+import Language.FCL.SafeWorkflow.Builder
 import Language.FCL.SafeWorkflow.CodeGen (noLoc)
+
+import qualified Language.FCL.SafeWorkflow.Builder as SW
 
 import Examples.SafeWorkflow.TH
 
@@ -41,7 +43,7 @@ account = ELit . noLoc . LAccount . Address . BS.singleton
 decimal :: Integer -> Type
 decimal = TNum . NPDecimalPlaces
 
-simpleWhiteBoardExample3 :: SWREPLM ()
+simpleWhiteBoardExample3 :: SW.Builder ()
 simpleWhiteBoardExample3 = do
   parallel 1
     "split" (xAssign 10)
@@ -56,7 +58,7 @@ simpleWhiteBoardExample3 = do
   finish 11 "t2" $ xAssign 3
   finish 12 "t2" $ xAssign 4
 
-conditionalInConditionalLeft :: SWREPLM ()
+conditionalInConditionalLeft :: SW.Builder ()
 conditionalInConditionalLeft = do
   conditional 1 xLTFive
   conditional 1 xEQZero
@@ -64,7 +66,7 @@ conditionalInConditionalLeft = do
   finish 3 "t1" $ xAssign 2
   finish 4 "t1" $ xAssign 3
 
-conditionalInConditionalRight :: SWREPLM ()
+conditionalInConditionalRight :: SW.Builder ()
 conditionalInConditionalRight = do
   conditional 1 xLTFive
   finish 1 "t1" $ xAssign 1
@@ -72,7 +74,7 @@ conditionalInConditionalRight = do
   finish 4 "t1" $ xAssign 2
   finish 5 "t1" $ xAssign 3
 
-seqInConditionalLeft :: SWREPLM ()
+seqInConditionalLeft :: SW.Builder ()
 seqInConditionalLeft = do
   conditional 1 xLTFive
   sequence 1 "inbetween"
@@ -80,7 +82,7 @@ seqInConditionalLeft = do
   finish 12 "t2" $ xAssign 2
   finish 2  "t1" $ xAssign 3
 
-seqInConditionalRight :: SWREPLM ()
+seqInConditionalRight :: SW.Builder ()
 seqInConditionalRight = do
   conditional 1 xLTFive
   sequence 2 "inbetween"
@@ -88,7 +90,7 @@ seqInConditionalRight = do
   finish 22 "t2" $ xAssign 2
   finish 1  "t1" $ xAssign 3
 
-simpleOption :: SWREPLM ()
+simpleOption :: SW.Builder ()
 simpleOption = do
   addGlobalWithDefault "alice" TAccount (account 100)
   addGlobalWithDefault "bob"   TAccount (account 101)
@@ -102,7 +104,7 @@ simpleOption = do
 -- FIXME: you shouldn't be able to do undeterministic branching
 -- inside a deterministic IF condition
 -- TODO: disallow this
-optionInConditionalLeft :: SWREPLM ()
+optionInConditionalLeft :: SW.Builder ()
 optionInConditionalLeft = do
   conditional 1 xLTFive
   option 1
@@ -110,7 +112,7 @@ optionInConditionalLeft = do
   finish 12 "t2" $ xAssign 2
   finish 2  "t1" $ xAssign 3
 
-loanContract :: SWREPLM ()
+loanContract :: SW.Builder ()
 loanContract = do
   addGlobalSimple "principle"     $ decimal 2
   addGlobalSimple "interest_rate" $ decimal 2
@@ -178,7 +180,7 @@ loanContract = do
     [ mkArg TText "loan_contract_arg"
     ]
 
-amendment :: SWREPLM ()
+amendment :: SW.Builder ()
 amendment = do
   sequence 1 "totalCalculated"
   parallel 1

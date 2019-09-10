@@ -2,8 +2,8 @@
 {-# LANGUAGE OverloadedLists #-}
 {-# LANGUAGE ViewPatterns    #-}
 {-# OPTIONS_GHC -fno-warn-incomplete-record-updates #-}
-module Language.FCL.SafeWorkflow.REPL
-  ( module Language.FCL.SafeWorkflow.REPL
+module Language.FCL.SafeWorkflow.Builder
+  ( module Language.FCL.SafeWorkflow.Builder
   ) where
 
 import Protolude hiding (Type, sequence, option)
@@ -58,12 +58,12 @@ defaultOpts = Options
 -- | Edit history for the safe workflow REPL.
 type History = Dual [EditableSW]
 
--- | Safe workflow REPL (read eval print loop) monad
+-- | Safe workflow builder monad.
 -- Keeps track of the safe workflow being edited,
 -- and has logging capabilities too.
-type SWREPLM = RWST Options History CGInfo (Gen TransId)
+type Builder = RWST Options History CGInfo (Gen TransId)
 
-putESW :: EditableSW -> SWREPLM ()
+putESW :: EditableSW -> Builder ()
 putESW esw = do
   s@CGInfo{..} <- get
   put $ s { editableWorkflow = esw }
@@ -71,15 +71,15 @@ putESW esw = do
 initInfo :: CGInfo
 initInfo = CGInfo mempty mempty (Hole 1)
 
-runSWREPLPure :: Options -> SWREPLM a -> (a, CGInfo, History)
+runSWREPLPure :: Options -> Builder a -> (a, CGInfo, History)
 runSWREPLPure opts actionM = runGen $ runRWST actionM opts initInfo
 
-runSWREPLWithLogging :: SWREPLM () -> IO ()
+runSWREPLWithLogging :: Builder () -> IO ()
 runSWREPLWithLogging
   = void
   . runSWREPLIOWithOpts (defaultOpts {loggingEnabled = True})
 
-runSWREPLIOWithOpts :: Options -> SWREPLM a -> IO (a, CGInfo, History)
+runSWREPLIOWithOpts :: Options -> Builder a -> IO (a, CGInfo, History)
 runSWREPLIOWithOpts opts@Options{..} actionM = do
   let r@(_, _, Dual history) = runSWREPLPure opts actionM
       history' = Hole 1 : reverse history
@@ -92,7 +92,7 @@ runSWREPLIOWithOpts opts@Options{..} actionM = do
 
 -- TODO: log method and global changes as well
 -- | Updates the stored workflow and logs the new result.
-logAction :: SWREPLM a -> SWREPLM ()
+logAction :: Builder a -> Builder ()
 logAction action = do
   action
   CGInfo{..} <- get
@@ -101,14 +101,14 @@ logAction action = do
 printSW :: FilePath -> EditableSW -> IO ()
 printSW path = workflowWriteSVG path . prettify
 
-execCodeGen :: SWREPLM a -> Script
+execCodeGen :: Builder a -> Script
 execCodeGen = codeGenScript
             . snd3
             . runSWREPLPure defaultOpts
   where
     snd3 (_,x,_) = x
 
-execCodeGenThenPrintScript :: SWREPLM a -> IO ()
+execCodeGenThenPrintScript :: Builder a -> IO ()
 execCodeGenThenPrintScript = putStr . prettyPrint . execCodeGen where
 
 --------------------------
@@ -207,7 +207,7 @@ fromContinuation (cgmIfCond.trCGMetadata -> mCond) = \case
 replaceHole
   :: TransId
   -> Continuation
-  -> SWREPLM ()
+  -> Builder ()
 replaceHole holeId cont = do
   esw  <- gets editableWorkflow
   esw' <- lift $ replaceHoleGenId holeId cont esw
@@ -253,7 +253,7 @@ finish
   :: TransId       -- ^ Identifier of hole to be replaced
   -> Name         -- ^ Name of the new transition
   -> Expr         -- ^ Code for the transition
-  -> SWREPLM ()
+  -> Builder ()
 finish holeId atomName code = do
   transId <- gen
   let cont = Edit.Atom (TEL transId atomName False $ withoutCond code)
@@ -268,7 +268,7 @@ parallel
   -> Name                   -- ^ Name of joining transition
   -> Expr                   -- ^ Code for the joining transitions
   -> List2 (Name, Name)     -- ^ Names for the places inside the AND-branches
-  -> SWREPLM ()
+  -> Builder ()
 parallel holeId splitName splitCode joinName joinCode names = do
   splitId <- gen
   joinId  <- gen
@@ -287,7 +287,7 @@ parallel holeId splitName splitCode joinName joinCode names = do
 
 option
   :: TransId
-  -> SWREPLM ()
+  -> Builder ()
 option holeId = do
   logAction (replaceHole holeId Edit.UndetXOR)
 
@@ -298,7 +298,7 @@ conditional
   -- -> Name          -- ^ Name of the @then@ transition
   -- -> Name          -- ^ Name of the @else@ transition
   -> Expr          -- ^ The condition for the @then@ branch (this will be negated for the @else@ branch)
-  -> SWREPLM ()
+  -> Builder ()
 conditional holeId {- thenName elseName -} thenCond = do
   thenId <- gen
   elseId <- gen
@@ -312,7 +312,7 @@ conditional holeId {- thenName elseName -} thenCond = do
 stayOrContinue
   :: TransId       -- ^ Identifier of hole to be replaced
   -> Expr          -- ^ Condition to satisfy in order to continue
-  -> SWREPLM ()
+  -> Builder ()
 stayOrContinue holeId cond = do
   fallThroughId <- gen
   jumpBackId    <- gen
@@ -326,7 +326,7 @@ loopOrContinue
   :: TransId       -- ^ Identifier of hole to be replaced
   -> Expr         -- ^ Condition to exit from the loop
   -> Name         -- ^ Name for the breakpoint
-  -> SWREPLM ()
+  -> Builder ()
 loopOrContinue holeId cond breakPointName = do
   breakPointId <- gen
   beforeId     <- gen
@@ -342,7 +342,7 @@ loopOrContinue holeId cond breakPointName = do
 sequence
   :: TransId       -- ^ Identifier of hole to be replaced
   -> Name         -- ^ Name for the place in-between the the two subworklows
-  -> SWREPLM ()
+  -> Builder ()
 sequence holeId inbetweenName = do
   inbetweenId <- gen
   let cont = Edit.Seq (LPlace inbetweenName inbetweenId)
@@ -351,7 +351,7 @@ sequence holeId inbetweenName = do
 -- TODO: See "ACF Continutation" note in Language.FCL.SafeWorkflow.Editable
 acf
   :: TransId       -- ^ Identifier of hole to be replaced
-  -> SWREPLM ()
+  -> Builder ()
 acf = panic "not implemented"
 
 ----------------------------------
@@ -366,7 +366,7 @@ role = EVar . noLoc
 
 initMethodAnnots
   :: Name
-  -> SWREPLM ()
+  -> Builder ()
 initMethodAnnots methodName = do
   s@CGInfo{..} <- get
   when (methodName `M.notMember` methodAnnotations) $
@@ -377,7 +377,7 @@ addPrecondition
   :: Name
   -> Precondition
   -> Expr
-  -> SWREPLM ()
+  -> Builder ()
 addPrecondition methodName precondType precondExpr = do
   s@CGInfo{..} <- get
   let methodAnnots' = M.insertWith (<>) methodName
@@ -388,14 +388,14 @@ addPrecondition methodName precondType precondExpr = do
 addRole
   :: Name
   -> Name
-  -> SWREPLM ()
+  -> Builder ()
 addRole methodName roleName =
   addPrecondition methodName PrecRoles (role roleName)
 
 addArgs
   :: Name
   -> [Arg]
-  -> SWREPLM ()
+  -> Builder ()
 addArgs methodName args = do
   s@CGInfo{..} <- get
   let methodAnnots' = M.insertWith (<>) methodName
@@ -408,7 +408,7 @@ addGlobal
   -> Type
   -> Preconditions
   -> Maybe Expr
-  -> SWREPLM ()
+  -> Builder ()
 addGlobal name ty preconds mDefaultVal = do
   s@CGInfo{..} <- get
   let newGlobal = case mDefaultVal of
@@ -419,13 +419,13 @@ addGlobal name ty preconds mDefaultVal = do
 addGlobalSimple
   :: Name
   -> Type
-  -> SWREPLM ()
+  -> Builder ()
 addGlobalSimple name ty = addGlobal name ty [] Nothing
 
 addGlobalWithDefault
   :: Name
   -> Type
   -> Expr
-  -> SWREPLM ()
+  -> Builder ()
 addGlobalWithDefault name ty def = addGlobal name ty [] (Just def)
 
