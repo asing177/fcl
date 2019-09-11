@@ -436,12 +436,12 @@ addArgs methodName args = do
   put $ s { methodAnnotations = methodAnnots' }
 
 addGlobal
-  :: Name
-  -> Type
+  :: Type
+  -> Name
   -> Preconditions
   -> Maybe Expr
   -> Builder ()
-addGlobal name ty preconds mDefaultVal = do
+addGlobal ty name preconds mDefaultVal = do
   s@CGInfo{..} <- get
   let newGlobal = case mDefaultVal of
         Nothing     -> GlobalDefNull ty preconds (noLoc name)
@@ -449,15 +449,15 @@ addGlobal name ty preconds mDefaultVal = do
   put $ s { globalVariables = newGlobal : globalVariables }
 
 addGlobalSimple
-  :: Name
-  -> Type
+  :: Type
+  -> Name
   -> Builder ()
-addGlobalSimple name ty = addGlobal name ty [] Nothing
+addGlobalSimple ty name = addGlobal ty name [] Nothing
 
 addGlobalWithDefault
-  :: Name
-  -> Type
+  :: Type
+  -> Name
   -> Expr
   -> Builder ()
-addGlobalWithDefault name ty def = addGlobal name ty [] (Just def)
+addGlobalWithDefault ty name def = addGlobal ty name [] (Just def)
 
