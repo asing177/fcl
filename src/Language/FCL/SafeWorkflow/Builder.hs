@@ -34,7 +34,7 @@ import Language.FCL.SafeWorkflow hiding
 import Language.FCL.AST
 import Language.FCL.Graphviz (workflowWriteSVG)
 import Language.FCL.SafeWorkflow.Editable
-import Language.FCL.SafeWorkflow.CodeGen (CGInfo(..), codeGenScript, fromPreconds, fromArgs, noLoc)
+import Language.FCL.SafeWorkflow.CodeGen (CGInfo(..), codeGenScript, fromPreconds, fromArgs)
 import Language.FCL.Pretty (prettyPrint)
 
 import qualified Language.FCL.SafeWorkflow          as SW
