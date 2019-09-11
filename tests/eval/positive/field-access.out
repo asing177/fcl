@@ -8,12 +8,16 @@
 fromList
   [ ( Key { unKey = "bob" }
     , VConstr
-        (MkNameUpper "Person")
-        [ VText "bob"
-        , VConstr
-            (MkNameUpper "Addr")
-            [ VText "main st" , VNum (NumDecimal 42) , VText "springfield" ]
-        ]
+        { vConstrName = MkNameUpper "Person"
+        , vConstrParams =
+            [ VText "bob"
+            , VConstr
+                { vConstrName = MkNameUpper "Addr"
+                , vConstrParams =
+                    [ VText "main st" , VNum (NumDecimal 42) , VText "springfield" ]
+                }
+            ]
+        }
     )
   , ( Key { unKey = "n" } , VNum (NumDecimal 42) )
   , ( Key { unKey = "testAddr" }

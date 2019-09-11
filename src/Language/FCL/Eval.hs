@@ -156,17 +156,13 @@ initEvalState c w = EvalState
 -- Interpreter Steps
 -------------------------------------------------------------------------------
 
-lookupGlobalVar :: Name -> (EvalM world) (Maybe Value)
-lookupGlobalVar (Name var) = do
-  globalStore <- gets globalStorage
-  return $ Map.lookup (Key var) globalStore
+lookupGlobalVar :: Name -> EvalM world (Maybe Value)
+lookupGlobalVar (Name var) = Map.lookup (Key var) <$> gets globalStorage
 
-lookupTempVar :: Name -> (EvalM world) (Maybe Value)
-lookupTempVar (Name var) = do
-  tmpStore <- gets tempStorage
-  return $ Map.lookup (Key var) tmpStore
+lookupTempVar :: Name -> EvalM world (Maybe Value)
+lookupTempVar (Name var) = Map.lookup (Key var) <$> gets tempStorage
 
-insertTempVar :: Name -> Value -> (EvalM world) ()
+insertTempVar :: Name -> Value -> EvalM world ()
 insertTempVar (Name var) val = modify' $ \evalState ->
     evalState { tempStorage = insertVar (tempStorage evalState) }
   where
@@ -175,7 +171,7 @@ insertTempVar (Name var) val = modify' $ \evalState ->
 -- | Extends the temp storage with temporary variable updates. Emulates a
 -- closure environment for evaluating the body of helper functions by
 -- assigning values to argument names. Effectively ad-hoc substitution.
-localTempStorage :: [(Name,Value)] -> (EvalM world) a -> (EvalM world) a
+localTempStorage :: [(Name,Value)] -> EvalM world a -> (EvalM world) a
 localTempStorage varVals evalM = do
   currTempStorage <- tempStorage <$> get
   let store = Map.fromList (map (first (Key . unName)) varVals)
@@ -271,7 +267,7 @@ runRandom m = do
   gen <- Crypto.getSystemDRG
   return . fst . Crypto.withDRG gen $ m
 
--- | (EvalM world) monad
+-- | Eval monad
 type EvalM world = ReaderT EvalCtx (StateT (EvalState world) (ExceptT Error.EvalFail RandomM))
 
 instance Crypto.MonadRandom (EvalM world) where
@@ -327,7 +323,7 @@ evalLLit (Located _ lit) = evalLit lit
 
 -- | Evaluator for expressions
 evalLExpr :: (World world, Show (AccountError' world), Show (AssetError' world))
-  => LExpr -> (EvalM world) Value
+  => LExpr -> EvalM world Value
 evalLExpr (Located loc e) = case e of
 
   ESeq a b        -> evalLExpr a >> evalLExpr b
@@ -339,7 +335,11 @@ evalLExpr (Located loc e) = case e of
     mbCurrVal <- lookupGlobalVar var
     case (mbCurrVal, fds) of
       (Nothing, []) -> insertTempVar var val
-      (Nothing, (_:_)) -> panicImpossible "EAssign"
+      (Nothing, (fd:fds)) -> lookupTempVar var >>= \case
+        Nothing -> panic $ "Bug in typechecker or evaluator, couldn't find temp var" <> show var
+        Just currVal -> do
+          newVal <- replaceRecordField currVal (fd:|fds) val <$> asks currentConstructorFields
+          insertTempVar var newVal
       (Just currVal, []) -> when (currVal /= val) (updateGlobalVar var val)
       (Just currVal, (fd:fds)) -> do
         newVal <- replaceRecordField currVal (fd:|fds) val <$> asks currentConstructorFields
@@ -347,13 +347,9 @@ evalLExpr (Located loc e) = case e of
 
     pure VVoid
 
-  EUnOp (Located _ op) a -> do
-    valA <- evalLExpr a
-    let unOpFail = panicInvalidUnOp op valA
-    case valA of
-      VBool a' -> return $
-        case op of
-          Not -> VBool $ not a'
+  EUnOp (Located _ Not) a -> evalLExpr a >>= \case
+      VBool a' -> return $ VBool $ not a'
+      VNum n -> pure . VNum $ negate n
       _ -> panicImpossible "EUnOp"
 
   EBinOp (Located _ RecordAccess) e (Located _ (EVar (Located _ field))) -> do
