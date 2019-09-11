@@ -71,17 +71,17 @@ putESW esw = do
 initInfo :: CGInfo
 initInfo = CGInfo mempty mempty (Hole 1)
 
-runSWREPLPure :: Options -> Builder a -> (a, CGInfo, History)
-runSWREPLPure opts actionM = runGen $ runRWST actionM opts initInfo
+runBuilderPure :: Options -> Builder a -> (a, CGInfo, History)
+runBuilderPure opts actionM = runGen $ runRWST actionM opts initInfo
 
-runSWREPLWithLogging :: Builder () -> IO ()
-runSWREPLWithLogging
+runBuilderWithLogging :: Builder () -> IO ()
+runBuilderWithLogging
   = void
-  . runSWREPLIOWithOpts (defaultOpts {loggingEnabled = True})
+  . runBuilderIOWithOpts (defaultOpts {loggingEnabled = True})
 
-runSWREPLIOWithOpts :: Options -> Builder a -> IO (a, CGInfo, History)
-runSWREPLIOWithOpts opts@Options{..} actionM = do
-  let r@(_, _, Dual history) = runSWREPLPure opts actionM
+runBuilderIOWithOpts :: Options -> Builder a -> IO (a, CGInfo, History)
+runBuilderIOWithOpts opts@Options{..} actionM = do
+  let r@(_, _, Dual history) = runBuilderPure opts actionM
       history' = Hole 1 : reverse history
   when loggingEnabled $ do
     createDirectoryIfMissing True logDirectory
@@ -104,7 +104,7 @@ printSW path = workflowWriteSVG path . prettify
 execCodeGen :: Builder a -> Script
 execCodeGen = codeGenScript
             . snd3
-            . runSWREPLPure defaultOpts
+            . runBuilderPure defaultOpts
   where
     snd3 (_,x,_) = x
 
@@ -285,14 +285,14 @@ parallel holeId splitName splitCode joinName joinCode names = do
   initMethodAnnots joinName
   logAction (replaceHole holeId cont)
 
+-- | Replace a hole with a nondeterministically branching subworkflow.
 option
   :: TransId
   -> Builder ()
 option holeId = do
   logAction (replaceHole holeId Edit.UndetXOR)
 
--- TODO: only single condition then automatically negate it?
--- | Replace a hole with a branching subworkflow.
+-- | Replace a hole with a deterministically branching subworkflow.
 conditional
   :: TransId       -- ^ Identifier of hole to be replaced
   -- -> Name          -- ^ Name of the @then@ transition
@@ -320,6 +320,19 @@ stayOrContinue holeId cond = do
       fallThroughLabel = TEL fallThroughId "" True (CGMetadata Nothing $ Just cond)
   logAction (replaceHole holeId $ Edit.SimpleLoop jumpBackLabel fallThroughLabel)
 
+-- | Replace a hole with an nondeterministic "stay-or-continue" construct.
+-- Stay in the current state or progress forward, but the choice is made
+-- nondeterministically.
+nondetStayOrContinue
+  :: TransId       -- ^ Identifier of hole to be replaced
+  -> Builder ()
+nondetStayOrContinue holeId = do
+  fallThroughId <- gen
+  jumpBackId    <- gen
+  let jumpBackLabel    = TEL jumpBackId    "" True (CGMetadata Nothing Nothing)
+      fallThroughLabel = TEL fallThroughId "" True (CGMetadata Nothing Nothing)
+  logAction (replaceHole holeId $ Edit.SimpleLoop jumpBackLabel fallThroughLabel)
+
 -- | Replace a hole with a "loop-or-continue" construct.
 -- Loop in the the current state with the option to exit.
 loopOrContinue
@@ -337,6 +350,25 @@ loopOrContinue holeId cond breakPointName = do
       afterLabel      = TEL afterId    "" True (CGMetadata Nothing $ Just cond)
       jumpBackLabel   = TEL jumpBackId "" True (CGMetadata Nothing $ Just (neg cond))
   logAction (replaceHole holeId $ Edit.Loop breakPointLabel beforeLabel afterLabel jumpBackLabel)
+
+-- | Replace a hole with an nondeterministic "loop-or-continue" construct.
+-- Loop in the the current state with the option to exit, but the choice
+-- is made nondeterministically.
+nondetLoopOrContinue
+  :: TransId       -- ^ Identifier of hole to be replaced
+  -> Name         -- ^ Name for the breakpoint
+  -> Builder ()
+nondetLoopOrContinue holeId breakPointName = do
+  breakPointId <- gen
+  beforeId     <- gen
+  afterId      <- gen
+  jumpBackId   <- gen
+  let breakPointLabel = LPlace breakPointName breakPointId
+      beforeLabel     = TEL beforeId   "" True (CGMetadata Nothing Nothing)
+      afterLabel      = TEL afterId    "" True (CGMetadata Nothing Nothing)
+      jumpBackLabel   = TEL jumpBackId "" True (CGMetadata Nothing Nothing)
+  logAction (replaceHole holeId $ Edit.Loop breakPointLabel beforeLabel afterLabel jumpBackLabel)
+
 
 -- | Replace a hole wth a sequence of two subworkflows.
 sequence
