@@ -11,7 +11,6 @@ import Numeric.Lossless.Decimal (Decimal(..))
 import Language.FCL.AST
 import Language.FCL.Address (Address(..))
 import Language.FCL.SafeWorkflow.Builder
-import Language.FCL.SafeWorkflow.CodeGen (noLoc)
 
 import qualified Language.FCL.SafeWorkflow.Builder as SW
 
@@ -42,6 +41,9 @@ account = ELit . noLoc . LAccount . Address . BS.singleton
 
 decimal :: Integer -> Type
 decimal = TNum . NPDecimalPlaces
+
+int :: Type
+int = TNum nPInt
 
 simpleWhiteBoardExample3 :: SW.Builder ()
 simpleWhiteBoardExample3 = do
@@ -92,8 +94,8 @@ seqInConditionalRight = do
 
 simpleOption :: SW.Builder ()
 simpleOption = do
-  addGlobalWithDefault "alice" TAccount (account 100)
-  addGlobalWithDefault "bob"   TAccount (account 101)
+  addGlobalWithDefault TAccount "alice" (account 100)
+  addGlobalWithDefault TAccount "bob"   (account 101)
   option 1
   finish 1 "t1" $ xAssign 1
   finish 2 "t2" $ xAssign 2
@@ -114,12 +116,12 @@ optionInConditionalLeft = do
 
 loanContract :: SW.Builder ()
 loanContract = do
-  addGlobalSimple "principle"     $ decimal 2
-  addGlobalSimple "interest_rate" $ decimal 2
-  addGlobalSimple "currency"      $ TAsset $ decimal 2
-  addGlobalSimple "borrower"        TAccount
-  addGlobalSimple "lender"          TAccount
-  addGlobalSimple "loan_contract"   TText
+  addGlobalSimple (decimal 2)          "principle"
+  addGlobalSimple (decimal 2)          "interest_rate"
+  addGlobalSimple (TAsset $ decimal 2) "currency"
+  addGlobalSimple TAccount             "borrower"
+  addGlobalSimple TAccount             "lender"
+  addGlobalSimple TText                "loan_contract"
 
   sequence 1 "negotiate_terms"
   finish 2 "propose_contract" [fcl|
@@ -182,12 +184,73 @@ loanContract = do
 
 amendment :: SW.Builder ()
 amendment = do
+  addGlobalSimple TAccount "alice"
+  addGlobalSimple TAccount "bob"
+  addGlobalSimple int      "valueAlice"
+  addGlobalSimple int      "valueBob"
+  addGlobalSimple int      "total"
+  addGlobalSimple int      "proposedNewTotal"
+  addGlobalSimple TAccount "counterparty"
+
   sequence 1 "totalCalculated"
-  parallel 1
-    "init" ENoOp
-    "calculateTotal"  ENoOp
+  parallel 2
+    "init" [fcl|
+      {alice = a;
+      bob = b;}
+      |]
+    "calculateTotal" [fcl|
+      {total = valueAlice + valueBob;}
+      |]
     [ ("todoAlice", "doneAlice")
     , ("todoBob",   "doneBob")
     ]
 
-  -- finish 1
+  -- NOTE: nondeterministic loop
+  nondetStayOrContinue 3
+
+  sequence 11 "agreeAmendment"
+  conditional 13 [fcl| {sender() == alice} |]
+  stayOrContinue 16 [fcl| {sender() == bob} |]
+
+  finish 1 "setValueAlice" [fcl| {valueAlice = val;} |]
+  finish 2 "setValueBob"   [fcl| {valueBob   = val;} |]
+
+  finish 15 "proposeNewTotal" [fcl|
+    {counterparty = bob;}
+    |]
+  finish 17 "proposeNewTotal" [fcl|
+    {counterparty = alice;}
+    |]
+  finish 18 "proposeNewTotal" ENoOp -- good
+
+  finish 14 "agreeAmendment"  [fcl|
+    {if (agrees) {
+      total = proposedNewTotal;
+    };}
+    |]
+
+  finish 10 "end" ENoOp -- good
+
+  addRole "setValueAlice"     "alice"
+  addRole "setValueBob"       "bob"
+  -- NOTE: two roles for the same method
+  addRole "proposeNewTotal"   "alice"
+  addRole "proposeNewTotal"   "bob"
+  addRole "agreeAmendment"    "counterparty"
+
+  addArgs "init"
+    [ mkArg TAccount "a"
+    , mkArg TAccount "b"
+    ]
+  addArgs "setValueAlice"
+    [ mkArg int "val"
+    ]
+  addArgs "setValueBob"
+    [ mkArg int "val"
+    ]
+  addArgs "proposeNewTotal"
+    [ mkArg int "newTotal"
+    ]
+  addArgs "agreeAmendment"
+    [ mkArg TBool "agrees"
+    ]
