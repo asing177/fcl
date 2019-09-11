@@ -25,6 +25,14 @@
   averageBrightness(color c1, color c2) {
     (c1.brightness + c2.brightness) / 2
   }
+
+    // Increment a color's brightness by 1 if that color is not yet maximally bright.
+  increaseBrightness(Color c) {
+    if (c.brightness <= 255) {
+      c.brightness = c.brightness + 1;
+    };
+    c
+  }
   ~~~
   Notes:
     - The `enum` and new `type` keywords are interchangeable.
@@ -35,6 +43,7 @@
 * Add information of the calling method in deltas when transferring assets
 * Remove SafeInteger and SafeString modules
 * Constrain workflows to be free choice Petri nets, hence making soundness checking more efficient
+* Allow `else if` branches
 
 ## 0.1
 

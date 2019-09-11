@@ -1,0 +1,4 @@
+go(true, false);
+go(false, true);
+go(false, false);
+end()
