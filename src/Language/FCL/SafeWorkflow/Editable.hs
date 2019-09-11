@@ -26,8 +26,6 @@ import qualified GHC.Show (show)
 
 import qualified Data.Map as M
 
-import Control.Monad.Gen
-
 import Language.FCL.SafeWorkflow hiding
   ( Atom
   , AND

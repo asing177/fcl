@@ -135,7 +135,7 @@ namedArbitraryNets = zipWith (\id net -> ("arbitrary-" <> show id, net)) [0..]
 -- prototype
 namedCrossValidWitnessNets :: [([Char], ExtendedFCSW)]
 namedCrossValidWitnessNets =
-  [ ( "local loop inside SAND branch"
+  [ ( "local loop inside AND branch"
     , EFCSW $ ExtendedSW
         (Seq (SAND2 SAtom SAtom) SAtom) $
         S.fromList
@@ -143,7 +143,7 @@ namedCrossValidWitnessNets =
           , Arrow (makeWorkflowState [Name "5"]) (makeWorkflowState [Name "5"])
           ]
     )
-  , ( "looping SAND branches"
+  , ( "looping AND branches"
     , EFCSW $ ExtendedSW
         SAtom $
         S.fromList
@@ -159,21 +159,21 @@ namedCrossValidWitnessNets =
           [ Arrow (makeWorkflowState [Name "1"]) (makeWorkflowState [Name "3"])
           ]
     )
-  , ( "incorrect direct backward jump to SAND branch"
+  , ( "incorrect direct backward jump to AND branch"
     , EFCSW $ ExtendedSW
         (Seq (SAND2 SAtom SAtom) SAtom) $
         S.fromList
           [ Arrow (makeWorkflowState [Name "1"]) (makeWorkflowState [Name "2", Name "3"])
           ]
     )
-  , ( "incorrect direct backward jump to before SAND-split"
+  , ( "incorrect direct backward jump to before AND-split"
     , EFCSW $ ExtendedSW
         (Seq (SAND2 SAtom SAtom) SAtom) $
         S.fromList
           [ Arrow (makeWorkflowState [Name "1"]) (makeWorkflowState [Name "3"] `wfUnion` startState)
           ]
     )
-  , ( "incorrect direct forward jump to SAND branches"
+  , ( "incorrect direct forward jump to AND branches"
     , EFCSW $ ExtendedSW
         (SAND2 SAtom SAtom) $
         S.fromList
@@ -203,21 +203,21 @@ namedSoundButNotSafeWitnessNets =
           , Arrow (makeWorkflowState [Name "a2", Name "b"]) endState
           ]
     )
-  , ( "correct direct backward jump to SAND-join"
+  , ( "correct direct backward jump to AND-join"
     , EFCSW $ ExtendedSW
         (Seq (SAND2 SAtom SAtom) SAtom) $
         S.fromList
           [ Arrow (makeWorkflowState [Name "1"]) (makeWorkflowState [Name "3", Name "5"])
           ]
     )
-  , ( "correct direct backward jump to SAND branches"
+  , ( "correct direct backward jump to AND branches"
     , EFCSW $ ExtendedSW
         (Seq (SAND2 SAtom SAtom) SAtom) $
         S.fromList
           [ Arrow (makeWorkflowState [Name "1"]) (makeWorkflowState [Name "3", Name "4"])
           ]
     )
-  , ( "correct indirect backward jump to SAND-join"
+  , ( "correct indirect backward jump to AND-join"
     , EFCSW $ ExtendedSW
         (Seq (SAND2 SAtom SAtom) SAtom) $
         S.fromList
@@ -226,7 +226,7 @@ namedSoundButNotSafeWitnessNets =
           , Arrow (makeWorkflowState [Name "7"]) (makeWorkflowState [Name "5"])
           ]
     )
-  , ( "correct indirect backward jump to SAND branches"
+  , ( "correct indirect backward jump to AND branches"
     , EFCSW $ ExtendedSW
         (Seq (SAND2 SAtom SAtom) SAtom) $
         S.fromList
@@ -235,14 +235,14 @@ namedSoundButNotSafeWitnessNets =
           , Arrow (makeWorkflowState [Name "7"]) (makeWorkflowState [Name "4"])
           ]
     )
-  , ( "correct direct forward jump into SAND-join"
+  , ( "correct direct forward jump into AND-join"
     , EFCSW $ ExtendedSW
         (SAND2 SAtom SAtom) $
         S.fromList
           [ Arrow startState (makeWorkflowState [Name "2", Name "4"])
           ]
     )
-  , ( "correct direct forward jump to SAND branches"
+  , ( "correct direct forward jump to AND branches"
     , EFCSW $ ExtendedSW
         (SAND2 SAtom SAtom) $
         S.fromList
