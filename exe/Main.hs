@@ -5,7 +5,7 @@ import Options.Applicative
 import Protolude
 import qualified Language.FCL.Reachability.General as Reachability (completeReachabilityGraph, pprReachabilityGraph)
 import qualified Language.FCL.Analysis as Analysis (inferTransitions)
-import qualified Language.FCL.Undefinedness as Undefinedness (undefinednessAnalysis)
+import qualified Language.FCL.Undefinedness as Undefinedness (undefinednessAnalysis, fastUndefinednessAnalysis)
 import qualified Language.FCL.Compile as Compile
 import qualified Language.FCL.Graphviz as Graphviz
 import qualified Language.FCL.Parser as Parser (parseFile)
@@ -23,6 +23,7 @@ data ScriptCommand
   | Transitions { file :: FilePath }
   | ReachabilityGraph { file :: FilePath }
   | UndefinednessAnalysis { file :: FilePath }
+  | FastUndefinednessAnalysis { file :: FilePath }
   deriving (Eq, Ord, Show)
 
 -------------------------------------------------------------------------------
@@ -38,6 +39,7 @@ scriptParser =
   <|> scriptTransitions
   <|> scriptReachabilityGraph
   <|> scriptUndefinednessAnalysis
+  <|> scriptFastUndefinednessAnalysis
 
 scriptFormat :: Parser ScriptCommand
 scriptFormat = subparser $ command "format"
@@ -102,6 +104,15 @@ scriptUndefinednessAnalysis = subparser $ command "undefinedness"
   where
     scriptParser' :: Parser ScriptCommand
     scriptParser' = UndefinednessAnalysis <$> fileParser
+
+-- TODO: instead of this, add the "fast" flag to "undefinedness"
+scriptFastUndefinednessAnalysis :: Parser ScriptCommand
+scriptFastUndefinednessAnalysis = subparser $ command "fast-undefinedness"
+    (info (helper <*> scriptParser')
+    (progDesc "Run the fast undefinedness analysis"))
+  where
+    scriptParser' :: Parser ScriptCommand
+    scriptParser' = FastUndefinednessAnalysis <$> fileParser
 
 --------------------------------------------
 -- Parser Utils
@@ -175,6 +186,14 @@ driverScript cmd
         Right _ -> Utils.putGreen "The workflow has no undefinedness errors."
         Left invalidStackTraces -> do
           die $ show $ Pretty.ppr invalidStackTraces
+
+    FastUndefinednessAnalysis scriptFile -> do
+      ast <- Parser.parseFile scriptFile
+      let undefRes = Undefinedness.fastUndefinednessAnalysis ast
+      case undefRes of
+        Nothing -> Utils.putGreen "The workflow has no undefinedness errors."
+        Just invalidStackTrace -> do
+          die $ show $ Pretty.ppr invalidStackTrace
 
 
 -------------------------------------------------------------------------------

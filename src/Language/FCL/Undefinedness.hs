@@ -1,18 +1,23 @@
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE DeriveAnyClass #-}
+{-# LANGUAGE DuplicateRecordFields #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
 -- NOTE: Path-insensitive analysis (See checkStatement (... EIf ...))
-module Language.FCL.Undefinedness (
-  InvalidStackTrace(..),
-  IsInitialized(..),
-  unusedVars,
-  undefinednessAnalysis,
-) where
+module Language.FCL.Undefinedness
+  ( InvalidStackTrace(..)
+  , IsInitialized(..)
+  , UndefinednessEnv
+  , unusedVars
+  , undefinednessAnalysis
+  , fastUndefinednessAnalysis
+  , checkMethodUnsafe
+  ) where
 
 import Protolude
 
+import Algorithm.Search (bfs)
 import Algebra.Lattice
    ( Lattice
    , MeetSemiLattice, JoinSemiLattice
@@ -66,17 +71,24 @@ undefinednessAnalysis script = do
     case allErrs of
       [] -> Right allSuccesses
       errs@(_:_) -> Left errs
-  where
-    mkInitialMarking :: a -> Map Place a
-    mkInitialMarking = Map.singleton PlaceStart
 
-    genMethodUndefEnv :: ColorTransition UndefinednessEnv
-    genMethodUndefEnv = ColorTransition checkMethodUnsafe
+fastUndefinednessAnalysis :: Script -> Maybe InvalidStackTrace
+fastUndefinednessAnalysis script = case initialEnv script of
+  Right initialUndefEnv -> do
+    let initialMarking = mkInitialMarking initialUndefEnv
+        workflowNet    = createWorkflowNet script initialUndefEnv genMethodUndefEnv
+    path <- pathToErronenousState initialMarking workflowNet
+    let stackTrace = connectSimpleTraceItems path
+    either Just (const Nothing) (validateStackTrace initialMarking stackTrace)
+  Left [invalidStackTrace] -> Just invalidStackTrace
+  _ -> panic "Never should have come here"
 
-    checkMethodUnsafe :: Method ->
-                         (UndefinednessEnv -> UndefinednessEnv) ->
-                         Map WorkflowState [UndefinednessEnv -> UndefinednessEnv]
-    checkMethodUnsafe method = either panic identity . checkMethod method
+
+mkInitialMarking :: a -> Map Place a
+mkInitialMarking = Map.singleton PlaceStart
+
+genMethodUndefEnv :: ColorTransition UndefinednessEnv
+genMethodUndefEnv = ColorTransition checkMethodUnsafe
 
 -------------------------------------------------------------------------------
 -- Environment/state used in analysis
@@ -145,6 +157,7 @@ initialEnv script = handleErrors (fmap ($ mempty) buildEnv)
 -- graph. Any such path is assumed to start from the "initial" state.
 type StackTrace = [StackTraceItem]
 
+-- NOTE: The `initialState` can probably be scrapped and inferred from the previous items.
 -- | Since a stack trace is assumed to start from the "initial" state,
 -- we only store a list of destinations and method names (edge
 -- labels).
@@ -209,6 +222,45 @@ instance Pretty StackTraceItem where
 
 instance Pretty StackTrace where
   ppr = vcat . map (\x -> ppr x)
+
+data SimpleTraceItem = SimpleTraceItem
+  { getMethod         :: Name
+  , getResultMarking  :: Marking UndefinednessEnv
+  } deriving (Eq, Ord, Show)
+
+connectSimpleTraceItems :: [SimpleTraceItem] -> StackTrace
+connectSimpleTraceItems simples = zipWith connect simples (drop 1 simples) where
+  connect :: SimpleTraceItem -> SimpleTraceItem -> StackTraceItem
+  connect (SimpleTraceItem method1 marking1) (SimpleTraceItem method2 marking2) =
+    StackTraceItem method2 marking1 marking2
+
+-- | Given an initial marking it traverses a given workflow net
+-- and finds the first marking which contains a variable in error state,
+-- and constructs an execution trace leading up to the error site.
+pathToErronenousState
+-- NOTE: This search can visit the same workflow state multiple times
+-- if it arrives there from different methods. We could avoid this
+-- with multiple runs. First find the state, then construct the trace.
+  :: Marking UndefinednessEnv
+  -> WorkflowNet UndefinednessEnv
+  -> Maybe [SimpleTraceItem]
+pathToErronenousState initialMarking wfn = (initialState :) <$>
+  bfs (nextStates      . getResultMarking)
+      (hasErroneousVar . getResultMarking)
+      initialState
+  where
+    initialState :: SimpleTraceItem
+    initialState = SimpleTraceItem (Name "<origin>") initialMarking
+
+    nextStates :: Marking UndefinednessEnv -> [SimpleTraceItem]
+    nextStates marking = map (fireTransition marking) $ enabledTransitions marking wfn
+
+    fireTransition :: Marking UndefinednessEnv -> Transition UndefinednessEnv -> SimpleTraceItem
+    fireTransition marking t@(Transition _ name _ _) =
+      SimpleTraceItem name (fireUnsafe marking t)
+
+    hasErroneousVar :: Marking UndefinednessEnv -> Bool
+    hasErroneousVar state = not . null . concatMap collectErrors . Map.elems $ state
 
 -- | Given an initial marking it traverses a given workflow net
 -- and collects the possible stack traces. The algorithm will
@@ -366,6 +418,10 @@ instance Pretty IsInitialized where
 -- Analyis of FCL AST
 --------------------------------------------------------------------------------
 
+-- NOTE: We could use this function instead of Language.FCL.Analysis.extractTranisitions
+-- to infer the transitions from an FCL script AND annotate them with dataflow information.
+-- This collects the possible output workflows state and their corresponding dataflow functions too!
+-- The second argument could be the identity function.
 checkMethod
   :: Method
   -> (UndefinednessEnv -> UndefinednessEnv)
@@ -373,6 +429,12 @@ checkMethod
 checkMethod method mkEnv = do
   mkEnv <- checkPreconditions (methodPreconditions method) mkEnv
   checkStatement (methodBody method) mkEnv
+
+checkMethodUnsafe
+  :: Method
+  -> (UndefinednessEnv -> UndefinednessEnv)
+  -> Map WorkflowState [UndefinednessEnv -> UndefinednessEnv]
+checkMethodUnsafe method = either panic identity . checkMethod method
 
 checkPreconditions
   :: Preconditions

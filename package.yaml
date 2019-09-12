@@ -29,6 +29,7 @@ dependencies:
   - text
   - memory
   - lattices
+  - search-algorithms
 
   # Data Structures
   - containers
@@ -221,6 +222,7 @@ tests:
     - filepath
     - Diff
     - strict
+    - clock
     - cryptonite
     - tasty
     - tasty-hunit
