@@ -135,7 +135,6 @@ holeWithMCond :: TransId -> Maybe Expr -> EditableSW
 holeWithMCond id mCond = SW.Atom $ TEL id (Name $ "_" <> show id) True (CGMetadata Nothing mCond)
 
 -- NOTE: if the label to replaced already has a condition, preserve it
--- TODO: if we ever allow reediting, we will need a smarter way to index holes
 fromContinuation
   :: TEditLabel                       -- ^ Label for the transition being replaced
   -> Continuation                 -- ^ Construct to replace the given transition with
@@ -146,13 +145,11 @@ fromContinuation (cgmIfCond.trCGMetadata -> mCond) = \case
   SimpleLoop{..} -> pure $ SW.SimpleLoop
     (SW.Atom $ sLoopJumpBackLabel    `mGuardedBy` mCond)
     (SW.Atom $ sLoopFallThroughLabel `mGuardedBy` mCond)
-  -- TODO: check whether the labelling of the fall-through and jump-back branches are correct
   Loop{..} -> pure $ SW.Loop
     exitLabel
     (SW.Atom $ loopBeforeLabel `mGuardedBy` mCond)
     (SW.Atom $ loopAfterLabel)
     (SW.Atom $ loopJumpBackLabel)
-  -- TODO: finish this
   IfXOR{..} -> do
     let thenLabel = ifXorThenLabel `mGuardedBy` mCond
         elseLabel = ifXorElseLabel `mGuardedBy` mCond

@@ -51,33 +51,20 @@ import Language.FCL.SafeWorkflow.Simple (constructTransitionsWithoutPlaces, cons
 import qualified Language.FCL.SafeWorkflow as SW
 import qualified Language.FCL.Graphviz     as GV
 
--- QUESTION: should these be as a separate form of annotation?
--- TODO: Add roles
--- TODO: Add method arguments
--- TODO: Add global variables
-
--- TODO: Separate metadata (name) from the datastructure.
--- Only store IDs and maintain a metadata table.
--- TODO: Maybe only do this for methods (e.g.: preconditions)
-
 -- NOTE: Reediting an already finished transition could be done by
 -- transforming it back to a Hole first, then editing it.
--- NOTE: If we ever allow reediting, we will need a smarter way to index holes,
--- because the current implementation would generate clashing IDs
-
 
 -- | Identifier of a transition in an editable workflow
 type TransId = Int
 
 -- NOTE: global would be for methods (e.g.: preconditions)
--- | Local transiion metadata forcode generation
+-- | Local transiion metadata for code generation
 data CGMetadata = CGMetadata
   { cgmCode   :: Maybe Expr   -- ^ Code to be generated into the transition (`Nothing` -> `ENoOp`)
   , cgmIfCond :: Maybe Expr   -- ^ Possible @If@ condition for deterministic branhcing (NOTE: the conditions in a given method should always be mutually exclusive and should always cover the entire event-space)
   }
   deriving (Eq, Ord, Show)
 
--- TODO: add IF condition annotations (ids to group if conditions)
 -- TODO: separate continuations from edit labels better
 -- | Transition labels for safe workflow editing.
 data TEditLabel = TEL
@@ -160,7 +147,6 @@ data ANDBranchLabels = ANDBranchLabels
   , outLabel :: PEditLabel
   } deriving (Eq, Ord, Show)
 
--- TODO: add smart constructors
 -- | `Continuation`s are used to replace holes in `EditableSW`s.
 data Continuation
   = Atom { atomLabel       :: TEditLabel   -- ^ Label to be put on the transition
