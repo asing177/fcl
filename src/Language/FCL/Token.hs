@@ -107,7 +107,6 @@ keywords =
   , after
   , between
   , case_
-  , hole
   , initial
   , terminal
   , transition
@@ -130,4 +129,5 @@ operators = [
   , lesser
   , not
   , dot
+  , hole
   ]

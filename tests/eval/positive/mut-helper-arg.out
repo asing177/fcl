@@ -1,17 +1,13 @@
 *** Deltas ***
-[ ModifyGlobal
-    Name { unName = "someBit" }
-    VConstr { vConstrName = MkNameUpper "O" , vConstrParams = [] }
+[ ModifyGlobal Name { unName = "x" } (VNum (NumDecimal 42))
+, ModifyGlobal Name { unName = "x" } (VNum (NumDecimal 0))
 , ModifyState WorkflowState { places = fromList [ PlaceEnd ] }
 , Terminate
 ]
 
 *** Globals ***
 fromList
-  [ ( Key { unKey = "someBit" }
-    , VConstr { vConstrName = MkNameUpper "O" , vConstrParams = [] }
-    )
-  , ( Key { unKey = "testAddr" }
+  [ ( Key { unKey = "testAddr" }
     , VAccount (Address "fwBVDsVh8SYQy98CzYpNPcbyTRczVUZ96HszhNRB8Ve")
     )
   , ( Key { unKey = "testAddr2" }
@@ -20,4 +16,5 @@ fromList
   , ( Key { unKey = "testAddr3" }
     , VAccount (Address "4Stv5gWGt78D3p919HFcKEschSmyGKGrAX2G35xJgdhw")
     )
+  , ( Key { unKey = "x" } , VNum (NumDecimal 0) )
   ]

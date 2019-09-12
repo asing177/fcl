@@ -19,7 +19,7 @@ Hole at Line 16, Column 13:
 Hole at Line 16, Column 16:
    Expecting something of type 'decimal<2>'.
       Suggestions:
-         method argument v
+         helper argument v
          temporary variable v1
 
 Hole at Line 16, Column 19:
