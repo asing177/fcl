@@ -117,7 +117,8 @@ instance ToSchema AST.Value where
       ,("VMap", mvv)
       ,("VSet", sv)
       ,("VUndefined", empt)
-      ,("VConstr", Inline $ arraySchema (Just [nu, vs]))
+      ,("VConstr", Inline $
+         objectSchema ([("vConstrName", nu), ("vConstrParams", vs)]) True)
       ]
       False
 
@@ -172,7 +173,10 @@ instance ToSchema PermittedCallers where
 
 instance ToSchema Def
 instance ToSchema Type where
-  declareNamedSchema = genericDeclareNamedSchemaUnrestricted defaultSchemaOptions
+  declareNamedSchema p = do
+    n <- genericDeclareNamedSchemaUnrestricted defaultSchemaOptions p
+    pure $ n { _namedSchemaName = Just "FCLType" }
+
 instance ToSchema NumPrecision where
   declareNamedSchema = genericDeclareNamedSchemaUnrestricted defaultSchemaOptions
 instance ToSchema TCollection where
@@ -256,6 +260,7 @@ instance ToSchema Lit
 instance ToSchema Script
 instance ToSchema Helper
 instance ToSchema Transition
+
 instance ToSchema WorkflowState where
   declareNamedSchema _ = pure $ stringNamedSchema "WorkflowState"
 
