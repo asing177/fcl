@@ -1,12 +1,15 @@
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE OverloadedLists #-}
-{-# LANGUAGE DeriveGeneric, DeriveAnyClass #-}
+{-# LANGUAGE DeriveGeneric, DeriveAnyClass, DeriveFunctor, DeriveFoldable, DeriveTraversable #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE InstanceSigs #-}
 module Language.FCL.SafeWorkflow
   ( SafeWorkflow(Atom, AND, GenLoop)
+  , AnnotatedTransition(..)
 
   , andBranches
   , gLoopIn
@@ -23,6 +26,7 @@ module Language.FCL.SafeWorkflow
   , pattern Seq
   , pattern SimpleLoop
   , pattern Loop
+  , pattern ACF
 
   , xorLhs
   , xorRhs
@@ -35,6 +39,7 @@ module Language.FCL.SafeWorkflow
   , seqRhs
 
   , constructTransitions
+  , constructAnnTransitions
 
   , ACFArrow(..)
   , ACFPlace(..)
@@ -59,8 +64,9 @@ import Test.QuickCheck hiding (Gen)
 import qualified Test.QuickCheck as QC
 
 import Language.FCL.AST
-import Language.FCL.Pretty (ppr, (<+>), Pretty)
+import Language.FCL.Pretty (Pretty, ppr, (<+>))
 import Language.FCL.Orphans()
+
 
 -- NOTE: can't return back to different places from a loop (eg.: novation.s)
 -- NOTE: syncronisation points are always singleton states (places) (eg.: novation.s)
@@ -103,15 +109,19 @@ data SafeWorkflow a
   | ACF' { acfMap :: ACFMap a
          }
   -- | Atom representing a single transition.
-  | Atom { getAnnot :: a                              -- ^ Annotation for the transitions
+  | Atom { atomAnnot :: a                             -- ^ Annotation for the transitions
          }
-  deriving (Eq, Ord, Show, Generic, NFData)
+  deriving (Eq, Ord, Show, Generic, NFData, Functor, Foldable, Traversable)
 
 -- TODO: redefine these using record pattern synonyms (once they are available)
 -- https://gitlab.haskell.org/ghc/ghc/wikis/pattern-synonyms/record-pattern-synonyms
 
 {-# COMPLETE AND, GenLoop,          ACF, Atom #-}
 {-# COMPLETE AND, SimpleLoop, Loop, ACF, Atom #-}
+
+-----------------------------------------------------------------
+-- Pattern synonyms, selector functions and smart constructors --
+-----------------------------------------------------------------
 
 -- | XOR with two branches.
 pattern XOR :: SafeWorkflow a -> SafeWorkflow a -> SafeWorkflow a
@@ -221,6 +231,10 @@ unsafeMkACF :: ACFMap a -> SafeWorkflow a
 unsafeMkACF = either mkError identity . mkACF where
   mkError arrows = panic $ "unsafeMkACF: The following arrows are invalid: " <> show arrows
 
+---------------------------------------------------
+-- Constructing transitions from @SafeWorkflow@s --
+---------------------------------------------------
+
 -- | Make a workflow state from a `Name`.
 singletonWfState :: Name -> WorkflowState
 singletonWfState = unsafeWorkflowState . S.singleton . makePlace
@@ -233,35 +247,49 @@ genName = Name . show <$> gen
 genWfState :: (MonadGen e m, Show e) => m WorkflowState
 genWfState = singletonWfState <$> genName
 
--- | Construct the list of transitions from a given `SafeWorkflow a`.
-constructTransitions :: SafeWorkflow a -> [Transition]
-constructTransitions = runGen . execWriterT . constructTransitionsM startState endState
+data AnnotatedTransition a = AnnTransition
+  { getAnnot :: a
+  , getTrans :: Transition
+  } deriving (Eq, Ord, Show)
 
--- | Construct the list of transitions from a given `SafeWorkflow a` `swf` and `start` and `end` states.
--- The open-ended transitions of `swf` will be connected to the `start` and `end` states
--- based on the stucture of `swf`.
-constructTransitionsM :: WorkflowState -> WorkflowState -> SafeWorkflow a -> (WriterT [Transition] (Gen Integer)) ()
-constructTransitionsM start end (AND _ _ branches) = do
+-- | Construct a list of transitions without annotations from a given `SafeWorkflow`.
+constructTransitions :: SafeWorkflow a -> [Transition]
+constructTransitions = map getTrans . constructAnnTransitions
+
+-- | Construct a list of annotated transitions from a given `SafeWorkflow`.
+constructAnnTransitions :: SafeWorkflow a -> [AnnotatedTransition a]
+constructAnnTransitions
+  = runGen
+  . execWriterT
+  . constructAnnTransitionsM startState endState
+
+-- | Construct the list of transitions from a given `SafeWorkflow` @swf@ and @start@ and @end@ states.
+-- The open-ended transitions of @swf@ will be connected to the @start@ and @end@ states
+-- based on the stucture of @swf@.
+constructAnnTransitionsM :: WorkflowState -> WorkflowState -> SafeWorkflow a -> (WriterT [AnnotatedTransition a] (Gen Integer)) ()
+constructAnnTransitionsM start end (AND splitAnn joinAnn branches) = do
   inOuts <- forM (GHC.toList branches) $ \br -> do
     inSt  <- genWfState
     outSt <- genWfState
-    constructTransitionsM inSt outSt br
+    constructAnnTransitionsM inSt outSt br
     pure (inSt, outSt)
   let (ins, outs) = unzip inOuts
-  tell [Arrow start (mconcat ins), Arrow (mconcat outs) end]
-constructTransitionsM start end (Seq lhs rhs) = do
+  tell [ AnnTransition splitAnn $ Arrow start (mconcat ins)
+       , AnnTransition joinAnn  $ Arrow (mconcat outs) end
+       ]
+constructAnnTransitionsM start end (Seq lhs rhs) = do
   inBetween <- genWfState
-  constructTransitionsM start inBetween lhs
-  constructTransitionsM inBetween end   rhs
-constructTransitionsM start end (SimpleLoop loop exit) = do
-  constructTransitionsM start start loop
-  constructTransitionsM start end   exit
-constructTransitionsM start end (Loop gLoopIn exit gLoopOut) = do
+  constructAnnTransitionsM start inBetween lhs
+  constructAnnTransitionsM inBetween end   rhs
+constructAnnTransitionsM start end (SimpleLoop loop exit) = do
+  constructAnnTransitionsM start start loop
+  constructAnnTransitionsM start end   exit
+constructAnnTransitionsM start end (Loop gLoopIn exit gLoopOut) = do
   inBetween <- genWfState
-  constructTransitionsM start inBetween gLoopIn
-  constructTransitionsM inBetween end   exit
-  constructTransitionsM inBetween start gLoopOut
-constructTransitionsM start end (ACF (M.toList -> acfList)) = do
+  constructAnnTransitionsM start inBetween gLoopIn
+  constructAnnTransitionsM inBetween end   exit
+  constructAnnTransitionsM inBetween start gLoopOut
+constructAnnTransitionsM start end (ACF (M.toList -> acfList)) = do
   let acfArrows = map fst acfList
       acfPlaces = S.fromList
                 . filter isIntermediate
@@ -271,13 +299,17 @@ constructTransitionsM start end (ACF (M.toList -> acfList)) = do
   let getState :: ACFPlace -> WorkflowState
       getState Entry = start
       getState Exit  = end
-      getState p     = fromMaybe (panic $ "constructTransitionsM: Place " <> show p <> " is not present in state map.") $ M.lookup p stateMap
+      getState p     = fromMaybe (panic $ "constructAnnTransitionsM: Place " <> show p <> " is not present in state map.") $ M.lookup p stateMap
   forM_ acfList $ \(ACFArrow from to, swfs) -> do
     let from' = getState from
         to'   = getState to
-    mapM_ (constructTransitionsM from' to') swfs
-constructTransitionsM start end Atom{..} = do
-  tell [Arrow start end]
+    mapM_ (constructAnnTransitionsM from' to') swfs
+constructAnnTransitionsM start end Atom{..} = do
+  tell [AnnTransition atomAnnot $ Arrow start end]
+
+-------------------------
+-- Arbitrary instances --
+-------------------------
 
 instance Pretty ACFPlace where
   ppr Entry = "Entry"
