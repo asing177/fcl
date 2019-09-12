@@ -34,6 +34,7 @@ init(account a, account b) {
 
 @totalCalculated [roles: {alice,bob}]
 proposeNewTotal(int newTotal) {
+  proposedNewTotal = newTotal;
   if ((sender() == alice)) {
     counterparty = bob;
     transitionTo(@agreeAmendment);
@@ -41,10 +42,8 @@ proposeNewTotal(int newTotal) {
     if (((!(sender() == bob)) && (!(sender() == alice)))) {
       transitionTo(@totalCalculated);
     } else {
-      if (((sender() == bob) && (!(sender() == alice)))) {
-        counterparty = alice;
-        transitionTo(@agreeAmendment);
-      };
+      counterparty = alice;
+      transitionTo(@agreeAmendment);
     };
   };
 }

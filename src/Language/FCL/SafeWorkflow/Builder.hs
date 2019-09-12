@@ -34,7 +34,7 @@ import Language.FCL.SafeWorkflow hiding
 import Language.FCL.AST
 import Language.FCL.Graphviz (workflowWriteSVG)
 import Language.FCL.SafeWorkflow.Editable
-import Language.FCL.SafeWorkflow.CodeGen (CGInfo(..), codeGenScript, fromPreconds, fromArgs)
+import Language.FCL.SafeWorkflow.CodeGen (CGInfo(..), MethodAnnotation(..), codeGenScript, fromPreconds, fromArgs)
 import Language.FCL.Pretty (prettyPrint)
 
 import qualified Language.FCL.SafeWorkflow          as SW
@@ -398,8 +398,19 @@ initMethodAnnots
   -> Builder ()
 initMethodAnnots methodName = do
   s@CGInfo{..} <- get
+  let initial = MethodAnnotation mempty mempty Nothing
   when (methodName `M.notMember` methodAnnotations) $
-    put $ s { methodAnnotations = M.insert methodName mempty methodAnnotations }
+    put $ s { methodAnnotations = M.insert methodName initial methodAnnotations }
+
+addBranchIndependentCode
+  :: Name
+  -> Expr
+  -> Builder ()
+addBranchIndependentCode methodName code = do
+  s@CGInfo{..} <- get
+  let newMethodAnn = MethodAnnotation mempty mempty (Just code)
+      methodAnnotations' = M.insertWith (flip (<>)) methodName newMethodAnn methodAnnotations
+  put $ s { methodAnnotations = methodAnnotations' }
 
 -- TODO: add logging
 addPrecondition

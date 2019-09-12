@@ -231,6 +231,10 @@ amendment = do
 
   finish 10 "end" ENoOp -- good
 
+  addBranchIndependentCode "proposeNewTotal" [fcl|
+    {proposedNewTotal = newTotal;}
+    |]
+
   addRole "setValueAlice"     "alice"
   addRole "setValueBob"       "bob"
   -- NOTE: two roles for the same method

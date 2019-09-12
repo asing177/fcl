@@ -41,9 +41,11 @@ type TrWithNames = Transition
 
 type ETrWithNames = EditTransition
 
+-- | Global annotations for methods.
 data MethodAnnotation = MethodAnnotation
-  { mAnnPreconds  :: Preconditions
-  , mAnnArgs      :: [Arg]
+  { mAnnPreconds  :: Preconditions  -- ^ Method preconditions
+  , mAnnArgs      :: [Arg]          -- ^ Method arguments
+  , mAnnCode      :: Maybe Expr     -- ^ Branching independent code
   } deriving (Eq, Ord, Show)
 
 type MethodAnnotations = Map Name MethodAnnotation
@@ -54,12 +56,16 @@ data CGInfo = CGInfo
   , editableWorkflow  :: EditableSW
   } deriving (Eq, Ord, Show)
 
-instance Semigroup MethodAnnotation where
-  (<>) (MethodAnnotation preconds1 args1) (MethodAnnotation preconds2 args2) =
-    MethodAnnotation (preconds1 <> preconds2) (args1 <> args2)
+mSeq :: Maybe Expr -> Maybe Expr -> Maybe Expr
+mSeq Nothing    Nothing    = Nothing
+mSeq (Just lhs) Nothing    = Just lhs
+mSeq Nothing    (Just rhs) = Just rhs
+mSeq (Just lhs) (Just rhs) = Just $ ESeq (noLoc lhs) (noLoc rhs)
 
-instance Monoid MethodAnnotation where
-  mempty = MethodAnnotation mempty mempty
+instance Semigroup MethodAnnotation where
+  (<>) (MethodAnnotation ps1 args1 code1)
+       (MethodAnnotation ps2 args2 code2) =
+    MethodAnnotation (ps1 <> ps2) (args1 <> args2) (mSeq code1 code2)
 
 codeGenScript :: CGInfo -> Script
 codeGenScript cgInfo@CGInfo{..} = Script [] globalVariables []
@@ -199,7 +205,7 @@ codeGenMethod
   -> MethodAnnotations
   -> Name
   -> Method
-codeGenMethod placeAnnots groupedTrs methodAnnots methodName = Method inputState preconditions (noLoc methodName) args body where
+codeGenMethod placeAnnots groupedTrs methodAnnots methodName = Method inputState preconditions (noLoc methodName) args wholeBody where
   trsWithIds :: [EditTransition]
   trsWithIds = flip fromMaybe (M.lookup methodName groupedTrs) $
     panic $ "codeGenMethod: transition '" <> show methodName <> "' not found amongst grouped transitions"
@@ -207,8 +213,14 @@ codeGenMethod placeAnnots groupedTrs methodAnnots methodName = Method inputState
   convertedTrs :: [ETrWithNames]
   convertedTrs = map (convertAnnTransition placeAnnots) trsWithIds
 
-  body :: LExpr
-  body = case convertedTrs of
+  wholeBody :: LExpr
+  wholeBody = maybe innerBody (\res -> noLoc $ ESeq res innerBody) $ do
+    MethodAnnotation{..} <- M.lookup methodName methodAnnots
+    branchIndependentCode <- mAnnCode
+    pure $ noLoc branchIndependentCode
+
+  innerBody :: LExpr
+  innerBody = case convertedTrs of
     [] -> panic $ "codeGenMethod: Empty transition list for method name: " <> show methodName
     [tr] -> genAnnotTransCall tr
     trs -> genIfCondTransCalls . L2.fromList $ trs
@@ -229,7 +241,7 @@ codeGenMethod placeAnnots groupedTrs methodAnnots methodName = Method inputState
     [] -> panic $ "codeGenMethod: Empty transition list for method name: " <> show methodName
 
 fromPreconds :: Preconditions -> MethodAnnotation
-fromPreconds = flip MethodAnnotation mempty
+fromPreconds ps = MethodAnnotation ps mempty Nothing
 
 fromArgs :: [Arg] -> MethodAnnotation
-fromArgs = MethodAnnotation mempty
+fromArgs args = MethodAnnotation mempty args Nothing
