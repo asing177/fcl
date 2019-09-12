@@ -179,7 +179,7 @@ genAnnotTransCall annTr = panic $ "genAnnotTransCall: Transition '"
 -- TODO: add codegen for cgCode !!
 -- QUESTION: should it be here, or in a separate function?
 genIfCondTransCalls :: List2 ETrWithNames -> LExpr
-genIfCondTransCalls (List2 t1 t2 trs) = foldl alg (noLoc ENoOp) (t1:t2:trs) where
+genIfCondTransCalls (List2 t1 t2 trs) = foldl alg defaultBranch (t2:trs) where
   alg :: LExpr -> ETrWithNames -> LExpr
   alg ast annTr@(AnnTransition TEL{..} tr)
     | CGMetadata _ (Just cond) <- trCGMetadata = noLocIf
@@ -190,6 +190,8 @@ genIfCondTransCalls (List2 t1 t2 trs) = foldl alg (noLoc ENoOp) (t1:t2:trs) wher
   alg _ annTr = panic $ "genIfCondTransCall: Transition '"
     <> show annTr
     <> "' does not contain an If condition to generate code from."
+
+  defaultBranch = genAnnotTransCall t1
 
 -- TODO: add verification step for CGMetadata
 -- check whether every transition has some proper code to be generated
