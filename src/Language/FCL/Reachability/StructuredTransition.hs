@@ -25,10 +25,10 @@ module Language.FCL.Reachability.StructuredTransition
 
 import Protolude hiding (Complex, toList)
 
-import GHC.Exts (IsList(..))
-
 import qualified Data.Set as S
-import Data.List.List2 -- internal
+import Data.List.List2 (List2(..), pattern AsList) -- internal
+
+import qualified Data.List.List2 as L2 (fromList)
 
 import Language.FCL.AST
 import Language.FCL.Debug (Debug(..))
@@ -87,7 +87,7 @@ mkSimpleTransition tr@(Arrow lhs rhs)
 mkStructuredTransition :: TransitionsGroup -> StructuredTransition
 mkStructuredTransition [] = panic "mkStructuredTransition: can't construct structured transition from an empty list of transitions"
 mkStructuredTransition [tr] = Single $ mkSimpleTransition tr
-mkStructuredTransition trs@(Arrow lhs _ : _) = XORSplit $ fromList $ map mkSimpleTransition trs
+mkStructuredTransition trs@(Arrow lhs _ : _) = XORSplit $ L2.fromList $ map mkSimpleTransition trs
 
 structureTransitions :: [Transition] -> [StructuredTransition]
 structureTransitions = map mkStructuredTransition . groupByInputs

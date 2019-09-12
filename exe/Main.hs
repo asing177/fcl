@@ -189,8 +189,7 @@ driverScript cmd
 
     FastUndefinednessAnalysis scriptFile -> do
       ast <- Parser.parseFile scriptFile
-      let undefRes = Undefinedness.fastUndefinednessAnalysis ast
-      case undefRes of
+      case Undefinedness.fastUndefinednessAnalysis ast of
         Nothing -> Utils.putGreen "The workflow has no undefinedness errors."
         Just invalidStackTrace -> do
           die $ show $ Pretty.ppr invalidStackTrace

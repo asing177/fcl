@@ -7,26 +7,23 @@
 {-# OPTIONS_GHC -fno-warn-incomplete-record-updates #-}
 module Language.FCL.SafeWorkflow.Editable
   ( Continuation(..)
+  , CGMetadata(..)
   , TEditLabel(..)
   , PEditLabel(..)
   , PrettyTLabel(..)
-  , PrettyPLabel(..)
   , EditableSW
   , PlaceId
   , TransId
-  , HoleId
   , ANDBranchLabels(..)
 
   , pattern Hole
 
-  , replaceHole
   , prettify
   )
   where
 
 import Protolude
 
-import qualified GHC.Exts as GHC (IsList(..))
 import qualified GHC.Show (show)
 
 import Data.Text (unlines)
@@ -45,7 +42,7 @@ import Language.FCL.SafeWorkflow hiding
   , pattern ACF
   , PlaceId
   )
-import Language.FCL.AST (Name(..), Transition(..), WorkflowState(..), Place(..))
+import Language.FCL.AST (Name(..), Transition(..), WorkflowState(..), Place(..), Expr(..))
 import Language.FCL.Pretty (Doc, Pretty, ppr, hsep, prettyPrint)
 import Language.FCL.Analysis (inferStaticWorkflowStates)
 import Language.FCL.Graphviz hiding (AnnotatedTransition)
@@ -54,22 +51,28 @@ import Language.FCL.SafeWorkflow.Simple (constructTransitionsWithoutPlaces, cons
 import qualified Language.FCL.SafeWorkflow as SW
 import qualified Language.FCL.Graphviz     as GV
 
--- TODO: Separate metadata (name) from the datastructure.
--- Only store IDs and maintain a metadata table.
-
--- NOTE: Reeediting an already finished transition could be done by
+-- NOTE: Reediting an already finished transition could be done by
 -- transforming it back to a Hole first, then editing it.
-
--- | Identifier of a hole in an editable workflow.
-type HoleId = Int
 
 -- | Identifier of a transition in an editable workflow
 type TransId = Int
 
+-- NOTE: global would be for methods (e.g.: preconditions)
+-- | Local transiion metadata for code generation
+data CGMetadata = CGMetadata
+  { cgmCode   :: Maybe Expr   -- ^ Code to be generated into the transition (`Nothing` -> `ENoOp`)
+  , cgmIfCond :: Maybe Expr   -- ^ Possible @If@ condition for deterministic branhcing (NOTE: the conditions in a given method should always be mutually exclusive and should always cover the entire event-space)
+  }
+  deriving (Eq, Ord, Show)
+
+-- TODO: separate continuations from edit labels better
 -- | Transition labels for safe workflow editing.
-data TEditLabel
-  = LHole HoleId           -- ^ Label for holes
-  | LFinished Name TransId -- ^ Label for finished transitions
+data TEditLabel = TEL
+  { trId          :: TransId      -- ^ Unique identifier for the transition
+  , trMethodName  :: Name         -- ^ Name of the method this transition is part of (can be non-unique across transitions)
+  , trIsEditable  :: Bool         -- ^ Only for rendering
+  , trCGMetadata  :: CGMetadata   -- ^ Metadata for code generation
+  }
   deriving (Eq, Ord, Show)
 
 -- | Newtype wrapper for pretty pritning `TEditLabel`s
@@ -78,8 +81,9 @@ newtype PrettyTLabel = PrettyTLabel TEditLabel
 
 instance Pretty PrettyTLabel where
   ppr = \case
-    PrettyTLabel (LFinished name id) -> ppr name
-    PrettyTLabel (LHole      id) -> "_" <> ppr id
+    PrettyTLabel TEL{..}
+      | trIsEditable -> "_" <> ppr trId
+      | otherwise    -> ppr trMethodName
 
 instance Show PrettyTLabel where
   show = show . ppr
@@ -89,7 +93,13 @@ type PlaceId = Int
 
 -- | Place labels for safe workflow editing.
 data PEditLabel
-  = LPlace Name PlaceId   -- ^ Label for a place
+  -- | Label for a place
+  = LPlace { lPlaceName :: Name      -- ^ Name of the place (used for rendering and code generation)
+           , lPlaceId   :: PlaceId   -- ^ Identfier of the place (only used internally)
+           }
+  -- TODO: we might need IDs for these too
+  | LInitial              -- ^ Label for the initial place
+  | LTerminal             -- ^ Label for the terminal place
   deriving (Eq, Ord, Show)
 
 -- | Newtype wrapper for pretty pritning `PEditLabel`s
@@ -99,6 +109,9 @@ newtype PrettyPLabel = PrettyPLabel PEditLabel
 instance Pretty PrettyPLabel where
   ppr = \case
     PrettyPLabel (LPlace name _) -> ppr name
+    -- TODO: magic names
+    PrettyPLabel LInitial        -> "__initial__"
+    PrettyPLabel LTerminal       -> "__terminal__"
 
 instance Show PrettyPLabel where
   show = show . ppr
@@ -118,8 +131,14 @@ prettify = bimap PrettyPLabel PrettyTLabel
 -- | A `Hole` is an `Atom` annotated with a hole label.
 -- These are the plugin points of the workflows, this where
 -- the workflow can be edited.
-pattern Hole :: Int -> EditableSW
-pattern Hole n = SW.Atom (LHole n)
+pattern Hole :: TransId -> EditableSW
+pattern Hole id <- SW.Atom (TEL id _ True _)
+  where Hole id = SW.Atom $ TEL id (Name $ "_" <> show id) True (CGMetadata Nothing Nothing)
+
+-- -- | A `Hole` with a `Maybe` condition.
+-- pattern MCHole :: TransId -> Expr -> EditableSW
+-- pattern MCHole id mCond <- SW.Atom (TEL id _ True _(CGMetadata Nothing mCond)
+--   where MCHole id mCond =  SW.Atom $ TEL id (Name $ "_" <> show id) True (CGMetadata Nothing mCond)
 
 -- | Labels for the places inside AND branches before
 -- and after the subworkflow.
@@ -136,95 +155,25 @@ data Continuation
          , andJoinLabel     :: TEditLabel            -- ^ Label to be put on the joining transition
          , andBranchLabels  :: List2 ANDBranchLabels -- ^ In and Out annotations of each branch in the AND-split
          }
-  | XOR  { xorNumBranches  :: Int         -- ^ Number of branches in the XOR-split
+  -- | XOR-spliting by having an @if@ statement in a single method.
+  | IfXOR  { ifXorThenLabel :: TEditLabel   -- ^ Label for the _then_ branch (just for the condition)
+           , ifXorElseLabel :: TEditLabel   -- ^ Label for the _else_ branch (just for the condition)
+           }
+  -- | XOR-spliting by having multiple methods (undetermiinistic semantics).
+  | UndetXOR
+  | SimpleLoop  { sLoopJumpBackLabel    :: TEditLabel -- ^ Label for the jump-back branch    (just for the condition)
+                , sLoopFallThroughLabel :: TEditLabel -- ^ Label for the fall-through branch (just for the condition)
+                }
+  | Loop { exitLabel            :: PEditLabel            -- ^ Label for the exit place
+         , loopBeforeLabel        :: TEditLabel   -- ^ Label for the transition before the breakpoint (just for the condition)
+         , loopAfterLabel :: TEditLabel         -- ^ Label for the transition after the breakpoint (exiting from the loop) (just for the condition)
+         , loopJumpBackLabel    :: TEditLabel    -- ^ Label for the jump-back branch (just for the condition)
          }
-  | SimpleLoop
-  | Loop { exitLabel :: PEditLabel -- ^ Label for the exit place
+  | Seq  { inbetweenLabel :: PEditLabel -- ^ Label for the place inbetween the two transitions
          }
-  | Seq  { inbetweenLabel :: PEditLabel -- ^ Label for the palce inbetween the two transitions
-         }
+  -- NOTE: Completely incomplete
   | ACF
   deriving (Eq, Ord, Show)
-
-fromContinuation
-  :: (HoleId -> HoleId -> HoleId) -- ^ Make a new index from the parent and the current one
-  -> HoleId                       -- ^ Parent index
-  -> Continuation                 -- ^ Construct to fill the hole with
-  -> EditableSW
-fromContinuation mkIx parent = \case
-  Atom{..}   -> SW.Atom atomLabel
-  AND{..}    -> SW.AND andSplitLabel andJoinLabel $ mkBranches andBranchLabels
-  SimpleLoop -> SW.SimpleLoop (Hole $ mkIx' 1) (Hole $ mkIx' 2)
-  Loop{..}   -> SW.Loop exitLabel (Hole $ mkIx' 1) (Hole $ mkIx' 2) (Hole $ mkIx' 3)
-  XOR{..}    -> foldl SW.XOR (Hole $ mkIx' 1) $ map (Hole . mkIx') [2..xorNumBranches]
-  Seq{..}    -> SW.Seq inbetweenLabel (Hole $ mkIx' 1) (Hole $ mkIx' 2)
-  {- TODO: ACF Continuation
-
-     Handling this will probably require place annotations.
-     The user could select a place and we would display which other places
-     it can be conencted to.
-
-     Implementation plan:
-      1. [DONE] Add place annotations to SafeWorkflows
-      2. Implement a function that given a place inside an ACF,
-         finds all the other places it can be connected to (inside said ACF).
-      3. Implement a function that connects two places in an ACF.
-      4. Probably will need a function that "merges" ACFs.
-         This will be needed to simplify the structure and coalesce
-         nested ACFs into a single one.
-         Example use case: See the n-ary XOR above. With the current
-         implementation we cannot connect places in different branches,
-         because they are inside different ACFs.
-  -}
-  ACF -> panic "not implemented"
-
-  where
-    mkIx' :: Int -> HoleId
-    mkIx' = mkIx parent
-
-    mkBranch :: HoleId -> ANDBranchLabels -> ANDBranch PEditLabel TEditLabel
-    mkBranch holeId ANDBranchLabels{..} = ANDBranch inLabel outLabel (Hole holeId)
-
-    mkBranches :: List2 ANDBranchLabels -> List2 (ANDBranch PEditLabel TEditLabel)
-    mkBranches = GHC.fromList . zipWith mkBranch [1..] . GHC.toList
-
-countHoles :: EditableSW -> Int
-countHoles = \case
-  sw@(Hole found)           -> 1
-  sw@(SW.Atom _)            -> 0
-  sw@SW.AND{..}             -> sum $ fmap (countHoles . branchWorkflow) andBranches
-  (SW.Loop _ into exit out)   -> sum $ map countHoles [into, exit, out]
-  (SW.SimpleLoop exit body) -> sum $ map countHoles [exit, body]
-  sw@(SW.ACF _ acfMap)        -> sum $ M.map (sum . fmap countHoles) acfMap
-
-replaceHole :: HoleId -> Continuation -> EditableSW -> EditableSW
-replaceHole holeId cont esw
-  | countHoles esw > 1 = replaceHoleWithIndexing mkIxWithPrefix holeId cont esw
-  | otherwise          = replaceHoleWithIndexing (\_ x -> x)    holeId cont esw
-  where
-    mkIxWithPrefix :: HoleId -> HoleId -> HoleId
-    mkIxWithPrefix parent ix = 10*parent + ix
-
-replaceHoleWithIndexing
-  :: (HoleId -> HoleId -> HoleId) -- ^ Make a new index from the parent and the current one
-  -> HoleId                       -- ^ Look for a hole with this identifier
-  -> Continuation                 -- ^ Construct to fill the hole with
-  -> EditableSW                   -- ^ The workflow to replace the hole in
-  -> EditableSW
-replaceHoleWithIndexing mkIx holeId cont = \case
-  sw@(Hole found)
-    | holeId == found -> fromContinuation mkIx found cont
-    | otherwise -> sw
-  sw@(SW.Atom _) -> sw
-  sw@SW.AND{..} ->
-    sw { andBranches = (mapANDBranchWF $ replaceHoleWithIndexing mkIx holeId cont) <$> andBranches }
-  (SW.GenLoop mExitLabel into exit out) ->
-    SW.GenLoop mExitLabel
-               (replaceHoleWithIndexing mkIx holeId cont <$> into)
-               (replaceHoleWithIndexing mkIx holeId cont exit)
-               (replaceHoleWithIndexing mkIx holeId cont out)
-  sw@(SW.ACF annots acfMap) ->
-    unsafeMkACF annots $ M.map (fmap $ replaceHoleWithIndexing mkIx holeId cont) acfMap
 
 pprTrsId :: Int -> Doc
 pprTrsId id = "__trans__" <> ppr id
@@ -310,9 +259,7 @@ instance DisplayableWorkflow PrettyEditableSW where
       -- | Annotated places (initial and terminal are NOT in this)
       placeAnnotMap :: Map Place PrettyPLabel
       placeAnnotMap = getPlaceAnnotations
-                    . constructAnnTransitions
-                        (panic "The label of the initial place has been used")
-                        (panic "The label of the terminal place has been used")
+                    . constructAnnTransitions (PrettyPLabel LInitial) (PrettyPLabel LTerminal)
                     $ wf
 
       mkAnnotPlace :: Place -> PrettyPLabel -> Graphviz

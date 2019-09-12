@@ -11,6 +11,7 @@ Core AST for the FCL core language.
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE ViewPatterns #-}
+{-# LANGUAGE TypeFamilies #-}
 
 module Language.FCL.AST (
   -- ** Syntax
@@ -91,6 +92,7 @@ module Language.FCL.AST (
   argtys',
   argLits,
   unLoc,
+  noLoc,
   at,
   methodNames,
   lookupMethod,
@@ -104,6 +106,11 @@ module Language.FCL.AST (
 
 import Protolude hiding (put, get, (<>), show, Show, putByteString, Type)
 import Prelude (show, Show(..))
+
+import qualified GHC.Exts as GHC (IsList(..))
+
+import Data.List (span, foldl1)
+
 import Test.QuickCheck hiding (listOf)
 import qualified Test.QuickCheck as Q
 import Test.QuickCheck.Instances.Text ()
@@ -177,6 +184,10 @@ type LNameUpper = Located NameUpper
 type LBinOp = Located BinOp
 type LUnOp  = Located UnOp
 type LPattern = Located Pattern
+
+-- | Annotate something with no-location location information.
+noLoc :: a -> Located a
+noLoc = Located NoLoc
 
 -- | ADT constructor as given in a type definition.
 data ADTConstr = ADTConstr
@@ -488,6 +499,13 @@ newtype Preconditions = Preconditions
   { unPreconditions :: [(Precondition, LExpr)] }
   deriving (Eq, Ord, Show, Generic, Serialize, Hash.Hashable)
 
+instance GHC.IsList Preconditions where
+  type Item Preconditions = (Precondition, LExpr)
+
+  fromList xs = Preconditions xs
+
+  toList (Preconditions xs) = xs
+
 instance ToJSON Preconditions where
   toJSON (Preconditions p) = toJSON p
 
@@ -495,7 +513,23 @@ instance FromJSON Preconditions where
   parseJSON = fmap Preconditions . parseJSON
 
 instance Semigroup Preconditions where
-  Preconditions ps1 <> Preconditions ps2 = Preconditions $ ps1 <> ps2
+  Preconditions ps1 <> Preconditions ps2 = Preconditions $ mergedRoles <> others where
+    mergedRoles = if null roles
+      then []
+      else [(PrecRoles, foldl1 mergeExprs . map snd $ roles)]
+
+    mergeExprs x@(locVal -> EVar _)  y@(locVal -> EVar _)  = noLoc $ ESet $ Set.fromList [x,y]
+    mergeExprs   (locVal -> ESet xs)   (locVal -> ESet ys) = noLoc $ ESet $ xs <> ys
+    mergeExprs x@(locVal -> EVar _)    (locVal -> ESet ys) = noLoc $ ESet $ Set.insert x ys
+    mergeExprs   (locVal -> ESet xs) y@(locVal -> EVar _)  = noLoc $ ESet $ Set.insert y xs
+    mergeExprs x y = panic $ "Semigroup instance of Preconditions: Cannot merge " <>
+      prettyPrint x <> " and " <>
+      prettyPrint y
+
+    (roles, others) = span isRole (ps1 <> ps2)
+
+    isRole (PrecRoles, _) = True
+    isRole _ = False
 
 instance Monoid Preconditions where
   mempty = Preconditions []

@@ -1,4 +1,4 @@
-module Test.Helpers where
+module Test.Helpers (roundTripTest, roundTripProperty, checkDifference) where
 
 import Protolude
 

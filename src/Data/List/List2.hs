@@ -12,11 +12,16 @@ This library is developed in a lazy manner. Feel free to add anything if you nee
 module Data.List.List2
   ( List2(..)
   , pattern AsList
+  , fromList
+  , reverse
   ) where
 
-import Protolude hiding (toList)
-import GHC.Exts (IsList(..))
+import Protolude hiding (toList, reverse)
+import GHC.Exts (IsList)
 
+import qualified GHC.Exts as GHC
+
+import qualified Data.List as L (reverse)
 import qualified Data.Foldable as F
 
 import Test.QuickCheck
@@ -45,3 +50,9 @@ instance Arbitrary a => Arbitrary (List2 a) where
 pattern AsList :: [a] -> List2 a
 pattern AsList l <- (F.toList -> l)
 {-# COMPLETE AsList #-}
+
+fromList :: [a] -> List2 a
+fromList = GHC.fromList
+
+reverse :: List2 a -> List2 a
+reverse = GHC.fromList . L.reverse . GHC.toList

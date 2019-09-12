@@ -163,8 +163,9 @@ library:
     - Language.FCL.Reachability.SplitAndMerge
     - Language.FCL.Reachability.StructuredTransition
     - Language.FCL.SafeWorkflow
+    - Language.FCL.SafeWorkflow.CodeGen
     - Language.FCL.SafeWorkflow.Editable
-    - Language.FCL.SafeWorkflow.REPL
+    - Language.FCL.SafeWorkflow.Builder
     - Language.FCL.SafeWorkflow.Simple
     - Language.FCL.Analysis
     - Language.FCL.Graphviz
@@ -236,3 +237,16 @@ tests:
     - quickcheck-instances
     - aeson-pretty
     - mtl
+
+  workflow-builder-test:
+    main: Main.hs
+    source-dirs: tests/workflow-builder
+    ghc-options:
+    - -O0
+    - -threaded
+    - -rtsopts
+    - -with-rtsopts=-N
+    dependencies:
+    - fcl
+    - template-haskell
+    - neat-interpolation
