@@ -19,7 +19,12 @@ module Language.FCL.Graphviz (
   Transitions(..),
   methodsToGraphviz,
   transitionsToGraphviz,
-  workflowWriteSVG
+  workflowWriteSVG,
+
+  digraph,
+  options,
+  mkPlace,
+  mkRank
   ) where
 
 import Protolude
