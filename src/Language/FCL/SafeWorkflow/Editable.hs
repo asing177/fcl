@@ -57,8 +57,9 @@ import qualified Language.FCL.Graphviz     as GV
 -- | Identifier of a transition in an editable workflow
 type TransId = Int
 
+-- TODO: See Language.FCL.SafeWorkflow.Codegen/MethodIndentifiers
 -- NOTE: global would be for methods (e.g.: preconditions)
--- | Local transiion metadata for code generation
+-- | Local transition metadata for code generation
 data CGMetadata = CGMetadata
   { cgmCode   :: Maybe Expr   -- ^ Code to be generated into the transition (`Nothing` -> `ENoOp`)
   , cgmIfCond :: Maybe Expr   -- ^ Possible @If@ condition for deterministic branhcing (NOTE: the conditions in a given method should always be mutually exclusive and should always cover the entire event-space)
