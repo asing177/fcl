@@ -24,38 +24,58 @@ import Language.FCL.AST
 import Language.FCL.SafeWorkflow (AnnTransition(..), AnnTransitions(..), constructAnnTransitions)
 import Language.FCL.SafeWorkflow.Editable
 
+{- TODO: MethodIndentifiers
+
+  Add method-identifier to `CGMetadata` and group transitions
+  by that identifier instead of by their method names. Also, make sure
+  to generate those IDs and edit them correctly during the refinement
+  of a hole.
+-}
+
 -- NOTE: the transition names are needed to disambiguate XOR-split (if vs non-deterministic)
 -- NOTE: the workflowstate conversion is only for debugging
 
-type EditTransition = AnnTransition TEditLabel
+-- | Transition annotated by an edit label.
+type EditTransition  = AnnTransition  TEditLabel
+-- | Transitions annotated by an edit label.
 type EditTransitions = AnnTransitions PEditLabel TEditLabel
 
+-- | `EditTransition`s grouped by their names.
 type GroupedTransitions = Map Name [EditTransition]
+-- | Places annotated by a place label.
 type PlaceAnnotations = Map Place PEditLabel
 
+-- | Workflow state with IDs.
 type WFStateWithIds = WorkflowState
+-- | Workflow state with names.
 type WFStateWithNames = WorkflowState
 
+-- | Transition identified by a number.
 type TrWithIds = Transition
+-- | Transition identified by a name.
 type TrWithNames = Transition
 
+-- | `EditTransition` identified by a name.
 type ETrWithNames = EditTransition
 
--- | Global annotations for methods.
+-- | Global annotation for methods.
 data MethodAnnotation = MethodAnnotation
   { mAnnPreconds  :: Preconditions  -- ^ Method preconditions
   , mAnnArgs      :: [Arg]          -- ^ Method arguments
   , mAnnCode      :: Maybe Expr     -- ^ Branching independent code
   } deriving (Eq, Ord, Show)
 
+-- | Mapping from method names to method annotations.
 type MethodAnnotations = Map Name MethodAnnotation
 
+-- | Code generation information.
 data CGInfo = CGInfo
-  { globalVariables   :: [Def]
-  , methodAnnotations :: MethodAnnotations
-  , editableWorkflow  :: EditableSW
+  { globalVariables   :: [Def]              -- ^ Global variables.
+  , methodAnnotations :: MethodAnnotations  -- ^ Method annotations.
+  , editableWorkflow  :: EditableSW         -- ^ The workflow being edited.
   } deriving (Eq, Ord, Show)
 
+-- | Sequence two possible FCL expressions.
 mSeq :: Maybe Expr -> Maybe Expr -> Maybe Expr
 mSeq Nothing    Nothing    = Nothing
 mSeq (Just lhs) Nothing    = Just lhs
@@ -67,10 +87,12 @@ instance Semigroup MethodAnnotation where
        (MethodAnnotation ps2 args2 code2) =
     MethodAnnotation (ps1 <> ps2) (args1 <> args2) (mSeq code1 code2)
 
+-- | Generate FCL code from the code generation information.
 codeGenScript :: CGInfo -> Script
 codeGenScript cgInfo@CGInfo{..} = Script [] globalVariables []
   (codeGenMethods cgInfo) []
 
+-- | Generate the FCL methods from the code generation information.
 codeGenMethods :: CGInfo -> [Method]
 codeGenMethods CGInfo{..}
   = map (codeGenMethod placeAnnots groupedTrs methodAnnotations)
@@ -85,6 +107,8 @@ codeGenMethods CGInfo{..}
   placeAnnots :: PlaceAnnotations
   placeAnnots = getPlaceAnnotations annTrs
 
+-- TODO: See MethodIdentifiers.
+-- | Group the transitions by their names.
 groupTransitions :: [EditTransition] -> GroupedTransitions
 groupTransitions trs = if any hasAnyBranchingErrors branchingErrors
   then panic $ prettyPrint branchingErrors
@@ -104,8 +128,9 @@ groupTransitions trs = if any hasAnyBranchingErrors branchingErrors
     insert :: GroupedTransitions -> (Name, EditTransition) -> GroupedTransitions
     insert trs (name, tr) = M.insertWith (++) name [tr] trs
 
+-- | Errors for a conditional branching in a method.
 data BranchingErrors = BranchingErrors
-  { unexpectedNoConds ::  [TransId]
+  { unexpectedNoConds ::  [TransId] -- ^ A transition with the name of a coditionally branching method does not have a condition in its `CGMetadata`.
   } deriving (Eq, Ord, Show)
 
 instance Pretty BranchingErrors where
@@ -113,11 +138,14 @@ instance Pretty BranchingErrors where
     [ "unexpectedNoConds" <+> listOf unexpectedNoConds
     ]
 
+-- | Are there any branching errors present?
 hasAnyBranchingErrors :: BranchingErrors -> Bool
 hasAnyBranchingErrors BranchingErrors{..}
   =  not (null unexpectedNoConds)
 
 -- NOTE: no branching errors for non-branching control-flow
+-- | Collect all the branching errors for a group of transitions.
+-- It returns no branching errors for non-branching control-flow.
 collectBranchingErrors :: [EditTransition] -> BranchingErrors
 collectBranchingErrors [_] = BranchingErrors []
 collectBranchingErrors trs = BranchingErrors
@@ -151,28 +179,39 @@ convertWorkflowState placeAnnots WorkflowState{..}
       . panic
       $ "convertWorkflowState: Place '" <> prettyPrint p <> "' is not present in the place annotation map."
 
+-- | Convert a `Transition` identified by numbers
+-- to a `Transition` identified by names.
 convertTransition :: PlaceAnnotations -> TrWithIds -> TrWithNames
 convertTransition annots (Arrow from to) = Arrow
   (convertWorkflowState annots from)
   (convertWorkflowState annots to)
 
+-- | Convert a `EditTransition` identified by numbers
+-- to an `EditTransition` identified by names.
 convertAnnTransition :: PlaceAnnotations -> EditTransition -> ETrWithNames
 convertAnnTransition annots (AnnTransition ann tr) =
   AnnTransition ann (convertTransition annots tr)
 
+-- | Generate an transition call from a transition annotated by names.
 genUnAnnotTransCall :: TrWithNames -> LExpr
 genUnAnnotTransCall (Arrow from to) =
   noLoc $ ECall (Left TransitionTo) [toExprLit to]
 
+-- | Convert a workflow state to an FCL expression.
 toExprLit :: WFStateWithNames -> LExpr
 toExprLit = noLoc . ELit . noLoc . LState
 
+-- | Always true condition.
 trivialCondition :: LExpr
 trivialCondition = noLoc . ELit . noLoc . LBool $ True
 
+-- | If-statement without any location information.
 noLocIf :: LExpr -> LExpr -> LExpr -> LExpr
 noLocIf cond lhs rhs = noLoc $ EIf cond lhs rhs
 
+-- | Generate FCL code from a transition.
+-- First generate the code from the `CGMetadata` present in the transition
+-- annotation then generate the transition call.
 genAnnotTransCall :: ETrWithNames -> LExpr
 genAnnotTransCall (AnnTransition TEL{..} tr)
   | CGMetadata (Just code) _ <- trCGMetadata = noLoc $ ESeq
@@ -182,6 +221,7 @@ genAnnotTransCall annTr = panic $ "genAnnotTransCall: Transition '"
   <> show annTr
   <> "' does not contain code to be generated."
 
+-- | Generate the if conditions from a list of grouped transitions.
 genIfCondTransCalls :: List2 ETrWithNames -> LExpr
 genIfCondTransCalls (List2 t1 t2 trs) = foldl alg defaultBranch (t2:trs) where
   alg :: LExpr -> ETrWithNames -> LExpr
@@ -199,6 +239,7 @@ genIfCondTransCalls (List2 t1 t2 trs) = foldl alg defaultBranch (t2:trs) where
 
 -- TODO: add verification step for CGMetadata
 -- check whether every transition has some proper code to be generated
+-- | Generate code for a given method from grouped transitions.
 codeGenMethod
   :: PlaceAnnotations
   -> GroupedTransitions
@@ -240,8 +281,10 @@ codeGenMethod placeAnnots groupedTrs methodAnnots methodName = Method inputState
     (AnnTransition _ (Arrow from _)) : _ -> from
     [] -> panic $ "codeGenMethod: Empty transition list for method name: " <> show methodName
 
+-- | Construct method annotations from preconditions.
 fromPreconds :: Preconditions -> MethodAnnotation
 fromPreconds ps = MethodAnnotation ps mempty Nothing
 
+-- | Construct method annotations from method arguments.
 fromArgs :: [Arg] -> MethodAnnotation
 fromArgs args = MethodAnnotation mempty args Nothing

@@ -3,7 +3,42 @@
 {-# LANGUAGE ViewPatterns    #-}
 {-# OPTIONS_GHC -fno-warn-incomplete-record-updates #-}
 module Language.FCL.SafeWorkflow.Builder
-  ( module Language.FCL.SafeWorkflow.Builder
+  ( Options(..)
+  , History
+  , Builder
+
+  -- | Running a `Builder` computation.
+  , defaultOpts
+  , runBuilderPure
+  , runBuilderWithLogging
+  , runBuilderIOWithOpts
+
+  -- | Generating code from a `Builder` computation.
+  , execCodeGen
+  , execCodeGenThenPrintScript
+
+  -- | Low-level control-flow building primitives.
+  , finish
+  , parallel
+  , option
+  , conditional
+  , stayOrContinue
+  , nondetStayOrContinue
+  , loopOrContinue
+  , nondetLoopOrContinue
+  , sequence
+
+  -- | Low-level method-annotating primitives.
+  , addBranchIndependentCode
+  , addPrecondition
+  , addRole
+  , addArgs
+  , addGlobal
+  , addGlobalSimple
+  , addGlobalWithDefault
+
+  -- | Helper functions
+  , role
   ) where
 
 import Protolude hiding (Type, sequence, option)
@@ -63,22 +98,31 @@ type History = Dual [EditableSW]
 -- and has logging capabilities too.
 type Builder = RWST Options History CGInfo (Gen TransId)
 
+-- | Replaces the current workflow in the `Builder` monad.
 putESW :: EditableSW -> Builder ()
 putESW esw = do
   s@CGInfo{..} <- get
   put $ s { editableWorkflow = esw }
 
+
+-- | Code generation information for the initial workflow.
 initInfo :: CGInfo
 initInfo = CGInfo mempty mempty (Hole 1)
 
+
+-- | Runs a `Builder` computation purely.
 runBuilderPure :: Options -> Builder a -> (a, CGInfo, History)
 runBuilderPure opts actionM = runGen $ runRWST actionM opts initInfo
 
+-- | Runs a `Builder` computation with default `Options`,
+-- and logs all the intermediate workflows into SVG files.
 runBuilderWithLogging :: Builder () -> IO ()
 runBuilderWithLogging
   = void
   . runBuilderIOWithOpts (defaultOpts {loggingEnabled = True})
 
+-- | Runs a `Builder` computation with the given `Options`,
+-- and logs all the intermediate workflows into SVG files.
 runBuilderIOWithOpts :: Options -> Builder a -> IO (a, CGInfo, History)
 runBuilderIOWithOpts opts@Options{..} actionM = do
   let r@(_, _, Dual history) = runBuilderPure opts actionM
@@ -91,16 +135,20 @@ runBuilderIOWithOpts opts@Options{..} actionM = do
   return r
 
 -- TODO: log method and global changes as well
--- | Updates the stored workflow and logs the new result.
+-- | Runs a `Builder` action and adds the final state
+-- of the workflow to the edit history.
 logAction :: Builder a -> Builder ()
 logAction action = do
   action
   CGInfo{..} <- get
   tell $ Dual [editableWorkflow]
 
+-- | Renders an editable safe workflow into an SVG file,
+-- and saves it to a given path.
 printSW :: FilePath -> EditableSW -> IO ()
 printSW path = workflowWriteSVG path . prettify
 
+-- | Generates FCL code from the result of a `Builder` computation.
 execCodeGen :: Builder a -> Script
 execCodeGen = codeGenScript
             . snd3
@@ -108,6 +156,8 @@ execCodeGen = codeGenScript
   where
     snd3 (_,x,_) = x
 
+-- | Generates FCL code from the result of a `Builder` computation,
+-- then prints the generated code.
 execCodeGenThenPrintScript :: Builder a -> IO ()
 execCodeGenThenPrintScript = putStr . prettyPrint . execCodeGen where
 
@@ -115,6 +165,9 @@ execCodeGenThenPrintScript = putStr . prettyPrint . execCodeGen where
 -- Low level primitives --
 --------------------------
 
+-- | Guard a `TEditLabel` by a given boolean expression.
+-- If the code generation metadata for the label does not
+-- already contain a condition
 guardedBy :: TEditLabel -> Expr -> TEditLabel
 -- guardedBy lbl _
 --   | Just code <- cgmCode . trCGMetadata $ lbl
@@ -126,15 +179,24 @@ guardedBy lbl@TEL{..} newCond
     Just origCond -> let combinedCond = EBinOp (noLoc And) (noLoc origCond) (noLoc newCond)
       in lbl { trCGMetadata = trCGMetadata { cgmIfCond = Just combinedCond } }
 
+-- | Guard a `TEditLabel`by a possible boolean expression.
 mGuardedBy :: TEditLabel -> Maybe Expr -> TEditLabel
 mGuardedBy lbl = \case
   Nothing   -> lbl
   Just cond -> lbl `guardedBy` cond
 
+-- | Create a hole guarded by a possible condition.
 holeWithMCond :: TransId -> Maybe Expr -> EditableSW
 holeWithMCond id mCond = SW.Atom $ TEL id (Name $ "_" <> show id) True (CGMetadata Nothing mCond)
 
--- NOTE: if the label to replaced already has a condition, preserve it
+-- TODO: See Language.FCL.SafeWorkflow.Codegen/MethodIndentifiers
+-- | Create a workflow snippet from a continuation.
+-- The function also gets the label of the hole being replaced.
+-- This function is also responsible for "pushing down" the
+-- the conditions in transitions when a new condition is added.
+-- An example for this is when we are refining one of the
+-- conditional branches of an XOR-split. We must make sure that
+-- the new transitions are still annotated by the original condition.
 fromContinuation
   :: TEditLabel                       -- ^ Label for the transition being replaced
   -> Continuation                 -- ^ Construct to replace the given transition with
@@ -201,15 +263,21 @@ fromContinuation (cgmIfCond.trCGMetadata -> mCond) = \case
 --   (SW.SimpleLoop exit body) -> sum $ map countHoles [exit, body]
 --   sw@(SW.ACF _ acfMap)      -> sum $ M.map (sum . fmap countHoles) acfMap
 
+-- | Replace a hole identified by its transition ID with a given continuation.
 replaceHole
-  :: TransId
-  -> Continuation
+  :: TransId        -- ^ Identifier of the hole to be replaced.
+  -> Continuation   -- ^ The continuation the hole will be replaced with.
   -> Builder ()
 replaceHole holeId cont = do
   esw  <- gets editableWorkflow
   esw' <- lift $ replaceHoleGenId holeId cont esw
   putESW esw'
 
+-- | Traverse the workflow and replace all transitions identified
+-- by a given transition ID with a given continuation (the identifiers should
+-- be unique, so there should only be at most one transition with any given
+-- identifier). This computation is also responsible for generating
+-- identifiers for the new transition. The return vaue is resulting workflow.
 replaceHoleGenId
   :: TransId                      -- ^ Look for a hole with this identifier
   -> Continuation                 -- ^ Construct to fill the hole with
@@ -239,9 +307,11 @@ replaceHoleGenId holeId cont = \case
 -- Control-flow primitives --
 -----------------------------
 
+-- | Code generation metadata without any code.
 noCode :: CGMetadata
 noCode = CGMetadata Nothing Nothing
 
+-- | Generate `CGMetadata` from an expression without a condition.
 withoutCond :: Expr -> CGMetadata
 withoutCond code = CGMetadata (Just code) Nothing
 
@@ -387,12 +457,15 @@ acf = panic "not implemented"
 -- Method annotation primitives --
 ----------------------------------
 
+-- | Neagte an expression.
 neg :: Expr -> Expr
 neg = EUnOp (noLoc Not) . noLoc
 
+-- | Create a role from a name.
 role :: Name -> Expr
 role = EVar . noLoc
 
+-- | Initialize annotation for a given method.
 initMethodAnnots
   :: Name
   -> Builder ()
@@ -402,6 +475,9 @@ initMethodAnnots methodName = do
   when (methodName `M.notMember` methodAnnotations) $
     put $ s { methodAnnotations = M.insert methodName initial methodAnnotations }
 
+-- | Add branch independent code for a given method.
+-- The code is branch independent in the sense that is always
+-- before all conditional branching.
 addBranchIndependentCode
   :: Name
   -> Expr
@@ -413,6 +489,7 @@ addBranchIndependentCode methodName code = do
   put $ s { methodAnnotations = methodAnnotations' }
 
 -- TODO: add logging
+-- | Add a precondition for a given method.
 addPrecondition
   :: Name
   -> Precondition
@@ -425,6 +502,7 @@ addPrecondition methodName precondType precondExpr = do
         methodAnnotations
   put $ s { methodAnnotations = methodAnnots' }
 
+-- | Add a role to a given method.
 addRole
   :: Name
   -> Name
@@ -432,6 +510,7 @@ addRole
 addRole methodName roleName =
   addPrecondition methodName PrecRoles (role roleName)
 
+-- | Add arguments to a given method.
 addArgs
   :: Name
   -> [Arg]
@@ -443,6 +522,8 @@ addArgs methodName args = do
         methodAnnotations
   put $ s { methodAnnotations = methodAnnots' }
 
+-- | Add a global variable with preconditions (if any)
+-- and a possible default value.
 addGlobal
   :: Type
   -> Name
@@ -456,12 +537,14 @@ addGlobal ty name preconds mDefaultVal = do
         Just defVal -> GlobalDef     ty preconds name (noLoc defVal)
   put $ s { globalVariables = newGlobal : globalVariables }
 
+-- | Add a global variable.
 addGlobalSimple
   :: Type
   -> Name
   -> Builder ()
 addGlobalSimple ty name = addGlobal ty name [] Nothing
 
+-- | Add a global variable with a default value.
 addGlobalWithDefault
   :: Type
   -> Name
