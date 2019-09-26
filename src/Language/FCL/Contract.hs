@@ -184,9 +184,11 @@ instance ToJSON CallableMethods where
   toJSON = callableMethodsJSON
 
 callableMethodsJSON :: CallableMethods -> A.Value
-callableMethodsJSON (CallableMethods m) = toJSON
-                    . Map.mapKeys Pretty.prettyPrint
-                    . Map.map (bimap callersJSON (map (bimap Pretty.prettyPrint Pretty.prettyPrint))) $ m
+callableMethodsJSON (CallableMethods m)
+  = toJSON
+  . Map.mapKeys Pretty.prettyPrint
+  . Map.map (bimap callersJSON (map (bimap Pretty.prettyPrint Pretty.prettyPrint)))
+  $ m
 
 -------------------------------------------------------------------------------
 
