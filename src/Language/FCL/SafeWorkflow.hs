@@ -121,27 +121,31 @@ data ANDBranch a b = ANDBranch
 -- The transitions in safe workflows can be annotated by any desired information.
 data SafeWorkflow a b
   -- | AND splitting into multiple workflows.
-  = AND { splitAnnot  :: b                            -- ^ Annotation for the AND-split transition
-        , joinAnnot   :: b                            -- ^ Annotation for the AND-join transition
-        , andBranches :: List2 (ANDBranch a b)        -- ^ At least one branch
-        }
+  = AND
+    { splitAnnot  :: b                     -- ^ Annotation for the AND-split transition
+    , joinAnnot   :: b                     -- ^ Annotation for the AND-join transition
+    , andBranches :: List2 (ANDBranch a b) -- ^ At least one branch
+    }
   -- | Looping construct with option to exit from both the body of the loop and the head of the loop.
   -- If the first half of the body is empty, we exit from head, otherwise exit from the body.
-  | GenLoop { exitAnnot :: Maybe a                      -- ^ Annotation of the exit point (place)
-            , gLoopIn   :: Maybe (SafeWorkflow a b)     -- ^ First half of the body of the loop
-            , gLoopExit :: (SafeWorkflow a b)           -- ^ Exit from the loop
-            , gLoopOut  :: (SafeWorkflow a b)           -- ^ Seconds half of the body of the loop
-            }
+  | GenLoop
+    { exitAnnot :: Maybe a                  -- ^ Annotation of the exit point (place)
+    , gLoopIn   :: Maybe (SafeWorkflow a b) -- ^ First half of the body of the loop
+    , gLoopExit :: (SafeWorkflow a b)       -- ^ Exit from the loop
+    , gLoopOut  :: (SafeWorkflow a b)       -- ^ Seconds half of the body of the loop
+    }
   -- | Acyclic control-flow.
   -- It maps arrows to a non-empty list of safe workflows. An arrow represents
   -- the possible ways to transition from a given state to another one. If the list
   -- is not singleton, it represents an XOR-split, multiple ways to exectute the transition.
-  | ACF' { placeAnnots :: PlaceAnnotMap a     -- ^ Anotations for the places in the acyclic control-flow.
-         , acfMap      :: ACFMap a b          -- ^ A mapping describing the structure of the acyclic control-flow.
-         }
+  | ACF'
+    { placeAnnots :: PlaceAnnotMap a -- ^ Anotations for the places in the acyclic control-flow.
+    , acfMap      :: ACFMap a b      -- ^ A mapping describing the structure of the acyclic control-flow.
+    }
   -- | Atom representing a single transition.
-  | Atom { atomAnnot :: b                             -- ^ Annotation for the transitions
-         }
+  | Atom
+    { atomAnnot :: b -- ^ Annotation for the transitions
+    }
   deriving (Eq, Ord, Show, Generic, NFData, Functor, Foldable, Traversable)
 
 
@@ -269,7 +273,7 @@ mkACF annots acfMap = case collectACFErrors annots acfMap of
 -- if the ACF is correct, crashes if it is not.
 unsafeMkACF :: PlaceAnnotMap a -> ACFMap a b -> SafeWorkflow a b
 unsafeMkACF annots = either mkError identity . mkACF annots where
-  mkError acfErrors = panic $ "unsafeMkACF: There were some erros during the construction of the ACF: " <> show acfErrors
+  mkError acfErrors = panic $ "unsafeMkACF: There were some errors during the construction of the ACF: " <> show acfErrors
 
 ---------------------------------------------------
 -- Constructing transitions from @SafeWorkflow@s --
