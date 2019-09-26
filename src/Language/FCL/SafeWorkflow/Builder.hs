@@ -75,7 +75,6 @@ import Language.FCL.Pretty (prettyPrint)
 import qualified Language.FCL.SafeWorkflow          as SW
 import qualified Language.FCL.SafeWorkflow.Editable as Edit
 
--- TODO: currently Options has no impact on any operation, refactor
 -- | Options for running the safe workflow REPL
 data Options = Options
   { logDirectory   :: FilePath
@@ -216,7 +215,7 @@ fromContinuation (cgmIfCond.trCGMetadata -> mCond) = \case
     let thenLabel = ifXorThenLabel `mGuardedBy` mCond
         elseLabel = ifXorElseLabel `mGuardedBy` mCond
     pure $ SW.XOR (SW.Atom thenLabel) (SW.Atom elseLabel)
-  UndetXOR  -> do
+  NonDetXOR  -> do
     lhsId <- gen
     rhsId <- gen
     pure $ SW.XOR (holeWithMCond lhsId mCond) (holeWithMCond rhsId mCond)
@@ -357,7 +356,7 @@ option
   :: TransId
   -> Builder ()
 option holeId = do
-  logAction (replaceHole holeId Edit.UndetXOR)
+  logAction (replaceHole holeId Edit.NonDetXOR)
 
 -- | Replace a hole with a deterministically branching subworkflow.
 conditional
@@ -551,4 +550,3 @@ addGlobalWithDefault
   -> Expr
   -> Builder ()
 addGlobalWithDefault ty name def = addGlobal ty name [] (Just def)
-
