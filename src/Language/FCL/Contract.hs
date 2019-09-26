@@ -18,8 +18,6 @@ module Language.FCL.Contract (
   callableMethods,
   PermittedCallers(..),
   CallableMethods(..),
-  callableMethodsJSON,
-  callableMethods',
 
   -- ** Validation
   validateContract,
@@ -141,14 +139,13 @@ lookupVarGlobalStorage k c = Map.lookup (Storage.Key k) gs
 -- | Returns the list of callable methods by any ledger account given the
 -- current contract state. Restrictions are not taken into account.
 callableMethods :: Contract -> [Method]
-callableMethods c =
-  callableMethods' (state c) (script c)
+callableMethods c
+  = filter
+      (\m -> methodInputPlaces m `isSubWorkflow` state c)
+    . scriptMethods
+    . script
+    $ c
 
-callableMethods' :: WorkflowState -> Script -> [Method]
-callableMethods' wfs s =
-    filter (\m -> methodInputPlaces m `isSubWorkflow` wfs) methods
-  where
-    methods = scriptMethods s
 
 -- | Allowed callers of a method
 data PermittedCallers = Anyone | Restricted (Set (Address AAccount))
@@ -174,21 +171,23 @@ callersJSON callers =
 
 -- | Datatype used by Eval.hs to report callable methods after evaluating the
 -- access restriction expressions associated with contract methods.
-newtype CallableMethods = CallableMethods (Map.Map Name (PermittedCallers, [(Name, Type)]))
-  deriving (Show, Generic)
+data CallableMethods
+  = CallableMethods
+    { cmCallableMethods    :: [Name] -- Map.Map Name (PermittedCallers, [(Name, Type)])
+    , cmNotCallableMethods :: [(Name, NonEmpty NotCallableReason)]
+    }
+  deriving (Show, Generic, ToJSON)
 
 instance Arbitrary CallableMethods where
   arbitrary = genericArbitraryU
 
-instance ToJSON CallableMethods where
-  toJSON = callableMethodsJSON
+data NotCallableReason
+  = NotCallableWorkflowState
+  | NotCallablePrecondition
+  deriving (Show, Generic, ToJSON)
 
-callableMethodsJSON :: CallableMethods -> A.Value
-callableMethodsJSON (CallableMethods m)
-  = toJSON
-  . Map.mapKeys Pretty.prettyPrint
-  . Map.map (bimap callersJSON (map (bimap Pretty.prettyPrint Pretty.prettyPrint)))
-  $ m
+instance Arbitrary NotCallableReason where
+  arbitrary = genericArbitraryU
 
 -------------------------------------------------------------------------------
 
