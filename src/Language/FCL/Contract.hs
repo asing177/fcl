@@ -13,7 +13,6 @@ Contract datatypes, signing and operations.
 module Language.FCL.Contract (
   -- ** Types
   Contract(..),
-  InvalidMethodName(..),
 
   callableMethods,
   PermittedCallers(..),
@@ -43,7 +42,6 @@ import qualified Language.FCL.Utils as Utils
 
 import Language.FCL.AST
 import Language.FCL.Error (NotCallableReason(..))
-import Language.FCL.Pretty ((<+>), ppr)
 import qualified Language.FCL.Pretty as Pretty
 import qualified Language.FCL.Parser as Parser
 import qualified Language.FCL.Typecheck as Typecheck
@@ -141,8 +139,7 @@ lookupVarGlobalStorage k c = Map.lookup (Storage.Key k) gs
 -- current contract state. Restrictions are not taken into account.
 callableMethods :: Contract -> [Method]
 callableMethods c
-  = filter
-      (\m -> methodInputPlaces m `isSubWorkflow` state c)
+  = filter (\m -> methodInputPlaces m `isSubWorkflow` state c)
     . scriptMethods
     . script
     $ c
@@ -173,9 +170,9 @@ callersJSON callers =
 -- | Datatype used by Eval.hs to report callable methods after evaluating the
 -- access restriction expressions associated with contract methods.
 data CallableMethods
-  = CallableMethods
-    { cmCallableMethods    :: [Name] -- Map.Map Name (PermittedCallers, [(Name, Type)])
-    , cmNotCallableMethods :: [(Name, NonEmpty NotCallableReason)]
+  = MkCallableMethods
+    { cmCallableMethods    :: [LName] -- Map.Map Name (PermittedCallers, [(Name, Type)])
+    , cmNotCallableMethods :: [(LName, NonEmpty NotCallableReason)]
     }
   deriving (Show, Generic, ToJSON)
 
@@ -184,13 +181,6 @@ instance Arbitrary CallableMethods where
 
 -------------------------------------------------------------------------------
 
-data InvalidMethodName
-  = MethodDoesNotExist Name
-  | MethodNotCallable  Name WorkflowState
-  deriving (Eq, Show, Generic, Serialize)
-
-instance Arbitrary InvalidMethodName where
-  arbitrary = genericArbitraryU
 
 -- | Looks up a method with a given name in a Contract, taking into account the
 -- current contract state. I.e. if a contract is in "terminal" state, no methods
@@ -198,14 +188,5 @@ instance Arbitrary InvalidMethodName where
 lookupContractMethod
   :: Name
   -> Contract
-  -> Either InvalidMethodName Method
-lookupContractMethod nm c =
-  case lookupMethod nm (script c) of
-    Nothing     -> Left $ MethodDoesNotExist nm
-    Just method
-      | method `elem` callableMethods c -> Right method
-      | otherwise -> Left $ MethodNotCallable nm (state c)
-
-instance Pretty.Pretty InvalidMethodName where
-  ppr (MethodDoesNotExist nm) = "Method does not exist:" <+> ppr nm
-  ppr (MethodNotCallable nm state) = "Method" <+> ppr nm <+> "not callable in current state:" <+> ppr state
+  -> Maybe Method
+lookupContractMethod nm = lookupMethod nm . script

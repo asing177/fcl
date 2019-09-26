@@ -1075,13 +1075,6 @@ getAsset assetExpr = do
       AssetIntegrity ("No asset with address: " <> show assetAddr)
     Right asset -> pure asset
 
--- | Check that the method state precondition is a substate of the actual state.
-checkGraph :: EvalM world ()
-checkGraph = do
-  Just m <- gets currentMethod
-  actualState <- getState
-  unless (methodInputPlaces m `isSubWorkflow` actualState)
-         (throwError $ StatePreconditionError (methodInputPlaces m) actualState)
 
 -- | Does not perform typechecking on args supplied, eval should only happen
 -- after typecheck. We don't check whether the input places are satisfied, since
@@ -1089,8 +1082,7 @@ checkGraph = do
 evalMethod :: (World world, Show (AccountError' world), Show (AssetError' world)) => Method -> [Value] -> EvalM world Value
 evalMethod meth@(Method _ _ nm argTyps body) args = do
     setCurrentMethod (Just meth)
-    mapM throwError =<< checkPreconditions meth
-    checkGraph
+    mapM (throwError . NotCallable nm) =<< checkPreconditions meth
     when (numArgs /= numArgsGiven)
          (throwError $ MethodArityError (locVal nm) numArgs numArgsGiven)
     forM_ (zip argNames args) . uncurry $ insertTempVar
@@ -1107,10 +1099,9 @@ evalMethod meth@(Method _ _ nm argTyps body) args = do
 -- ledger. If script methods should be evaluated outside of the context of a
 -- contract, call `evalMethod`.
 eval :: (World world, Show (AccountError' world), Show (AssetError' world)) => Contract.Contract -> Name -> [Value] -> EvalM world Value
-eval c nm args =
-  case Contract.lookupContractMethod nm c of
-    Right method -> evalMethod method args
-    Left err -> throwError (InvalidMethodName err)
+eval c nm args = case Contract.lookupContractMethod nm c of
+    Just method -> evalMethod method args
+    Nothing -> throwError (InvalidMethodName nm)
 
 noop :: EvalM world Value
 noop = pure VVoid
@@ -1172,7 +1163,7 @@ evalPreconditions m = do
 
 checkPreconditions
   :: (World world, Show (AccountError' world), Show (AssetError' world))
-  => Method -> EvalM world [EvalFail]
+  => Method -> EvalM world [NotCallableReason]
 checkPreconditions m = do
     PreconditionsV afterV beforeV roleV <- evalPreconditions m
     (map catMaybes) . sequence $ catMaybes
@@ -1184,23 +1175,23 @@ checkPreconditions m = do
     checkAfter dt = ensure
       (DateTime . posixMicroSecsToDatetime <$> currBlockTimestamp NoLoc)
       (>= dt)
-      (PrecNotSatAfter (methodName m) dt)
+      (ErrPrecAfter dt)
 
     checkBefore dt = ensure
       (DateTime . posixMicroSecsToDatetime <$> currBlockTimestamp NoLoc)
       (< dt)
-      (PrecNotSatBefore (methodName m) dt)
+      (ErrPrecBefore dt)
 
     checkRole accounts = ensure
       (currentTxIssuer NoLoc)
       (`elem` accounts)
-      (PrecNotSatCaller (methodName m) accounts)
+      (ErrPrecCaller accounts)
 
-    ensure
-      :: EvalM world a
-      -> (a -> Bool)
-      -> (a -> EvalFail)
-      -> EvalM world (Maybe EvalFail)
+    checkWorkflowState stateExpected = ensure
+      getState
+      (methodInputPlaces m `isSubWorkflow`)
+      (ErrWorkflowState (methodInputPlaces m))
+
     ensure actual predicate error = do
       actual <- actual
       pure $ if predicate actual
@@ -1211,27 +1202,19 @@ evalCallableMethods
   :: (World world, Show (AccountError' world), Show (AssetError' world))
   => Contract.Contract
   -> EvalM world Contract.CallableMethods
-evalCallableMethods contract =
-    foldM insertCallableMethod (Contract.CallableMethods mempty) (Contract.callableMethods contract)
+evalCallableMethods contract = do
+    (cmNotCallableMethods, cmCallableMethods) <-
+      map partitionEithers
+      . mapM checkPreconditions'
+      . scriptMethods
+      . Contract.script
+      $ contract
+    pure Contract.MkCallableMethods{..}
   where
-    insertCallableMethod (Contract.CallableMethods cms) method = do
-      PreconditionsV afterV beforeV roleV <- evalPreconditions method
-      withinTime <-
-        case (afterV, beforeV) of
-          (Nothing, Nothing) -> pure True
-          (_,_) -> do
-            -- Only read the current block time if there are temporal preconditions
-            now <- DateTime . posixMicroSecsToDatetime <$> currBlockTimestamp NoLoc
-            let isAfter = maybe True (\dt -> now >= dt) afterV
-                isBefore = maybe True (\dt -> now < dt) beforeV
-            pure (isAfter && isBefore)
-      if not withinTime
-        then pure $ Contract.CallableMethods cms -- don't add to callable methods since not callable at this time
-        else do
-          let group = case roleV of
-                Nothing -> Contract.Anyone
-                Just accounts -> Contract.Restricted accounts
-          pure . Contract.CallableMethods $ Map.insert (locVal $ methodName method) (group, argtys method) cms
+    checkPreconditions' m = checkPreconditions m >>= \case
+      []     -> pure . Right . methodName $ m
+      (e:es) -> pure . Left $ (methodName m, (e:|es))
+
 
 -------------------------------------------------------------------------------
 -- Value Hashing

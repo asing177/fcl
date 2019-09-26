@@ -16,13 +16,14 @@ module Language.FCL.Error (
 
 import Protolude hiding (Overflow, Underflow, DivideByZero)
 
+import Data.Aeson (ToJSON(..))
 import Data.Serialize (Serialize)
+import Data.Swagger (ToSchema)
 import Test.QuickCheck
 import Generic.Random
 
 import Language.FCL.Address
 import Language.FCL.Pretty hiding ((<>))
-import Language.FCL.Contract (InvalidMethodName)
 import Language.FCL.AST
 
 -- | Scripts either run to completion or fail with a named error.
@@ -31,7 +32,7 @@ data EvalFail
   | AddressIntegrity Text               -- ^ Address does not exist
   | ContractIntegrity Text              -- ^ Contract does not exist
   | AccountIntegrity Text               -- ^ Account does not exist
-  | InvalidMethodName InvalidMethodName -- ^ Name lookup failure
+  | InvalidMethodName Name              -- ^ Name lookup failure
   | WorkflowTerminated                  -- ^ Execution is in terminal state.
   | MethodArityError Name Int Int       -- ^ Call a function with the wrong # of args
   | Overflow                            -- ^ Overflow
@@ -43,7 +44,7 @@ data EvalFail
   | ModifyFail Text                     -- ^ Map modify fail
   | CallPrimOpFail Loc (Maybe Value) Text -- ^ Prim op call failed
   | NoTransactionContext Loc Text       -- ^ Asked for a bit of transaction context without a transaction context
-  | PatternMatchFailure Value Loc        -- ^ No matching pattern
+  | PatternMatchFailure Value Loc       -- ^ No matching pattern
   | NotCallable LName NotCallableReason
   deriving (Eq, Show, Generic, Serialize)
 
@@ -56,7 +57,7 @@ instance Pretty EvalFail where
     AddressIntegrity err               -> "Address integrity error:" <+> ppr err
     ContractIntegrity err              -> "Contract integrity error:" <+> ppr err
     AccountIntegrity err               -> "Account integrity error:" <+> ppr err
-    InvalidMethodName err              -> "Invalid method name:" -- XXX pretty print invalid method name
+    InvalidMethodName nm               -> "Invalid method name:" <+> ppr nm
     WorkflowTerminated                 -> "Error: the workflow has been terminated and is no longer live."
     MethodArityError nm expected given -> "Method arity error:"
                                           <$$+> "expected" <+> ppr expected
@@ -106,7 +107,21 @@ data NotCallableReason
   | ErrPrecAfter DateTime DateTime
   | ErrPrecBefore DateTime DateTime
   | ErrPrecCaller (Set (Address AAccount)) (Address AAccount)
-  deriving (Show, Generic, ToJSON)
+  deriving (Eq, Show, Generic, ToJSON, Serialize)
 
 instance Arbitrary NotCallableReason where
   arbitrary = genericArbitraryU
+
+instance ToSchema NotCallableReason
+
+-- data InvalidMethodName
+--   = MethodDoesNotExist Name
+--   | MethodNotCallable  Name WorkflowState
+--   deriving (Eq, Show, Generic, Serialize)
+
+-- instance Arbitrary InvalidMethodName where
+--   arbitrary = genericArbitraryU
+
+  -- instance Pretty.Pretty InvalidMethodName where
+--   ppr (MethodDoesNotExist nm) = "Method does not exist:" <+> ppr nm
+--   ppr (MethodNotCallable nm state) = "Method" <+> ppr nm <+> "not callable in current state:" <+> ppr state

@@ -143,7 +143,6 @@ instance ToSchema Contract where
       ]
       True
 
-instance ToSchema InvalidMethodName
 instance ToSchema GlobalStorage where
   declareNamedSchema _ =
     pure $ NamedSchema (Just "GlobalStorage") (toSchema (Proxy :: Proxy Storage))

@@ -16,6 +16,7 @@ import Language.FCL.Encoding as Encoding
 import Language.FCL.Pretty
 import Data.Aeson (ToJSON(..), FromJSON(..))
 import Data.Serialize as S (Serialize(..))
+import Data.Swagger (ToSchema)
 import Data.Binary (Binary(..))
 
 import Language.FCL.Orphans ()
@@ -31,6 +32,8 @@ data AddrType
 newtype Address (t :: AddrType)
   = Address ByteString
   deriving (Eq, Ord, Show, Generic, Hash.Hashable, Binary, Serialize, FromJSON, ToJSON)
+
+instance ToSchema (Address a)
 
 instance Pretty (Address 'AAccount) where
   ppr (Address bs) = ppr bs
