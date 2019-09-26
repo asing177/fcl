@@ -11,6 +11,7 @@ Script evaluation errors.
 
 module Language.FCL.Error (
   EvalFail(..),
+  NotCallableReason(..)
 ) where
 
 import Protolude hiding (Overflow, Underflow, DivideByZero)
@@ -36,7 +37,6 @@ data EvalFail
   | Overflow                            -- ^ Overflow
   | Underflow                           -- ^ Underflow
   | DivideByZero                        -- ^ Division by zero
-  | StatePreconditionError WorkflowState WorkflowState -- ^ Invalid workflow state entry
   | Impossible Text                     -- ^ Internal error
   | NoSuchPrimOp Name                   -- ^ Prim op name lookup fail
   | LookupFail Text                     -- ^ Foldable/Traversable type lookup fail
@@ -44,10 +44,7 @@ data EvalFail
   | CallPrimOpFail Loc (Maybe Value) Text -- ^ Prim op call failed
   | NoTransactionContext Loc Text       -- ^ Asked for a bit of transaction context without a transaction context
   | PatternMatchFailure Value Loc        -- ^ No matching pattern
-  -- Precondition errors, all of the form `PrecNotSatX Method <expected> <actual>`
-  | PrecNotSatAfter LName DateTime DateTime
-  | PrecNotSatBefore LName DateTime DateTime
-  | PrecNotSatCaller LName (Set (Address AAccount)) (Address AAccount)
+  | NotCallable LName NotCallableReason
   deriving (Eq, Show, Generic, Serialize)
 
 instance Arbitrary EvalFail where
@@ -67,9 +64,6 @@ instance Pretty EvalFail where
     Overflow                           -> "Overflow"
     Underflow                          -> "Underflow"
     DivideByZero                       -> "DivideByZero"
-    StatePreconditionError w1 w2       -> "Workflow state precondition error:"
-                                          <$$+> "Required state is" <+> ppr w1
-                                            <+> ", but actual is" <+> ppr w2
     Impossible err                     -> "Internal error:" <+> ppr err
     NoSuchPrimOp nm                    -> "No such primop:" <+> ppr nm
     LookupFail k                       -> "Lookup fail with key:" <+> ppr k
@@ -81,19 +75,38 @@ instance Pretty EvalFail where
                                                           <$$+> ppr msg
     NoTransactionContext loc msg       -> "Invalid transaction context info request at" <+> ppr loc <> ":"
                                        <$$+> ppr msg
-    PrecNotSatAfter methodName dtExpected dtActual ->
-      "Temporal precondition for calling method" <+> ppr methodName <+> "not satisfied."
-      <$$+> "Method only callable after: " <+> ppr (VDateTime dtExpected)
+
+    PatternMatchFailure val loc ->
+      "No matching pattern for value" <+> sqppr val <+> "at" <+> ppr loc
+    NotCallable methodName reason -> "Method" <+> ppr methodName <+> "is not callable:"
+      <$$+> ppr reason
+
+
+instance Pretty NotCallableReason where
+  ppr = \case
+    ErrWorkflowState w1 w2 ->
+      "Workflow state precondition error:"
+        <$$+> "Required state is" <+> ppr w1 <+> ", but actual is" <+> ppr w2
+    ErrPrecAfter dtExpected dtActual ->
+      "Method only callable after: " <+> ppr (VDateTime dtExpected)
         <+> ". Actual date-time:" <+> ppr (VDateTime dtActual)
-    PrecNotSatBefore methodName dtExpected dtActual ->
-      "Temporal precondition for calling method" <+> ppr methodName <+> "not satisfied."
-      <$$+> "Method only callable before: " <+> ppr (VDateTime dtExpected)
+    ErrPrecBefore dtExpected dtActual ->
+      "Method only callable before: " <+> ppr (VDateTime dtExpected)
         <+> ". Actual date-time:" <+> ppr (VDateTime dtActual)
-    PrecNotSatCaller methodName setAccExpected accActual ->
-      "Unauthorized to call method" <+> sqppr methodName <> "."
+    ErrPrecCaller setAccExpected accActual ->
+      "Transaction issuer not authorised."
           <$$+> vcat
           [ "Transaction issuer: " <+> ppr accActual
           , "Authorized accounts: " <+> setOf setAccExpected
           ]
-    PatternMatchFailure val loc ->
-      "No matching pattern for value" <+> sqppr val <+> "at" <+> ppr loc
+
+-- | Method Precondition errors, fields of the form  <expected> <actual>`.
+data NotCallableReason
+  = ErrWorkflowState WorkflowState WorkflowState
+  | ErrPrecAfter DateTime DateTime
+  | ErrPrecBefore DateTime DateTime
+  | ErrPrecCaller (Set (Address AAccount)) (Address AAccount)
+  deriving (Show, Generic, ToJSON)
+
+instance Arbitrary NotCallableReason where
+  arbitrary = genericArbitraryU

@@ -42,6 +42,7 @@ import qualified Language.FCL.Storage as Storage
 import qualified Language.FCL.Utils as Utils
 
 import Language.FCL.AST
+import Language.FCL.Error (NotCallableReason(..))
 import Language.FCL.Pretty ((<+>), ppr)
 import qualified Language.FCL.Pretty as Pretty
 import qualified Language.FCL.Parser as Parser
@@ -179,14 +180,6 @@ data CallableMethods
   deriving (Show, Generic, ToJSON)
 
 instance Arbitrary CallableMethods where
-  arbitrary = genericArbitraryU
-
-data NotCallableReason
-  = NotCallableWorkflowState
-  | NotCallablePrecondition
-  deriving (Show, Generic, ToJSON)
-
-instance Arbitrary NotCallableReason where
   arbitrary = genericArbitraryU
 
 -------------------------------------------------------------------------------
