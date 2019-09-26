@@ -1089,7 +1089,7 @@ checkGraph = do
 evalMethod :: (World world, Show (AccountError' world), Show (AssetError' world)) => Method -> [Value] -> EvalM world Value
 evalMethod meth@(Method _ _ nm argTyps body) args = do
     setCurrentMethod (Just meth)
-    checkPreconditions meth
+    mapM throwError =<< checkPreconditions meth
     checkGraph
     when (numArgs /= numArgsGiven)
          (throwError $ MethodArityError (locVal nm) numArgs numArgsGiven)
@@ -1170,32 +1170,42 @@ evalPreconditions m = do
         VAccount addr -> pure $ Set.singleton addr
         _ -> panicImpossible $ "Could not evaluate role " <> show e
 
-checkPreconditions :: (World world, Show (AccountError' world), Show (AssetError' world)) => Method -> EvalM world ()
+checkPreconditions
+  :: (World world, Show (AccountError' world), Show (AssetError' world))
+  => Method -> EvalM world [EvalFail]
 checkPreconditions m = do
-  PreconditionsV afterV beforeV roleV <- evalPreconditions m
-  sequence_
-    [ sequence (checkAfter <$> afterV)
-    , sequence (checkBefore <$> beforeV)
-    , sequence (checkRole <$> roleV)
-    ]
+    PreconditionsV afterV beforeV roleV <- evalPreconditions m
+    (map catMaybes) . sequence $ catMaybes
+      [ checkAfter <$> afterV
+      , checkBefore <$> beforeV
+      , checkRole <$> roleV
+      ]
   where
-    checkAfter dt = do
-      now <- DateTime . posixMicroSecsToDatetime <$> currBlockTimestamp NoLoc
-      unless
-        (now >= dt)
-        (throwError $ PrecNotSatAfter m dt now)
+    checkAfter dt = ensure
+      (DateTime . posixMicroSecsToDatetime <$> currBlockTimestamp NoLoc)
+      (>= dt)
+      (PrecNotSatAfter (methodName m) dt)
 
-    checkBefore dt = do
-      now <- DateTime . posixMicroSecsToDatetime <$> currBlockTimestamp NoLoc
-      unless
-        (now < dt)
-        (throwError $ PrecNotSatBefore m dt now)
+    checkBefore dt = ensure
+      (DateTime . posixMicroSecsToDatetime <$> currBlockTimestamp NoLoc)
+      (< dt)
+      (PrecNotSatBefore (methodName m) dt)
 
-    checkRole accounts = do
-      issuer <- currentTxIssuer NoLoc
-      unless
-        (issuer `elem` accounts)
-        (throwError $ PrecNotSatCaller m accounts issuer)
+    checkRole accounts = ensure
+      (currentTxIssuer NoLoc)
+      (`elem` accounts)
+      (PrecNotSatCaller (methodName m) accounts)
+
+    ensure
+      :: EvalM world a
+      -> (a -> Bool)
+      -> (a -> EvalFail)
+      -> EvalM world (Maybe EvalFail)
+    ensure actual predicate error = do
+      actual <- actual
+      pure $ if predicate actual
+        then Nothing
+        else Just (error actual)
 
 evalCallableMethods
   :: (World world, Show (AccountError' world), Show (AssetError' world))
