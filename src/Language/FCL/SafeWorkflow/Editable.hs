@@ -46,7 +46,9 @@ import Language.FCL.AST (Name(..), Transition(..), WorkflowState(..), Place(..),
 import Language.FCL.Pretty (Doc, Pretty, ppr, hsep, prettyPrint)
 import Language.FCL.Analysis (inferStaticWorkflowStates)
 import Language.FCL.Graphviz hiding (AnnotatedTransition)
-import Language.FCL.SafeWorkflow.Simple (constructTransitionsWithoutPlaces, constructAnnTransitionsWithoutPlaces)
+import Language.FCL.SafeWorkflow.Simple
+  ( constructTransitionsWithoutPlaces
+  , constructAnnTransitionsWithoutPlaces )
 
 import qualified Language.FCL.SafeWorkflow as SW
 import qualified Language.FCL.Graphviz     as GV
@@ -61,8 +63,12 @@ type TransId = Int
 -- NOTE: global would be for methods (e.g.: preconditions)
 -- | Local transition metadata for code generation
 data CGMetadata = CGMetadata
-  { cgmCode   :: Maybe Expr   -- ^ Code to be generated into the transition (`Nothing` -> `ENoOp`)
-  , cgmIfCond :: Maybe Expr   -- ^ Possible @If@ condition for deterministic branhcing (NOTE: the conditions in a given method should always be mutually exclusive and should always cover the entire event-space)
+  { cgmCode   :: Maybe Expr
+    -- ^ Code to be generated into the transition (`Nothing` -> `ENoOp`)
+  , cgmIfCond :: Maybe Expr
+    -- ^ Possible @If@ condition for deterministic branhcing (NOTE: the
+    -- conditions in a given method should always be mutually exclusive and
+    -- should always cover the entire event-space)
   }
   deriving (Eq, Ord, Show)
 
@@ -76,7 +82,7 @@ data TEditLabel = TEL
   }
   deriving (Eq, Ord, Show)
 
--- | Newtype wrapper for pretty pritning `TEditLabel`s
+-- | Newtype wrapper for pretty printing `TEditLabel`s
 newtype PrettyTLabel = PrettyTLabel TEditLabel
   deriving (Eq, Ord)
 
@@ -150,28 +156,34 @@ data ANDBranchLabels = ANDBranchLabels
 
 -- | `Continuation`s are used to replace holes in `EditableSW`s.
 data Continuation
-  = Atom { atomLabel       :: TEditLabel   -- ^ Label to be put on the transition
-         }
-  | AND  { andSplitLabel    :: TEditLabel            -- ^ Label to be put on the splitting transition
-         , andJoinLabel     :: TEditLabel            -- ^ Label to be put on the joining transition
-         , andBranchLabels  :: List2 ANDBranchLabels -- ^ In and Out annotations of each branch in the AND-split
-         }
+  = Atom
+    { atomLabel :: TEditLabel -- ^ Label to be put on the transition
+    }
+  | AND
+    { andSplitLabel    :: TEditLabel            -- ^ Label to be put on the splitting transition
+    , andJoinLabel     :: TEditLabel            -- ^ Label to be put on the joining transition
+    , andBranchLabels  :: List2 ANDBranchLabels -- ^ In and Out annotations of each branch in the AND-split
+    }
   -- | XOR-spliting by having an @if@ statement in a single method.
-  | IfXOR  { ifXorThenLabel :: TEditLabel   -- ^ Label for the _then_ branch (just for the condition)
-           , ifXorElseLabel :: TEditLabel   -- ^ Label for the _else_ branch (just for the condition)
-           }
-  -- | XOR-spliting by having multiple methods (undetermiinistic semantics).
-  | UndetXOR
-  | SimpleLoop  { sLoopJumpBackLabel    :: TEditLabel -- ^ Label for the jump-back branch    (just for the condition)
-                , sLoopFallThroughLabel :: TEditLabel -- ^ Label for the fall-through branch (just for the condition)
-                }
-  | Loop { exitLabel            :: PEditLabel            -- ^ Label for the exit place
-         , loopBeforeLabel        :: TEditLabel   -- ^ Label for the transition before the breakpoint (just for the condition)
-         , loopAfterLabel :: TEditLabel         -- ^ Label for the transition after the breakpoint (exiting from the loop) (just for the condition)
-         , loopJumpBackLabel    :: TEditLabel    -- ^ Label for the jump-back branch (just for the condition)
-         }
-  | Seq  { inbetweenLabel :: PEditLabel -- ^ Label for the place inbetween the two transitions
-         }
+  | IfXOR
+    { ifXorThenLabel :: TEditLabel -- ^ Label for the _then_ branch (just for the condition)
+    , ifXorElseLabel :: TEditLabel -- ^ Label for the _else_ branch (just for the condition)
+    }
+  -- | XOR-spliting by having multiple methods (nondetermiinistic semantics).
+  | NonDetXOR
+  | SimpleLoop
+    { sLoopJumpBackLabel    :: TEditLabel -- ^ Label for the jump-back branch    (just for the condition)
+    , sLoopFallThroughLabel :: TEditLabel -- ^ Label for the fall-through branch (just for the condition)
+    }
+  | Loop
+    { exitLabel         :: PEditLabel -- ^ Label for the exit place
+    , loopBeforeLabel   :: TEditLabel -- ^ Label for the transition before the breakpoint (just for the condition)
+    , loopAfterLabel    :: TEditLabel -- ^ Label for the transition after the breakpoint (exiting from the loop) (just for the condition)
+    , loopJumpBackLabel :: TEditLabel -- ^ Label for the jump-back branch (just for the condition)
+    }
+  | Seq
+    { inbetweenLabel :: PEditLabel -- ^ Label for the place inbetween the two transitions
+    }
   -- NOTE: Completely incomplete
   | ACF
   deriving (Eq, Ord, Show)
