@@ -45,9 +45,9 @@ data EvalFail
   | NoTransactionContext Loc Text       -- ^ Asked for a bit of transaction context without a transaction context
   | PatternMatchFailure Value Loc        -- ^ No matching pattern
   -- Precondition errors, all of the form `PrecNotSatX Method <expected> <actual>`
-  | PrecNotSatAfter Method DateTime DateTime
-  | PrecNotSatBefore Method DateTime DateTime
-  | PrecNotSatCaller Method (Set (Address AAccount)) (Address AAccount)
+  | PrecNotSatAfter LName DateTime DateTime
+  | PrecNotSatBefore LName DateTime DateTime
+  | PrecNotSatCaller LName (Set (Address AAccount)) (Address AAccount)
   deriving (Eq, Show, Generic, Serialize)
 
 instance Arbitrary EvalFail where
@@ -81,16 +81,16 @@ instance Pretty EvalFail where
                                                           <$$+> ppr msg
     NoTransactionContext loc msg       -> "Invalid transaction context info request at" <+> ppr loc <> ":"
                                        <$$+> ppr msg
-    PrecNotSatAfter m dtExpected dtActual ->
-      "Temporal precondition for calling method" <+> ppr (methodName m) <+> "not satisfied."
+    PrecNotSatAfter methodName dtExpected dtActual ->
+      "Temporal precondition for calling method" <+> ppr methodName <+> "not satisfied."
       <$$+> "Method only callable after: " <+> ppr (VDateTime dtExpected)
         <+> ". Actual date-time:" <+> ppr (VDateTime dtActual)
-    PrecNotSatBefore m dtExpected dtActual ->
-      "Temporal precondition for calling method" <+> ppr (methodName m) <+> "not satisfied."
+    PrecNotSatBefore methodName dtExpected dtActual ->
+      "Temporal precondition for calling method" <+> ppr methodName <+> "not satisfied."
       <$$+> "Method only callable before: " <+> ppr (VDateTime dtExpected)
         <+> ". Actual date-time:" <+> ppr (VDateTime dtActual)
-    PrecNotSatCaller m setAccExpected accActual ->
-      "Unauthorized to call method" <+> sqppr (methodName m) <> "."
+    PrecNotSatCaller methodName setAccExpected accActual ->
+      "Unauthorized to call method" <+> sqppr methodName <> "."
           <$$+> vcat
           [ "Transaction issuer: " <+> ppr accActual
           , "Authorized accounts: " <+> setOf setAccExpected
