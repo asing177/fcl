@@ -76,10 +76,6 @@ rbracket = "]"
 rarrow   = "->"
 
 
-intBinOps  = [mult,add,sub,div]
-boolBinOps = [and, or]
-boolUnops  = [not]
-
 keywords =
   [ global
   , local
