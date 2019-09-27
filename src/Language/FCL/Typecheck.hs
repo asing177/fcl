@@ -1177,6 +1177,7 @@ tcBinOp (Located opLoc op) e1 e2 = do
         Add -> tcAddSub op
         Sub -> tcAddSub op
         Div -> tcDiv
+        Pow -> tcPow
         And -> tcAndOr
         Or  -> tcAndOr
         Equal   -> tcEqual Equal
@@ -1264,6 +1265,23 @@ tcDiv opLoc torig e1 e2 = do
   tinfo1 <- tcLExpr e1
   tinfo2 <- tcLExpr e2
   case (ttype tinfo1, ttype tinfo2) of
+    (TNum _, TNum _)  -> pure $ TypeInfo (TNum NPArbitrary) torig eLoc
+    (TVar a, _)       -> addConstrAndRetInfo' tinfo1 (tinfo1, tinfo2)
+    (_, TVar a)       -> addConstrAndRetInfo' tinfo1 (tinfo1, tinfo2)
+    (t1,t2)           -> do
+      throwErrInferM (InvalidBinOp Div t1 t2) opLoc
+      return $ TypeInfo TError torig eLoc
+  where
+    eLoc = located e1
+    addConstrAndRetInfo' = addConstrAndRetInfo e2
+
+tcPow :: Loc -> TypeOrigin -> LExpr -> LExpr -> InferM TypeInfo
+tcPow opLoc torig e1 e2 = do
+  tinfo1 <- tcLExpr e1
+  tinfo2 <- tcLExpr e2
+  case (ttype tinfo1, ttype tinfo2) of
+    (TNum (NPDecimalPlaces n), TNum (NPDecimalPlaces 0))
+      -> pure $ TypeInfo (TNum (NPDecimalPlaces n)) torig eLoc
     (TNum _, TNum _)  -> pure $ TypeInfo (TNum NPArbitrary) torig eLoc
     (TVar a, _)       -> addConstrAndRetInfo' tinfo1 (tinfo1, tinfo2)
     (_, TVar a)       -> addConstrAndRetInfo' tinfo1 (tinfo1, tinfo2)
