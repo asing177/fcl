@@ -171,7 +171,7 @@ callersJSON callers =
 -- access restriction expressions associated with contract methods.
 data CallableMethods
   = MkCallableMethods
-    { cmCallableMethods    :: [LName] -- Map.Map Name (PermittedCallers, [(Name, Type)])
+    { cmCallableMethods    :: [LName]
     , cmNotCallableMethods :: [(LName, NonEmpty NotCallableReason)]
     }
   deriving (Show, Generic, ToJSON)
