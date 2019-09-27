@@ -146,8 +146,8 @@ evalTests = testGroup "eval" <$> sequence
     evalMethod' _ (Left err) _ = pure (Left err)
     evalMethod' evalCtx (Right (contract, evalState)) (Right lname, args) =
         case Contract.lookupContractMethod (locVal lname) contract of
-          Left err -> fail (show err ++ "\n" ++ show contract)
-          Right method -> do
+          Nothing -> fail ("Unknown method " <> (toS . unName . locVal) lname <> "\n" <> show contract)
+          Just method -> do
             eNewEvalState <- Eval.execEvalM
               evalCtx
               evalState
