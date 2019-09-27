@@ -305,6 +305,7 @@ data BinOp
   | Sub     -- ^ Subtraction
   | Mul     -- ^ Multiplication
   | Div     -- ^ Division
+  | Pow     -- ^ Exponentiation
   | And     -- ^ Logical conjunction
   | Or      -- ^ Logical disjunction
   | Equal   -- ^ Equality
@@ -952,6 +953,7 @@ instance Pretty BinOp where
     Sub     -> token Token.sub
     Div     -> token Token.div
     Mul     -> token Token.mult
+    Pow     -> token Token.pow
     And     -> token Token.and
     Or      -> token Token.or
     Equal   -> token Token.equal
