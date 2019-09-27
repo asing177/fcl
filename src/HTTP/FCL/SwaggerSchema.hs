@@ -122,6 +122,8 @@ instance ToSchema AST.Value where
       ]
       False
 
+instance ToSchema NotCallableReason where
+
 instance ToSchema Contract where
   declareNamedSchema _ = do
     time <- declareSchemaRef @Timestamp Proxy

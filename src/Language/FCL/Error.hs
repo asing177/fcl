@@ -18,7 +18,6 @@ import Protolude hiding (Overflow, Underflow, DivideByZero)
 
 import Data.Aeson (ToJSON(..))
 import Data.Serialize (Serialize)
-import Data.Swagger (ToSchema)
 import Test.QuickCheck
 import Generic.Random
 
@@ -111,17 +110,3 @@ data NotCallableReason
 
 instance Arbitrary NotCallableReason where
   arbitrary = genericArbitraryU
-
-instance ToSchema NotCallableReason
-
--- data InvalidMethodName
---   = MethodDoesNotExist Name
---   | MethodNotCallable  Name WorkflowState
---   deriving (Eq, Show, Generic, Serialize)
-
--- instance Arbitrary InvalidMethodName where
---   arbitrary = genericArbitraryU
-
-  -- instance Pretty.Pretty InvalidMethodName where
---   ppr (MethodDoesNotExist nm) = "Method does not exist:" <+> ppr nm
---   ppr (MethodNotCallable nm state) = "Method" <+> ppr nm <+> "not callable in current state:" <+> ppr state
