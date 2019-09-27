@@ -122,7 +122,7 @@ instance ToSchema AST.Value where
       ]
       False
 
-instance ToSchema NotCallableReason where
+instance ToSchema NotCallableReason
 
 instance ToSchema Contract where
   declareNamedSchema _ = do
@@ -155,15 +155,8 @@ instance ToSchema Metadata where
   declareNamedSchema _ =
     pure $ NamedSchema (Just "Metadata") (toSchema (Proxy :: Proxy (Map Text Text)))
 
-instance ToSchema CallableMethods where
-  declareNamedSchema _ = do
-    -- Use Text instead of Type because of the custom JSON instance of PermittedCallers
-    m <- declareSchemaRef @(PermittedCallers, [(Name, Text)]) Proxy
-    pure $ NamedSchema (Just "CallableMethods")
-      $ mempty { _schemaParamSchema = mempty { _paramSchemaType = SwaggerObject }
-               , _schemaAdditionalProperties = Just $ AdditionalPropertiesSchema m
-               }
 
+instance ToSchema CallableMethods
 instance ToSchema PermittedCallers where
   declareNamedSchema _ = do
     t <- declareSchemaRef @Text Proxy

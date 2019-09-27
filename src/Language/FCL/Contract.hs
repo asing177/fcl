@@ -51,7 +51,7 @@ import Data.Serialize (Serialize)
 import qualified Data.Map.Strict as Map
 import qualified Data.Binary as B
 
-import Data.Aeson (ToJSON(..), (.=), (.:))
+import Data.Aeson (ToJSON(..), (.=), (.:), sumEncoding, genericToJSON, SumEncoding(..), defaultOptions)
 import Data.Aeson.Types (typeMismatch)
 import qualified Data.Aeson as A
 
@@ -174,7 +174,10 @@ data CallableMethods
     { cmCallableMethods    :: [LName]
     , cmNotCallableMethods :: [(LName, NonEmpty NotCallableReason)]
     }
-  deriving (Show, Generic, ToJSON)
+  deriving (Show, Generic)
+
+instance ToJSON CallableMethods where
+  toJSON = genericToJSON (defaultOptions { sumEncoding = ObjectWithSingleField })
 
 instance Arbitrary CallableMethods where
   arbitrary = genericArbitraryU

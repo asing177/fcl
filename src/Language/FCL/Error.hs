@@ -16,7 +16,7 @@ module Language.FCL.Error (
 
 import Protolude hiding (Overflow, Underflow, DivideByZero)
 
-import Data.Aeson (ToJSON(..))
+import Data.Aeson (ToJSON(..), sumEncoding, genericToJSON, SumEncoding(..), defaultOptions)
 import Data.Serialize (Serialize)
 import Test.QuickCheck
 import Generic.Random
@@ -106,7 +106,10 @@ data NotCallableReason
   | ErrPrecAfter DateTime DateTime
   | ErrPrecBefore DateTime DateTime
   | ErrPrecCaller (Set (Address AAccount)) (Address AAccount)
-  deriving (Eq, Show, Generic, ToJSON, Serialize)
+  deriving (Eq, Show, Generic, Serialize)
+
+instance ToJSON NotCallableReason where
+  toJSON = genericToJSON (defaultOptions { sumEncoding = ObjectWithSingleField })
 
 instance Arbitrary NotCallableReason where
   arbitrary = genericArbitraryU
