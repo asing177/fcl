@@ -361,6 +361,8 @@ evalLExpr (Located loc e) = case e of
     valB <- evalLExpr b
     let binOpFail = panicInvalidBinOp op valA valB
     case (valA, valB) of
+      (VNum a, VNum (NumDecimal (Decimal 0 b)))
+        | Pow <- op -> pure $ VNum (a ^^ b)
       (VNum a', VNum b') ->
         case op of
           Add     -> pure $ VNum (a' + b')
@@ -369,7 +371,6 @@ evalLExpr (Located loc e) = case e of
           Div
             | b' == 0    -> throwError DivideByZero
             | otherwise  -> pure $ VNum (a' / b')
-          Pow     -> pure $ VNum (a' ** b')
           Equal   -> pure $ VBool $ a' == b'
           NEqual  -> pure $ VBool $ a' /= b'
           LEqual  -> pure $ VBool $ a' <= b'
