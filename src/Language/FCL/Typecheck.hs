@@ -514,8 +514,10 @@ tcDefn def = extendContextInferM Global =<< case def of
         Right _ -> pure ()
         Left (terr :| _) ->
           case errInfo terr of
-            UnificationFail ti1 ti2 -> Left $ InvalidDefinition nm (locVal le) (ttype ti1) (ttype ti2)
-            otherwise               -> panic "Solver should fail with UnificationFail"
+            UnificationFail ti1 ti2
+              -> Left $ InvalidDefinition nm (locVal le) (ttype ti1) (ttype ti2)
+            otherwise
+              -> panic $ "Expecting UnificationFail, but got\n" <> prettyPrint (errInfo terr)
 
 
 tcDefns :: [Def] -> InferM ()
