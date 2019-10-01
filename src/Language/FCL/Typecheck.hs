@@ -1280,13 +1280,14 @@ tcPow opLoc torig e1 e2 = do
   tinfo1 <- tcLExpr e1
   tinfo2 <- tcLExpr e2
   case (ttype tinfo1, ttype tinfo2) of
-    (TNum (NPDecimalPlaces n), TNum (NPDecimalPlaces 0))
-      -> pure $ TypeInfo (TNum (NPDecimalPlaces n)) torig eLoc
-    (TNum _, TNum _)  -> pure $ TypeInfo (TNum NPArbitrary) torig eLoc
+    (TNum (NPDecimalPlaces 0), TNum (NPDecimalPlaces 0))
+      -> pure $ TypeInfo (TNum (NPDecimalPlaces 0)) torig eLoc
+    (TNum _, TNum (NPDecimalPlaces 0))
+      -> pure $ TypeInfo (TNum NPArbitrary) torig eLoc
     (TVar a, _)       -> addConstrAndRetInfo' tinfo1 (tinfo1, tinfo2)
     (_, TVar a)       -> addConstrAndRetInfo' tinfo1 (tinfo1, tinfo2)
     (t1,t2)           -> do
-      throwErrInferM (InvalidBinOp Div t1 t2) opLoc
+      throwErrInferM (InvalidBinOp Pow t1 t2) opLoc
       return $ TypeInfo TError torig eLoc
   where
     eLoc = located e1
