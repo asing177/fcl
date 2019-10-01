@@ -65,9 +65,6 @@ dependencies:
   - servant-swagger-ui
   - swagger2
 
-  # Arithmetic
-  - rounded
-
 library:
   source-dirs: src
   dependencies:
