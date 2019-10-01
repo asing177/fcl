@@ -116,6 +116,7 @@ operators = [
   , add
   , sub
   , div
+  , pow
   , and
   , or
   , equal

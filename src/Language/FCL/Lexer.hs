@@ -105,6 +105,7 @@ opToken o = case o of
   Mul     -> Token.mult
   Sub     -> Token.sub
   Div     -> Token.div
+  Pow     -> Token.pow
   And     -> Token.and
   Or      -> Token.or
   Equal   -> Token.equal

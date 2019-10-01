@@ -369,6 +369,7 @@ evalLExpr (Located loc e) = case e of
           Div
             | b' == 0    -> throwError DivideByZero
             | otherwise  -> pure $ VNum (a' / b')
+          Pow     -> pure $ VNum (a' ** b')
           Equal   -> pure $ VBool $ a' == b'
           NEqual  -> pure $ VBool $ a' /= b'
           LEqual  -> pure $ VBool $ a' <= b'
