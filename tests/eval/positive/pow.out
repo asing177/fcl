@@ -1,0 +1,28 @@
+*** Deltas ***
+[ ModifyGlobal
+    Name { unName = "x" }
+    (VNum
+       (NumDecimal
+          1096.63315842844381459813031794650742039263580379609426523595718755555865248518693105865741459399901184))
+, ModifyState WorkflowState { places = fromList [ PlaceEnd ] }
+, Terminate
+]
+
+*** Globals ***
+fromList
+  [ ( Key { unKey = "e" } , VNum (NumDecimal 2.71828182845904) )
+  , ( Key { unKey = "testAddr" }
+    , VAccount (Address "fwBVDsVh8SYQy98CzYpNPcbyTRczVUZ96HszhNRB8Ve")
+    )
+  , ( Key { unKey = "testAddr2" }
+    , VAccount (Address "Fw68hsis6JPW4ed3ER1VC959TTf9DqberLxrq5uECKxh")
+    )
+  , ( Key { unKey = "testAddr3" }
+    , VAccount (Address "4Stv5gWGt78D3p919HFcKEschSmyGKGrAX2G35xJgdhw")
+    )
+  , ( Key { unKey = "x" }
+    , VNum
+        (NumDecimal
+           1096.63315842844381459813031794650742039263580379609426523595718755555865248518693105865741459399901184)
+    )
+  ]
