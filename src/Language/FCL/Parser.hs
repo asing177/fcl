@@ -465,6 +465,7 @@ locUnOp nm = do
 opTable :: OperatorTable Text () Identity LExpr
 opTable =
   [ [ binOp RecordAccess Expr.AssocLeft ]
+  , [ binOp Pow Expr.AssocRight ]
   , [ binOp Mul Expr.AssocLeft ]
   , [ binOp Add Expr.AssocLeft
     , binOp Sub Expr.AssocLeft
