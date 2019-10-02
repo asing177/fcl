@@ -32,6 +32,7 @@ newtype Address (t :: AddrType)
   = Address ByteString
   deriving (Eq, Ord, Show, Generic, Hash.Hashable, Binary, Serialize, FromJSON, ToJSON)
 
+
 instance Pretty (Address 'AAccount) where
   ppr (Address bs) = ppr bs
 

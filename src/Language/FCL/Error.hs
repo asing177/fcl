@@ -11,17 +11,18 @@ Script evaluation errors.
 
 module Language.FCL.Error (
   EvalFail(..),
+  NotCallableReason(..)
 ) where
 
 import Protolude hiding (Overflow, Underflow, DivideByZero)
 
+import Data.Aeson (ToJSON(..), sumEncoding, genericToJSON, SumEncoding(..), defaultOptions)
 import Data.Serialize (Serialize)
 import Test.QuickCheck
 import Generic.Random
 
 import Language.FCL.Address
 import Language.FCL.Pretty hiding ((<>))
-import Language.FCL.Contract (InvalidMethodName)
 import Language.FCL.AST
 
 -- | Scripts either run to completion or fail with a named error.
@@ -30,24 +31,20 @@ data EvalFail
   | AddressIntegrity Text               -- ^ Address does not exist
   | ContractIntegrity Text              -- ^ Contract does not exist
   | AccountIntegrity Text               -- ^ Account does not exist
-  | InvalidMethodName InvalidMethodName -- ^ Name lookup failure
+  | InvalidMethodName Name              -- ^ Name lookup failure
   | WorkflowTerminated                  -- ^ Execution is in terminal state.
   | MethodArityError Name Int Int       -- ^ Call a function with the wrong # of args
   | Overflow                            -- ^ Overflow
   | Underflow                           -- ^ Underflow
   | DivideByZero                        -- ^ Division by zero
-  | StatePreconditionError WorkflowState WorkflowState -- ^ Invalid workflow state entry
   | Impossible Text                     -- ^ Internal error
   | NoSuchPrimOp Name                   -- ^ Prim op name lookup fail
   | LookupFail Text                     -- ^ Foldable/Traversable type lookup fail
   | ModifyFail Text                     -- ^ Map modify fail
   | CallPrimOpFail Loc (Maybe Value) Text -- ^ Prim op call failed
   | NoTransactionContext Loc Text       -- ^ Asked for a bit of transaction context without a transaction context
-  | PatternMatchFailure Value Loc        -- ^ No matching pattern
-  -- Precondition errors, all of the form `PrecNotSatX Method <expected> <actual>`
-  | PrecNotSatAfter Method DateTime DateTime
-  | PrecNotSatBefore Method DateTime DateTime
-  | PrecNotSatCaller Method (Set (Address AAccount)) (Address AAccount)
+  | PatternMatchFailure Value Loc       -- ^ No matching pattern
+  | NotCallable LName NotCallableReason
   deriving (Eq, Show, Generic, Serialize)
 
 instance Arbitrary EvalFail where
@@ -59,7 +56,7 @@ instance Pretty EvalFail where
     AddressIntegrity err               -> "Address integrity error:" <+> ppr err
     ContractIntegrity err              -> "Contract integrity error:" <+> ppr err
     AccountIntegrity err               -> "Account integrity error:" <+> ppr err
-    InvalidMethodName err              -> "Invalid method name:" -- XXX pretty print invalid method name
+    InvalidMethodName nm               -> "Invalid method name:" <+> ppr nm
     WorkflowTerminated                 -> "Error: the workflow has been terminated and is no longer live."
     MethodArityError nm expected given -> "Method arity error:"
                                           <$$+> "expected" <+> ppr expected
@@ -67,9 +64,6 @@ instance Pretty EvalFail where
     Overflow                           -> "Overflow"
     Underflow                          -> "Underflow"
     DivideByZero                       -> "DivideByZero"
-    StatePreconditionError w1 w2       -> "Workflow state precondition error:"
-                                          <$$+> "Required state is" <+> ppr w1
-                                            <+> ", but actual is" <+> ppr w2
     Impossible err                     -> "Internal error:" <+> ppr err
     NoSuchPrimOp nm                    -> "No such primop:" <+> ppr nm
     LookupFail k                       -> "Lookup fail with key:" <+> ppr k
@@ -81,19 +75,41 @@ instance Pretty EvalFail where
                                                           <$$+> ppr msg
     NoTransactionContext loc msg       -> "Invalid transaction context info request at" <+> ppr loc <> ":"
                                        <$$+> ppr msg
-    PrecNotSatAfter m dtExpected dtActual ->
-      "Temporal precondition for calling method" <+> ppr (methodName m) <+> "not satisfied."
-      <$$+> "Method only callable after: " <+> ppr (VDateTime dtExpected)
+
+    PatternMatchFailure val loc ->
+      "No matching pattern for value" <+> sqppr val <+> "at" <+> ppr loc
+    NotCallable methodName reason -> "Method" <+> ppr methodName <+> "is not callable:"
+      <$$+> ppr reason
+
+
+instance Pretty NotCallableReason where
+  ppr = \case
+    ErrWorkflowState w1 w2 ->
+      "Workflow state precondition error:"
+        <$$+> "Required state is" <+> ppr w1 <+> ", but actual is" <+> ppr w2
+    ErrPrecAfter dtExpected dtActual ->
+      "Method only callable after: " <+> ppr (VDateTime dtExpected)
         <+> ". Actual date-time:" <+> ppr (VDateTime dtActual)
-    PrecNotSatBefore m dtExpected dtActual ->
-      "Temporal precondition for calling method" <+> ppr (methodName m) <+> "not satisfied."
-      <$$+> "Method only callable before: " <+> ppr (VDateTime dtExpected)
+    ErrPrecBefore dtExpected dtActual ->
+      "Method only callable before: " <+> ppr (VDateTime dtExpected)
         <+> ". Actual date-time:" <+> ppr (VDateTime dtActual)
-    PrecNotSatCaller m setAccExpected accActual ->
-      "Unauthorized to call method" <+> sqppr (methodName m) <> "."
+    ErrPrecCaller setAccExpected accActual ->
+      "Transaction issuer not authorised."
           <$$+> vcat
           [ "Transaction issuer: " <+> ppr accActual
           , "Authorized accounts: " <+> setOf setAccExpected
           ]
-    PatternMatchFailure val loc ->
-      "No matching pattern for value" <+> sqppr val <+> "at" <+> ppr loc
+
+-- | Method Precondition errors, fields of the form  <expected> <actual>`.
+data NotCallableReason
+  = ErrWorkflowState WorkflowState WorkflowState
+  | ErrPrecAfter DateTime DateTime
+  | ErrPrecBefore DateTime DateTime
+  | ErrPrecCaller (Set (Address AAccount)) (Address AAccount)
+  deriving (Eq, Show, Generic, Serialize)
+
+instance ToJSON NotCallableReason where
+  toJSON = genericToJSON (defaultOptions { sumEncoding = ObjectWithSingleField })
+
+instance Arbitrary NotCallableReason where
+  arbitrary = genericArbitraryU

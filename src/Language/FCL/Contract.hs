@@ -13,13 +13,10 @@ Contract datatypes, signing and operations.
 module Language.FCL.Contract (
   -- ** Types
   Contract(..),
-  InvalidMethodName(..),
 
   callableMethods,
   PermittedCallers(..),
   CallableMethods(..),
-  callableMethodsJSON,
-  callableMethods',
 
   -- ** Validation
   validateContract,
@@ -44,7 +41,7 @@ import qualified Language.FCL.Storage as Storage
 import qualified Language.FCL.Utils as Utils
 
 import Language.FCL.AST
-import Language.FCL.Pretty ((<+>), ppr)
+import Language.FCL.Error (NotCallableReason(..))
 import qualified Language.FCL.Pretty as Pretty
 import qualified Language.FCL.Parser as Parser
 import qualified Language.FCL.Typecheck as Typecheck
@@ -54,7 +51,7 @@ import Data.Serialize (Serialize)
 import qualified Data.Map.Strict as Map
 import qualified Data.Binary as B
 
-import Data.Aeson (ToJSON(..), (.=), (.:))
+import Data.Aeson (ToJSON(..), (.=), (.:), sumEncoding, genericToJSON, SumEncoding(..), defaultOptions)
 import Data.Aeson.Types (typeMismatch)
 import qualified Data.Aeson as A
 
@@ -141,14 +138,12 @@ lookupVarGlobalStorage k c = Map.lookup (Storage.Key k) gs
 -- | Returns the list of callable methods by any ledger account given the
 -- current contract state. Restrictions are not taken into account.
 callableMethods :: Contract -> [Method]
-callableMethods c =
-  callableMethods' (state c) (script c)
+callableMethods c
+  = filter (\m -> methodInputPlaces m `isSubWorkflow` state c)
+    . scriptMethods
+    . script
+    $ c
 
-callableMethods' :: WorkflowState -> Script -> [Method]
-callableMethods' wfs s =
-    filter (\m -> methodInputPlaces m `isSubWorkflow` wfs) methods
-  where
-    methods = scriptMethods s
 
 -- | Allowed callers of a method
 data PermittedCallers = Anyone | Restricted (Set (Address AAccount))
@@ -174,29 +169,21 @@ callersJSON callers =
 
 -- | Datatype used by Eval.hs to report callable methods after evaluating the
 -- access restriction expressions associated with contract methods.
-newtype CallableMethods = CallableMethods (Map.Map Name (PermittedCallers, [(Name, Type)]))
+data CallableMethods
+  = MkCallableMethods
+    { cmCallableMethods    :: [LName]
+    , cmNotCallableMethods :: [(LName, NonEmpty NotCallableReason)]
+    }
   deriving (Show, Generic)
+
+instance ToJSON CallableMethods where
+  toJSON = genericToJSON (defaultOptions { sumEncoding = ObjectWithSingleField })
 
 instance Arbitrary CallableMethods where
   arbitrary = genericArbitraryU
 
-instance ToJSON CallableMethods where
-  toJSON = callableMethodsJSON
-
-callableMethodsJSON :: CallableMethods -> A.Value
-callableMethodsJSON (CallableMethods m) = toJSON
-                    . Map.mapKeys Pretty.prettyPrint
-                    . Map.map (bimap callersJSON (map (bimap Pretty.prettyPrint Pretty.prettyPrint))) $ m
-
 -------------------------------------------------------------------------------
 
-data InvalidMethodName
-  = MethodDoesNotExist Name
-  | MethodNotCallable  Name WorkflowState
-  deriving (Eq, Show, Generic, Serialize)
-
-instance Arbitrary InvalidMethodName where
-  arbitrary = genericArbitraryU
 
 -- | Looks up a method with a given name in a Contract, taking into account the
 -- current contract state. I.e. if a contract is in "terminal" state, no methods
@@ -204,14 +191,5 @@ instance Arbitrary InvalidMethodName where
 lookupContractMethod
   :: Name
   -> Contract
-  -> Either InvalidMethodName Method
-lookupContractMethod nm c =
-  case lookupMethod nm (script c) of
-    Nothing     -> Left $ MethodDoesNotExist nm
-    Just method
-      | method `elem` callableMethods c -> Right method
-      | otherwise -> Left $ MethodNotCallable nm (state c)
-
-instance Pretty.Pretty InvalidMethodName where
-  ppr (MethodDoesNotExist nm) = "Method does not exist:" <+> ppr nm
-  ppr (MethodNotCallable nm state) = "Method" <+> ppr nm <+> "not callable in current state:" <+> ppr state
+  -> Maybe Method
+lookupContractMethod nm = lookupMethod nm . script

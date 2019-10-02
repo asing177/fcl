@@ -171,7 +171,7 @@ insertTempVar (Name var) val = modify' $ \evalState ->
 -- | Extends the temp storage with temporary variable updates. Emulates a
 -- closure environment for evaluating the body of helper functions by
 -- assigning values to argument names. Effectively ad-hoc substitution.
-localTempStorage :: [(Name,Value)] -> EvalM world a -> (EvalM world) a
+localTempStorage :: [(Name,Value)] -> EvalM world a -> EvalM world a
 localTempStorage varVals evalM = do
   currTempStorage <- tempStorage <$> get
   let store = Map.fromList (map (first (Key . unName)) varVals)
@@ -185,7 +185,7 @@ localTempStorage varVals evalM = do
 
 -- | Warning: This function will throw an exception on a non-existent helper, as
 -- this indicates the typechecker failed to spot an undefined function name.
-lookupHelper :: LName -> (EvalM world) Helper
+lookupHelper :: LName -> EvalM world Helper
 lookupHelper lhnm = do
   helpers <- currentHelpers <$> ask
   case List.find ((==) lhnm . helperName) helpers of
@@ -193,7 +193,7 @@ lookupHelper lhnm = do
     Just helper -> pure helper
 
 -- | Emit a delta updating  the state of a global reference.
-updateGlobalVar :: Name -> Value -> (EvalM world) ()
+updateGlobalVar :: Name -> Value -> EvalM world ()
 updateGlobalVar v@(Name var) val = do
     modify' $ \evalState ->
       evalState { globalStorage = updateVar (globalStorage evalState) }
@@ -201,55 +201,55 @@ updateGlobalVar v@(Name var) val = do
   where
     updateVar = Map.update (\_ -> Just val) (Key var)
 
-setWorld :: world -> (EvalM world) ()
+setWorld :: world -> EvalM world ()
 setWorld w = modify' $ \evalState -> evalState { worldState = w }
 
 -- | Update the evaluate state.
-updateState :: WorkflowState -> (EvalM world) ()
+updateState :: WorkflowState -> EvalM world ()
 updateState newState = modify' $ \s -> s { workflowState = newState }
 
 -- | Get the evaluation state
-getState :: (EvalM world) WorkflowState
+getState :: EvalM world WorkflowState
 getState = gets workflowState
 
-setCurrentMethod :: Maybe Method -> (EvalM world) ()
+setCurrentMethod :: Maybe Method -> EvalM world ()
 setCurrentMethod m = modify' $ \s -> s { currentMethod = m }
 
 -- | Emit a delta
-emitDelta :: Delta.Delta -> (EvalM world) ()
+emitDelta :: Delta.Delta -> EvalM world ()
 emitDelta delta = modify' $ \s -> s { deltas = deltas s ++ [delta] }
 
 -- | Lookup variable in scope
-lookupVar :: Name -> (EvalM world) (Maybe Value)
+lookupVar :: Name -> EvalM world (Maybe Value)
 lookupVar var = do
   gVar <- lookupGlobalVar var
   case gVar of
     Nothing  -> lookupTempVar var
     Just val -> return $ Just val
 
-transactionCtxField :: Loc -> Text -> (TransactionCtx -> a) -> (EvalM world) a
+transactionCtxField :: Loc -> Text -> (TransactionCtx -> a) -> EvalM world a
 transactionCtxField loc errMsg getField = do
   mfield <- fmap getField . currentTxCtx <$> ask
   case mfield of
     Nothing -> throwError $ NoTransactionContext loc errMsg
     Just field -> pure field
 
-currBlockTimestamp :: Loc -> (EvalM world) Timestamp
+currBlockTimestamp :: Loc -> EvalM world Timestamp
 currBlockTimestamp loc = do
   let errMsg = "Cannot get timestamp without a transaction context"
   transactionCtxField loc errMsg transactionBlockTs
 
-currentBlockIdx :: Loc -> (EvalM world) Int64
+currentBlockIdx :: Loc -> EvalM world Int64
 currentBlockIdx loc = do
   let errMsg = "Cannot get block index without a transaction context"
   transactionCtxField loc errMsg transactionBlockIdx
 
-currentTxHash :: Loc -> (EvalM world) (Hash.Hash Encoding.Base16ByteString)
+currentTxHash :: Loc -> EvalM world (Hash.Hash Encoding.Base16ByteString)
 currentTxHash loc = do
   let errMsg = "Cannot get current transaction hash without a transaction context"
   transactionCtxField loc errMsg transactionHash
 
-currentTxIssuer :: Loc -> (EvalM world) (Address AAccount)
+currentTxIssuer :: Loc -> EvalM world (Address AAccount)
 currentTxIssuer loc = do
   let errMsg = "Cannot get current transaction issuer without a transaction context"
   transactionCtxField loc errMsg transactionIssuer
@@ -274,7 +274,7 @@ instance Crypto.MonadRandom (EvalM world) where
   getRandomBytes = lift . lift . lift . Crypto.getRandomBytes
 
 -- | Run the evaluation monad.
-execEvalM :: EvalCtx -> EvalState world -> (EvalM world) a -> IO (Either Error.EvalFail (EvalState world))
+execEvalM :: EvalCtx -> EvalState world -> EvalM world a -> IO (Either Error.EvalFail (EvalState world))
 execEvalM evalCtx evalState
   = handleArithError
   . runRandom
@@ -283,7 +283,7 @@ execEvalM evalCtx evalState
   . flip runReaderT evalCtx
 
 -- | Run the evaluation monad.
-runEvalM :: EvalCtx -> EvalState world -> (EvalM world) a -> IO (Either Error.EvalFail (a, EvalState world))
+runEvalM :: EvalCtx -> EvalState world -> EvalM world a -> IO (Either Error.EvalFail (a, EvalState world))
 runEvalM evalCtx evalState
   = handleArithError
   . runRandom
@@ -556,7 +556,7 @@ accessRecordField c vs fd dict
     Nothing -> panic "`accessRecordField` was given invalid data"
 
 -- | Evaluate a binop and two Fractional Num args
-evalBinOpF :: (Fractional a, Ord a) => BinOp -> (a -> Value) -> a -> a -> (EvalM world) Value
+evalBinOpF :: (Fractional a, Ord a) => BinOp -> (a -> Value) -> a -> a -> EvalM world Value
 evalBinOpF Add constr a b = pure $ constr (a + b)
 evalBinOpF Sub constr a b = pure $ constr (a - b)
 evalBinOpF Mul constr a b = pure $ constr (a * b)
@@ -574,7 +574,7 @@ evalBinOpF bop c a b = panicInvalidBinOp bop (c a) (c b)
 evalPrim
   :: forall world.
   (World world, Show (AccountError' world), Show (AssetError' world))
-  => Loc -> PrimOp -> [LExpr] -> (EvalM world) Value
+  => Loc -> PrimOp -> [LExpr] -> EvalM world Value
 evalPrim loc ex args = case ex of
   Now               -> do
     currDatetime <- posixMicroSecsToDatetime <$> currBlockTimestamp loc
@@ -764,7 +764,7 @@ evalPrim loc ex args = case ex of
 
 evalAssetPrim
   :: forall world. (World world, Show (AccountError' world), Show (AssetError' world))
-  => Loc -> Prim.AssetPrimOp -> [LExpr] -> (EvalM world) Value
+  => Loc -> Prim.AssetPrimOp -> [LExpr] -> EvalM world Value
 evalAssetPrim loc assetPrimOp args =
   case assetPrimOp of
 
@@ -922,7 +922,7 @@ evalAssetPrim loc assetPrimOp args =
 
 
 evalMapPrim :: (World world, Show (AccountError' world), Show (AssetError' world))
-  => Prim.MapPrimOp -> [LExpr] -> (EvalM world) Value
+  => Prim.MapPrimOp -> [LExpr] -> EvalM world Value
 evalMapPrim mapPrimOp args =
   case mapPrimOp of
     Prim.MapInsert -> do
@@ -950,7 +950,7 @@ evalMapPrim mapPrimOp args =
           pure $ VMap (Map.insert k newVal mapVal)
 
 evalSetPrim :: (World world, Show (AccountError' world), Show (AssetError' world))
-  => Prim.SetPrimOp -> [LExpr] -> (EvalM world) Value
+  => Prim.SetPrimOp -> [LExpr] -> EvalM world Value
 evalSetPrim setPrimOp args =
   case setPrimOp of
     Prim.SetInsert -> do
@@ -961,7 +961,7 @@ evalSetPrim setPrimOp args =
       pure $ VSet (Set.delete v setVal)
 
 evalCollPrim :: forall world. (World world, Show (AccountError' world), Show (AssetError' world))
-  => Prim.CollPrimOp -> [LExpr] -> (EvalM world) Value
+  => Prim.CollPrimOp -> [LExpr] -> EvalM world Value
 evalCollPrim collPrimOp args =
   case collPrimOp of
     Prim.Aggregate -> do
@@ -1021,12 +1021,12 @@ evalCollPrim collPrimOp args =
       CallPrimOpFail loc (Just v) "Cannot call a collection primop on a non-collection value"
 
     -- Map over a collection type (which happen to all implement Traversable)
-    mapColl :: Traversable f => LExpr -> Name -> f Value -> (EvalM world) (f Value)
+    mapColl :: Traversable f => LExpr -> Name -> f Value -> EvalM world (f Value)
     mapColl body nm coll =
       forM coll $ \val ->
         localTempStorage [(nm, val)] (evalLExpr body)
 
-    filterPred :: LExpr -> (Name, Value) -> (EvalM world) Bool
+    filterPred :: LExpr -> (Name, Value) -> EvalM world Bool
     filterPred body var = do
       res <- localTempStorage [var] (evalLExpr body)
       pure $ case res of
@@ -1034,7 +1034,7 @@ evalCollPrim collPrimOp args =
         VBool False -> False
         otherwise -> panicImpossible "Body of helper function used in filter primop did not return Bool"
 
-    foldColl :: LExpr -> (Name, Value) -> Name -> [Value] -> (EvalM world) Value
+    foldColl :: LExpr -> (Name, Value) -> Name -> [Value] -> EvalM world Value
     foldColl fbody (accNm, initVal) argNm vals =
         foldM accum initVal vals
       where
@@ -1045,12 +1045,12 @@ evalCollPrim collPrimOp args =
 
 getAccountAddr
   :: forall world. (World world, Show (AccountError' world), Show (AssetError' world))
-  => LExpr -> (EvalM world) (Address AAccount)
+  => LExpr -> EvalM world (Address AAccount)
 getAccountAddr accExpr = do
   world <- gets worldState
   accountToAddr @world <$> getAccount accExpr
 
-getAccount :: (World world, Show (AccountError' world), Show (AssetError' world)) => LExpr -> (EvalM world) (Account' world)
+getAccount :: (World world, Show (AccountError' world), Show (AssetError' world)) => LExpr -> EvalM world (Account' world)
 getAccount accExpr = do
   ledgerState <- gets worldState
   accAddr <- extractAddrAccount <$> evalLExpr accExpr
@@ -1061,12 +1061,12 @@ getAccount accExpr = do
 
 getAssetAddr
   :: forall world. (World world, Show (AccountError' world), Show (AssetError' world))
-  => LExpr -> (EvalM world) (Address AAsset)
+  => LExpr -> EvalM world (Address AAsset)
 getAssetAddr assetExpr = do
   world <- gets worldState
   assetToAddr @world <$> getAsset assetExpr
 
-getAsset :: (World world, Show (AccountError' world), Show (AssetError' world)) => LExpr -> (EvalM world) (Asset' world)
+getAsset :: (World world, Show (AccountError' world), Show (AssetError' world)) => LExpr -> EvalM world (Asset' world)
 getAsset assetExpr = do
   ledgerState <- gets worldState
   assetAddr   <- extractAddrAsset <$> evalLExpr assetExpr
@@ -1075,22 +1075,14 @@ getAsset assetExpr = do
       AssetIntegrity ("No asset with address: " <> show assetAddr)
     Right asset -> pure asset
 
--- | Check that the method state precondition is a substate of the actual state.
-checkGraph :: (EvalM world) ()
-checkGraph = do
-  Just m <- gets currentMethod
-  actualState <- getState
-  unless (methodInputPlaces m `isSubWorkflow` actualState)
-         (throwError $ StatePreconditionError (methodInputPlaces m) actualState)
 
 -- | Does not perform typechecking on args supplied, eval should only happen
 -- after typecheck. We don't check whether the input places are satisfied, since
 -- this is done by 'Contract.callableMethods'
-evalMethod :: (World world, Show (AccountError' world), Show (AssetError' world)) => Method -> [Value] -> (EvalM world) Value
+evalMethod :: (World world, Show (AccountError' world), Show (AssetError' world)) => Method -> [Value] -> EvalM world Value
 evalMethod meth@(Method _ _ nm argTyps body) args = do
     setCurrentMethod (Just meth)
-    checkPreconditions meth
-    checkGraph
+    mapM (throwError . NotCallable nm) =<< checkPreconditions meth
     when (numArgs /= numArgsGiven)
          (throwError $ MethodArityError (locVal nm) numArgs numArgsGiven)
     forM_ (zip argNames args) . uncurry $ insertTempVar
@@ -1106,13 +1098,12 @@ evalMethod meth@(Method _ _ nm argTyps body) args = do
 -- Methods will only ever be evaluated in the context of a contract on the
 -- ledger. If script methods should be evaluated outside of the context of a
 -- contract, call `evalMethod`.
-eval :: (World world, Show (AccountError' world), Show (AssetError' world)) => Contract.Contract -> Name -> [Value] -> (EvalM world) Value
-eval c nm args =
-  case Contract.lookupContractMethod nm c of
-    Right method -> evalMethod method args
-    Left err -> throwError (InvalidMethodName err)
+eval :: (World world, Show (AccountError' world), Show (AssetError' world)) => Contract.Contract -> Name -> [Value] -> EvalM world Value
+eval c nm args = case Contract.lookupContractMethod nm c of
+    Just method -> evalMethod method args
+    Nothing -> throwError (InvalidMethodName nm)
 
-noop :: (EvalM world) Value
+noop :: EvalM world Value
 noop = pure VVoid
 
 
@@ -1142,7 +1133,7 @@ data PreconditionsV = PreconditionsV
 
 -- | Succeeds when all preconditions are fulfilled and throws an error otherwise
 -- NB: We assume that we are given a type checked AST
-evalPreconditions :: forall world. (World world, Show (AccountError' world), Show (AssetError' world)) => Method -> (EvalM world) PreconditionsV
+evalPreconditions :: forall world. (World world, Show (AccountError' world), Show (AssetError' world)) => Method -> EvalM world PreconditionsV
 evalPreconditions m = do
   let Preconditions ps = methodPreconditions m
   PreconditionsV
@@ -1150,17 +1141,17 @@ evalPreconditions m = do
     <*> sequence (evalBefore <$> List.lookup PrecBefore ps)
     <*> sequence (evalRole <$> List.lookup PrecRoles ps)
   where
-    evalAfter :: LExpr -> (EvalM world) DateTime
+    evalAfter :: LExpr -> EvalM world DateTime
     evalAfter expr = do
       VDateTime dt <- evalLExpr expr
       pure dt
 
-    evalBefore :: LExpr -> (EvalM world) DateTime
+    evalBefore :: LExpr -> EvalM world DateTime
     evalBefore expr = do
       VDateTime dt <- evalLExpr expr
       pure dt
 
-    evalRole :: LExpr -> (EvalM world) (Set (Address AAccount))
+    evalRole :: LExpr -> EvalM world (Set (Address AAccount))
     evalRole expr = do
       e <- evalLExpr expr
       case e of
@@ -1170,62 +1161,67 @@ evalPreconditions m = do
         VAccount addr -> pure $ Set.singleton addr
         _ -> panicImpossible $ "Could not evaluate role " <> show e
 
-checkPreconditions :: (World world, Show (AccountError' world), Show (AssetError' world)) => Method -> (EvalM world) ()
+checkPreconditions
+  :: (World world, Show (AccountError' world), Show (AssetError' world))
+  => Method -> EvalM world [NotCallableReason]
 checkPreconditions m = do
-  PreconditionsV afterV beforeV roleV <- evalPreconditions m
-  sequence_
-    [ sequence (checkAfter <$> afterV)
-    , sequence (checkBefore <$> beforeV)
-    , sequence (checkRole <$> roleV)
-    ]
+    PreconditionsV afterV beforeV roleV <- evalPreconditions m
+    (map catMaybes) . sequence $ catMaybes
+      [ checkAfter <$> afterV
+      , checkBefore <$> beforeV
+      , checkRole <$> roleV
+      ]
   where
-    checkAfter dt = do
-      now <- DateTime . posixMicroSecsToDatetime <$> currBlockTimestamp NoLoc
-      unless
-        (now >= dt)
-        (throwError $ PrecNotSatAfter m dt now)
+    checkAfter dt = ensure
+      (DateTime . posixMicroSecsToDatetime <$> currBlockTimestamp NoLoc)
+      (>= dt)
+      (ErrPrecAfter dt)
 
-    checkBefore dt = do
-      now <- DateTime . posixMicroSecsToDatetime <$> currBlockTimestamp NoLoc
-      unless
-        (now < dt)
-        (throwError $ PrecNotSatBefore m dt now)
+    checkBefore dt = ensure
+      (DateTime . posixMicroSecsToDatetime <$> currBlockTimestamp NoLoc)
+      (< dt)
+      (ErrPrecBefore dt)
 
-    checkRole accounts = do
-      issuer <- currentTxIssuer NoLoc
-      unless
-        (issuer `elem` accounts)
-        (throwError $ PrecNotSatCaller m accounts issuer)
+    checkRole accounts = ensure
+      (currentTxIssuer NoLoc)
+      (`elem` accounts)
+      (ErrPrecCaller accounts)
 
-evalCallableMethods :: (World world, Show (AccountError' world), Show (AssetError' world)) => Contract.Contract -> (EvalM world) Contract.CallableMethods
-evalCallableMethods contract =
-    foldM insertCallableMethod (Contract.CallableMethods mempty) (Contract.callableMethods contract)
+    checkWorkflowState stateExpected = ensure
+      getState
+      (methodInputPlaces m `isSubWorkflow`)
+      (ErrWorkflowState (methodInputPlaces m))
+
+    ensure actual predicate error = do
+      actual <- actual
+      pure $ if predicate actual
+        then Nothing
+        else Just (error actual)
+
+evalCallableMethods
+  :: (World world, Show (AccountError' world), Show (AssetError' world))
+  => Contract.Contract
+  -> EvalM world Contract.CallableMethods
+evalCallableMethods contract = do
+    (cmNotCallableMethods, cmCallableMethods) <-
+      map partitionEithers
+      . mapM checkPreconditions'
+      . scriptMethods
+      . Contract.script
+      $ contract
+    pure Contract.MkCallableMethods{..}
   where
-    insertCallableMethod (Contract.CallableMethods cms) method = do
-      PreconditionsV afterV beforeV roleV <- evalPreconditions method
-      withinTime <-
-        case (afterV, beforeV) of
-          (Nothing, Nothing) -> pure True
-          (_,_) -> do
-            -- Only read the current block time if there are temporal preconditions
-            now <- DateTime . posixMicroSecsToDatetime <$> currBlockTimestamp NoLoc
-            let isAfter = maybe True (\dt -> now >= dt) afterV
-                isBefore = maybe True (\dt -> now < dt) beforeV
-            pure (isAfter && isBefore)
-      if not withinTime
-        then pure $ Contract.CallableMethods cms -- don't add to callable methods since not callable at this time
-        else do
-          let group = case roleV of
-                Nothing -> Contract.Anyone
-                Just accounts -> Contract.Restricted accounts
-          pure . Contract.CallableMethods $ Map.insert (locVal $ methodName method) (group, argtys method) cms
+    checkPreconditions' m = checkPreconditions m >>= \case
+      []     -> pure . Right . methodName $ m
+      (e:es) -> pure . Left $ (methodName m, (e:|es))
+
 
 -------------------------------------------------------------------------------
 -- Value Hashing
 -------------------------------------------------------------------------------
 
 {-# INLINE hashValue #-}
-hashValue :: Value -> (EvalM world) ByteString
+hashValue :: Value -> EvalM world ByteString
 hashValue = \case
   VText msg      -> pure (toS msg)
   VNum n         -> pure (show n)
@@ -1290,7 +1286,7 @@ initStorage evalCtx world s@(Script _ defns _ _ _)
     Left err -> die $ show err
     Right state -> pure . GlobalStorage . globalStorage $ state
   where
-    assignGlobal :: Def -> (EvalM world) ()
+    assignGlobal :: Def -> EvalM world ()
     assignGlobal = \case
       GlobalDef type_ _ nm expr -> do
         val <- evalLExpr expr
