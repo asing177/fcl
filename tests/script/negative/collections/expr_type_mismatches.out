@@ -2,10 +2,9 @@ Type error at Line 1, Column 48:
    Expected: 'text' inferred from literal '"bar"' on Line 1, Column 48
    But got:  'num' inferred from use of binary operator '/' on Line 1, Column 36
 
-Error at Line 2, Column 23:
-   Invalid definition for bar:
-      Expected type: set<int>
-      But inferred type: set<account> for expression '{3.14,(99 - 99),sender()}'
+Type error at Line 2, Column 23:
+   Expected: 'set<int>' inferred by top level definition for variable 'bar' on Line 2, Column 23
+   But got:  'set<account>' inferred from a set expression on Line 2, Column 23
 
 Type error at Line 2, Column 24:
    Expected: 'account' inferred from the return type of the function 'sender' on Line 2, Column 24
