@@ -77,7 +77,6 @@ data Sig = Sig
 data TypeErrInfo
   = UnboundVariable Name                -- ^ Unbound variables
   | Shadow Name TMeta TypeInfo          -- ^ Shadowing variables/methods/helpers
-  | InvalidDefinition Name Expr Type Type -- ^ Invalid definition
   | InvalidUnOp UnOp Type               -- ^ Invalid unary op
   | InvalidBinOp BinOp Type Type        -- ^ Invalid binary op
   | UndefinedFunction Name              -- ^ Invocation of non-existent non-primop function
@@ -503,21 +502,13 @@ tcDefn def = extendContextInferM Global =<< case def of
       Nothing -> do
         let typeInfo = TypeInfo typ (VariableDefn nm) loc
         case unifyDef nm lexpr typeInfo exprTypeInfo of
-          Left terr -> void $ throwErrInferM terr loc
+          Left errs -> mapM_ throwTypeErrInferM errs
           Right _   -> pure ()
         pure (nm, typeInfo)
   where
     -- Check if the stated definition type and the rhs expr type match
-    unifyDef :: Name -> LExpr -> TypeInfo -> TypeInfo -> Either TypeErrInfo ()
-    unifyDef nm le t1 t2 = do
-      case runSolverM emptyInferState{ constraints = [Constraint (Just le) t1 t2] } of
-        Right _ -> pure ()
-        Left (terr :| _) ->
-          case errInfo terr of
-            UnificationFail ti1 ti2
-              -> Left $ InvalidDefinition nm (locVal le) (ttype ti1) (ttype ti2)
-            otherwise
-              -> panic $ "Expecting UnificationFail, but got\n" <> prettyPrint (errInfo terr)
+    unifyDef nm le t1 t2
+      = runSolverM emptyInferState{ constraints = [Constraint (Just le) t1 t2] }
 
 
 tcDefns :: [Def] -> InferM ()
@@ -1812,10 +1803,6 @@ instance Pretty TypeErrInfo where
       -> "The binding" <+> sqppr id <+> "shadows the" <+> ppr meta
       <$$+> "of the same name, of type" <+> sqppr t <> ","
       <$$+> "bound at" <+> ppr loc <> "."
-    InvalidDefinition nm e lhsTyp rhsTyp
-                                  -> "Invalid definition for" <+> ppr nm <> ":"
-                                  <$$+> "Expected type:" <+> ppr lhsTyp
-                                  <$$+> "But inferred type:" <+> ppr rhsTyp <+> "for expression" <+> sqppr e
     UndefinedFunction nm          -> "Invalid function name: " <+> ppr nm
     InvalidBinOp op t1 t2         -> "Invalid binary operation: "
                                   <$$+> sqppr op <+> "does not accept types" <+> ppr t1 <+> "and" <+> ppr t2
