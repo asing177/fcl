@@ -40,10 +40,10 @@
         },
         "b": {
             "VNum": {
-                "NumRational": {
-                    "denominator": 7,
-                    "numerator": 22
-                }
+                "NumRational": [
+                    22,
+                    7
+                ]
             }
         },
         "e": {
