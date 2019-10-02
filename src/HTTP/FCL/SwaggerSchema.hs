@@ -361,10 +361,6 @@ instance ToSchema Balance where
 
 instance ToSchema Number
 instance ToSchema Fraction
-instance ToSchema (Ratio Integer) where
-  declareNamedSchema _ = do
-    i <- declareSchemaRef @Integer Proxy
-    pure $ objectNamedSchema "Ratio Integer" [("numerator", i), ("denominator", i)] True
 
 instance ToSchema (Hash Encoding.Base16ByteString) where
   declareNamedSchema _ = pure $ stringNamedSchema "Hash Base16ByteString"
