@@ -1,0 +1,7 @@
+Error at Line 6, Column 8:
+   Implicit loss of numeric precision
+      'decimal<3>' inferred from the assignment to variable 'x' on Line 6, Column 8
+      'num' inferred from use of binary operator '^' on Line 6, Column 7
+   Possible fixes:
+      • round the higher precision expression to match the lower precision
+      • use types with more (e.g. arbitrary) precision
