@@ -15,6 +15,7 @@ import Protolude hiding (get, from, Type)
 import Data.Swagger
 import Datetime.Types
 import Data.HashMap.Strict.InsOrd
+import Fraction
 
 import Language.FCL.AST as AST hiding (at)
 import Language.FCL.Prim
@@ -359,6 +360,7 @@ instance ToSchema Balance where
     pure $ NamedSchema (Just "Balance") (toSchema (Proxy :: Proxy Decimal))
 
 instance ToSchema Number
+instance ToSchema Fraction
 instance ToSchema (Ratio Integer) where
   declareNamedSchema _ = do
     i <- declareSchemaRef @Integer Proxy

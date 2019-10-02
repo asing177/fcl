@@ -604,15 +604,15 @@ evalPrim loc ex args = case ex of
 
   RoundRem -> do
     [VNum (NumDecimal (Decimal 0 p)), VNum n] <- mapM evalLExpr args
-    pure . VNum . NumRational . roundAwayFrom0Rem p . toRational $ n
+    pure . VNum . NumRational . realToFrac . roundAwayFrom0Rem p . toRational $ n
 
   RoundDownRem -> do
     [VNum (NumDecimal (Decimal 0 p)), VNum n] <- mapM evalLExpr args
-    pure . VNum . NumRational . roundDownRem p . toRational $ n
+    pure . VNum . NumRational . realToFrac . roundDownRem p . toRational $ n
 
   RoundUpRem -> do
     [VNum (NumDecimal (Decimal 0 p)), VNum n] <- mapM evalLExpr args
-    pure . VNum . NumRational . roundUpRem p . toRational $ n
+    pure . VNum . NumRational . realToFrac . roundUpRem p . toRational $ n
 
   Terminate -> do
     let [Located l (LText msg)] = argLits (fmap unLoc args)
