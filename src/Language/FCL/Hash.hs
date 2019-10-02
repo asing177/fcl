@@ -61,6 +61,7 @@ import qualified Data.Binary as B
 import qualified Data.Serialize as S
 import qualified Data.ByteString as BS
 import qualified Data.ByteArray.Encoding as B
+import Data.Number.CReal (CReal)
 
 import Language.FCL.Encoding as Encoding
 
@@ -188,6 +189,9 @@ instance Hashable Text where
 
 instance Hashable () where
   toHash () = emptyHash
+
+instance Hashable CReal where
+  toHash = Hash . hash . showHash
 
 instance Hashable a => Hashable (Maybe a) where
   toHash (Just x) = toHash x

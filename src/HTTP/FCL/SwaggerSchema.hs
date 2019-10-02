@@ -15,7 +15,7 @@ import Protolude hiding (get, from, Type)
 import Data.Swagger
 import Datetime.Types
 import Data.HashMap.Strict.InsOrd
-import Fraction
+import Data.Number.CReal (CReal)
 
 import Language.FCL.AST as AST hiding (at)
 import Language.FCL.Prim
@@ -360,7 +360,8 @@ instance ToSchema Balance where
     pure $ NamedSchema (Just "Balance") (toSchema (Proxy :: Proxy Decimal))
 
 instance ToSchema Number
-instance ToSchema Fraction
+instance ToSchema CReal where
+  declareNamedSchema _ = pure $ stringNamedSchema "Number"
 
 instance ToSchema (Hash Encoding.Base16ByteString) where
   declareNamedSchema _ = pure $ stringNamedSchema "Hash Base16ByteString"

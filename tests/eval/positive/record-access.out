@@ -4,7 +4,7 @@
     VConstr
       { vConstrName = MkNameUpper "P"
       , vConstrParams =
-          [ VNum (NumRational (15 / 2)) , VNum (NumRational 25) ]
+          [ VNum (NumRational 7.5) , VNum (NumRational 25.0) ]
       }
 , ModifyState WorkflowState { places = fromList [ PlaceEnd ] }
 , Terminate
@@ -16,7 +16,7 @@ fromList
     , VConstr
         { vConstrName = MkNameUpper "P"
         , vConstrParams =
-            [ VNum (NumRational (15 / 2)) , VNum (NumRational 25) ]
+            [ VNum (NumRational 7.5) , VNum (NumRational 25.0) ]
         }
     )
   , ( Key { unKey = "testAddr" }

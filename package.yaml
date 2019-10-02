@@ -104,6 +104,7 @@ library:
 
   # Numeric
   - numeric-quest
+  - numbers
 
   ghc-options:
     -Werror

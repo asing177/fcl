@@ -22,7 +22,7 @@ module Numeric.Lossless.Number
 
 import Data.Aeson as A
 import Data.Serialize (Serialize(..))
-import Fraction (Fraction(..))
+import Data.Number.CReal (CReal)
 import Protolude hiding (Hashable, option, show, lift)
 import Test.QuickCheck
 
@@ -31,7 +31,7 @@ import Language.FCL.Pretty (Pretty(..))
 import Language.FCL.Hash (Hashable(..))
 import Language.FCL.Orphans ()
 
-data Number = NumDecimal Decimal | NumRational Fraction
+data Number = NumDecimal Decimal | NumRational CReal
   deriving (Show, Generic, Hashable, Serialize)
 
 instance ToJSON Number where

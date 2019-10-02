@@ -7,24 +7,25 @@
 
 module Language.FCL.Orphans () where
 
-import Protolude hiding (Hashable)
+import Protolude hiding (Hashable, put, get)
+import Prelude (read)
 
 import Control.Monad.Fail (MonadFail(..))
 import Crypto.Random (SystemDRG)
 import Crypto.Random.Types (MonadPseudoRandom)
 import Data.Aeson (ToJSON(..), FromJSON(..))
-import qualified Data.Hourglass as DH
 import Data.List.NonEmpty (NonEmpty)
-import qualified Data.List.NonEmpty as NonEmpty
+import Data.Number.CReal (CReal)
 import Data.Serialize (Serialize(..))
+import qualified Data.Hourglass as DH
+import qualified Data.List.NonEmpty as NonEmpty
 import qualified Data.Serialize as Serialize
 import qualified Data.Time.Calendar as DC
 import qualified Datetime.Types as DT
-import Fraction (Fraction(..))
-import Test.QuickCheck (Arbitrary(..))
 import qualified Test.QuickCheck as QC
+import Test.QuickCheck (Arbitrary(..))
 
-import Language.FCL.Hash (Hashable(..))
+-- import Language.FCL.Hash (Hashable(..))
 import Language.FCL.Pretty (Pretty(..), text)
 
 --------------------------------------------------------------------------------
@@ -91,21 +92,21 @@ instance Arbitrary DT.Delta where
 --------------------------------------------------------------------------------
 
 --------------------------------------------------------------------------------
--- Fraction
+-- CReal
 --------------------------------------------------------------------------------
 
-deriving instance Generic Fraction
+instance Serialize CReal where
+  put = undefined
+  get = undefined
 
-deriving instance Serialize Fraction
+instance ToJSON CReal where
+  toJSON r = toJSON @Text $ show r
 
-deriving instance Hashable Fraction
+instance FromJSON CReal where
+  parseJSON v = read . toS <$> parseJSON @Text v
 
-deriving instance ToJSON Fraction
-
-deriving instance FromJSON Fraction
-
-instance Pretty Fraction where
+instance Pretty CReal where
   ppr = text . show
 
-instance Arbitrary Fraction where
+instance Arbitrary CReal where
   arbitrary = realToFrac <$> arbitrary @Rational

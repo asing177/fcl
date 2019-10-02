@@ -46,6 +46,7 @@ extra-deps:
 - monad-gen-0.3.0.1@sha256:a2569465cfbd468d3350ef25de56b3362580e77537224313aab1210f40804a3b
 - search-algorithms-0.3.1@sha256:83d487688e79f7d354a638d893364cd34cb01352cac9281734c27ee640e31925,1825
 - numeric-quest-0.2.0.2@sha256:07a766138ca21232690d27c3d3860ff51fc1ad8418ae824518d603a7f807a2a0,1428
+- ../../../github/numbers
 
 # Override default flag values for local packages and extra-deps
 # flags: {}

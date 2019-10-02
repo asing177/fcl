@@ -51,7 +51,7 @@
 , ModifyGlobal Name { unName = "z" } (VNum (NumDecimal 4))
 , ModifyGlobal Name { unName = "y" } (VNum (NumDecimal (-2)))
 , ModifyGlobal Name { unName = "y" } (VNum (NumDecimal (-3)))
-, ModifyGlobal Name { unName = "w" } (VNum (NumRational 3))
+, ModifyGlobal Name { unName = "w" } (VNum (NumRational 3.0))
 , ModifyGlobal Name { unName = "m" } (VNum (NumDecimal (-4.0)))
 , ModifyGlobal
     Name { unName = "n" } (VNum (NumDecimal (-45.00000)))
@@ -185,7 +185,7 @@ fromList
   , ( Key { unKey = "testAddr3" }
     , VAccount (Address "4Stv5gWGt78D3p919HFcKEschSmyGKGrAX2G35xJgdhw")
     )
-  , ( Key { unKey = "w" } , VNum (NumRational 3) )
+  , ( Key { unKey = "w" } , VNum (NumRational 3.0) )
   , ( Key { unKey = "x" } , VNum (NumDecimal 18) )
   , ( Key { unKey = "y" } , VNum (NumDecimal (-2)) )
   , ( Key { unKey = "z" } , VNum (NumDecimal 4) )
