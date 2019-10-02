@@ -20,16 +20,18 @@ module Numeric.Lossless.Number
   )
   where
 
-import Protolude hiding (Hashable, option, show, lift)
-import Test.QuickCheck
 import Data.Aeson as A
 import Data.Serialize (Serialize(..))
+import Fraction (Fraction(..))
+import Protolude hiding (Hashable, option, show, lift)
+import Test.QuickCheck
 
 import Numeric.Lossless.Decimal
 import Language.FCL.Pretty (Pretty(..))
 import Language.FCL.Hash (Hashable(..))
+import Language.FCL.Orphans ()
 
-data Number = NumDecimal Decimal | NumRational Rational
+data Number = NumDecimal Decimal | NumRational Fraction
   deriving (Show, Generic, Hashable, Serialize)
 
 instance ToJSON Number where
@@ -40,18 +42,18 @@ instance FromJSON Number where
 
 instance Num Number where
   NumDecimal  f1 + NumDecimal  f2 = NumDecimal  (f1           + f2)
-  NumDecimal  d  + NumRational r  = NumRational (toRational d + r)
-  NumRational r  + NumDecimal  d  = NumRational (r            + toRational d)
+  NumDecimal  d  + NumRational r  = NumRational (realToFrac d + r)
+  NumRational r  + NumDecimal  d  = NumRational (r            + realToFrac d)
   NumRational r1 + NumRational r2 = NumRational (r1           + r2)
 
   NumDecimal  f1 - NumDecimal  f2 = NumDecimal  (f1           - f2)
-  NumDecimal  d  - NumRational r  = NumRational (toRational d - r)
-  NumRational r  - NumDecimal  d  = NumRational (r            - toRational d)
+  NumDecimal  d  - NumRational r  = NumRational (realToFrac d - r)
+  NumRational r  - NumDecimal  d  = NumRational (r            - realToFrac d)
   NumRational r1 - NumRational r2 = NumRational (r1           - r2)
 
   NumDecimal  f1 * NumDecimal  f2 = NumDecimal  (f1           * f2)
-  NumDecimal  d  * NumRational r  = NumRational (toRational d * r)
-  NumRational r  * NumDecimal  d  = NumRational (r            * toRational d)
+  NumDecimal  d  * NumRational r  = NumRational (realToFrac d * r)
+  NumRational r  * NumDecimal  d  = NumRational (r            * realToFrac d)
   NumRational r1 * NumRational r2 = NumRational (r1           * r2)
 
   abs (NumDecimal d)  = NumDecimal (abs d)
@@ -70,12 +72,15 @@ instance Ord Number where
 
 instance Real Number where
   toRational (NumDecimal d)  = toRational d
-  toRational (NumRational r) = r
+  toRational (NumRational r) = toRational r
 
 instance Fractional Number where
-  fromRational = NumRational
+  fromRational = realToFrac
 
-  n1 / n2 = NumRational (toRational n1 / toRational n2)
+  NumRational n1 / NumRational n2 = NumRational (n1 / n2)
+  NumDecimal  n1 / NumDecimal  n2 = NumRational (realToFrac n1 / realToFrac n2)
+  NumRational n1 / NumDecimal  n2 = NumRational (n1 / realToFrac n2)
+  NumDecimal  n1 / NumRational n2 = NumRational (realToFrac n1 / n2)
 
 instance Pretty Number where
   ppr (NumDecimal n)  = ppr n

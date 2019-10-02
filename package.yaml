@@ -83,7 +83,7 @@ library:
   # Exceptions
   - exceptions
 
-    # Control Structures
+  # Control Structures
   - mtl
   - transformers
   - monad-gen
@@ -101,6 +101,9 @@ library:
   - x509
   - asn1-types
   - asn1-encoding
+
+  # Numeric
+  - numeric-quest
 
   ghc-options:
     -Werror

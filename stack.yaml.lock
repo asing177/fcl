@@ -39,6 +39,13 @@ packages:
       sha256: 1e007eb17329ea5b2bf9efc801fc8d2daa97040d19db4b8274b4743ee145df8b
   original:
     hackage: search-algorithms-0.3.1@sha256:83d487688e79f7d354a638d893364cd34cb01352cac9281734c27ee640e31925,1825
+- completed:
+    hackage: numeric-quest-0.2.0.2@sha256:07a766138ca21232690d27c3d3860ff51fc1ad8418ae824518d603a7f807a2a0,1428
+    pantry-tree:
+      size: 693
+      sha256: b5a48b40421983ca109d3dc1e4863cf022991d9be7f78378dcc85b8c0b504bc6
+  original:
+    hackage: numeric-quest-0.2.0.2@sha256:07a766138ca21232690d27c3d3860ff51fc1ad8418ae824518d603a7f807a2a0,1428
 snapshots:
 - completed:
     size: 495801

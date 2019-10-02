@@ -1,9 +1,13 @@
 {-# options_ghc -fno-warn-orphans #-}
 {-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE StandaloneDeriving #-}
+{-# LANGUAGE DeriveAnyClass #-}
+
 
 module Language.FCL.Orphans () where
 
-import Protolude
+import Protolude hiding (Hashable)
 
 import Control.Monad.Fail (MonadFail(..))
 import Crypto.Random (SystemDRG)
@@ -16,9 +20,12 @@ import Data.Serialize (Serialize(..))
 import qualified Data.Serialize as Serialize
 import qualified Data.Time.Calendar as DC
 import qualified Datetime.Types as DT
+import Fraction (Fraction(..))
 import Test.QuickCheck (Arbitrary(..))
 import qualified Test.QuickCheck as QC
 
+import Language.FCL.Hash (Hashable(..))
+import Language.FCL.Pretty (Pretty(..), text)
 
 --------------------------------------------------------------------------------
 -- JSON
@@ -78,3 +85,27 @@ instance Arbitrary DT.Duration where
 
 instance Arbitrary DT.Delta where
   arbitrary = DT.Delta <$> arbitrary <*> arbitrary
+
+--------------------------------------------------------------------------------
+-- Instances by data type
+--------------------------------------------------------------------------------
+
+--------------------------------------------------------------------------------
+-- Fraction
+--------------------------------------------------------------------------------
+
+deriving instance Generic Fraction
+
+deriving instance Serialize Fraction
+
+deriving instance Hashable Fraction
+
+deriving instance ToJSON Fraction
+
+deriving instance FromJSON Fraction
+
+instance Pretty Fraction where
+  ppr = text . show
+
+instance Arbitrary Fraction where
+  arbitrary = realToFrac <$> arbitrary @Rational
