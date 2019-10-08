@@ -15,14 +15,14 @@ module Numeric.Lossy.Taylor
 import Protolude
 
 -- | Taylor series for the exponential function e^x at a = 0 is \(\sum_{n=0}^{\infty}x^n/n!\)
-expon :: Fractional a => Int -> a -> a
+expon :: Real b => Fractional a => b -> a -> a
 expon bound x = sum $ take k [x^n / fromIntegral (product [1..n]) | n <- [0..]]
   where
     k = calculateTermsExp bound x
 
 ln :: Real b => Ord a => Fractional a => b -> a -> Maybe a
 ln bound x
-  | x > 0 = Just $ 2 * (sum $ take p $ [recip (fromIntegral n) * ((x-1)/(x+1))^n | n <- [1,3..]])
+  | x > 0 = Just $ 2 * (sum $ take k $ [recip (fromIntegral n) * ((x-1)/(x+1))^n | n <- [1,3..]])
   | otherwise = Nothing
   where
     k = calculateTermsLog bound x
