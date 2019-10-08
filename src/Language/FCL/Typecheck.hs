@@ -591,11 +591,7 @@ tcLExpr le@(Located loc expr) = case expr of
 
       -- can only assign to mutable variable, so need to check this here
       Just (meta, varTypeInfo) -> if meta == Global || meta == Temp || meta == HelperArg
-        then do
-          tvar <- freshTVar
-          let retTypeInfo = TypeInfo tvar (InferredFromAssignment nms) (located e)
-          addConstraint e varTypeInfo retTypeInfo
-          addConstraint e retTypeInfo eTypeInfo
+        then addConstraint e varTypeInfo eTypeInfo
         else void $ throwErrInferM (Shadow nm meta varTypeInfo) loc
 
     return $ TypeInfo TVoid Assignment (located e)
