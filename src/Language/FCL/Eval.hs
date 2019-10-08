@@ -44,6 +44,7 @@ module Language.FCL.Eval (
 import Protolude hiding (DivideByZero, Overflow, Underflow, StateT, execStateT, runStateT, modify, get, gets)
 
 import Numeric.Lossless.Number
+import Numeric.Lossy.Taylor (pow)
 import Language.FCL.AST
 import Language.FCL.Time (Timestamp, posixMicroSecsToDatetime)
 import Language.FCL.Storage
@@ -373,6 +374,7 @@ evalLExpr (Located loc e) = case e of
           Div
             | b' == 0    -> throwError DivideByZero
             | otherwise  -> pure $ VNum (a' / b')
+          Pow     -> maybe (throwError LogOfNegative) (pure . VNum) (pow 42 a' b')
           Equal   -> pure $ VBool $ a' == b'
           NEqual  -> pure $ VBool $ a' /= b'
           LEqual  -> pure $ VBool $ a' <= b'

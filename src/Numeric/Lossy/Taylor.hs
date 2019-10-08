@@ -2,7 +2,7 @@
 module: Numeric.Lossless.Taylor
 description: Real functions approximated by Taylor series.
 -}
-module Numeric.Lossless.Taylor (expon, ln, pow) where
+module Numeric.Lossy.Taylor (expon, ln, pow) where
 
 import Protolude
 
