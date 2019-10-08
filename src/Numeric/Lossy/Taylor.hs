@@ -32,7 +32,6 @@ conv = realToFrac
 -- | Lagrange formula for the particular case of b^x = e^{x \log b} at a = 0
 -- R_n(x) = \dfrac{f^{(n+1)}(c)}{(n+1)!} (x-a)^{n+1}
 -- As f=e^{x \log b} then f^{(n+1)}(x) = \log^n b e^{x \log b}
--- These formulas should be valid latex. Check them on https://arachnoid.com/latex/
 lagrangeFormula :: (Real a) => a -> a -> a -> Int -> Double
 lagrangeFormula (conv -> b) (conv -> x) (conv -> c) n = (log b)^n * exp (c * (log b)) * (x ^ (n + 1)) / fromIntegral (product [1..(n+1)])
 

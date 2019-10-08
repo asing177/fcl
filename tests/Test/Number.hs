@@ -12,9 +12,10 @@ import Test.QuickCheck
 import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.QuickCheck
 
-import Numeric.Lossless.Number
 import Language.FCL.Parser (parseDecimal)
 import Language.FCL.Pretty (prettyPrint)
+import Numeric.Lossless.Number
+import Numeric.Lossy.Taylor as Taylor
 
 -- Type aliases to allow running the tests on other types, e.g. Double
 type DecimalT = Decimal
@@ -82,4 +83,19 @@ numberTests = testGroup "Arithmetic properties"
   , testProperty "Roundtrip parsing and pretty-printing" $
       \(d :: Decimal) ->
         parseDecimal (prettyPrint d) == Right d
+  , testProperty "Calculate number of terms needed is correct" $
+      \(x :: Number) (y :: Number) (decPlaces :: Int) -> x > 0 && y > 0 && decPlaces > 1 ==>
+        let bound = 1 / (10 ^ fromIntegral decPlaces)
+        -- let x = 1.234
+        --     y = 7.65
+        --    bound = 1/100000
+        in case Taylor.pow (calculateTerms bound x y) x y of
+             Just r -> traceShow ( "decimal places: ", decPlaces
+                                 , "bound: ", realToFrac bound
+                                 , "terms: ", (calculateTerms bound x y)
+                                 , "real value: ", realToFrac x ** realToFrac y
+                                 , "aprox. value: ", realToFrac r
+                                 , "difference: ", abs (realToFrac x ** realToFrac y - realToFrac r)
+                                 ) abs (realToFrac x ** realToFrac y - realToFrac r) <= realToFrac bound
+             Nothing -> panic "Taylor.pow fails"
   ]
