@@ -36,6 +36,7 @@ data EvalFail
   | Overflow                            -- ^ Overflow
   | Underflow                           -- ^ Underflow
   | DivideByZero                        -- ^ Division by zero
+  | LogOfNegative                       -- ^ Logarithm of a negative
   | StatePreconditionError WorkflowState WorkflowState -- ^ Invalid workflow state entry
   | Impossible Text                     -- ^ Internal error
   | NoSuchPrimOp Name                   -- ^ Prim op name lookup fail
@@ -67,6 +68,7 @@ instance Pretty EvalFail where
     Overflow                           -> "Overflow"
     Underflow                          -> "Underflow"
     DivideByZero                       -> "DivideByZero"
+    LogOfNegative                      -> "Logarithm of a negative number"
     StatePreconditionError w1 w2       -> "Workflow state precondition error:"
                                           <$$+> "Required state is" <+> ppr w1
                                             <+> ", but actual is" <+> ppr w2

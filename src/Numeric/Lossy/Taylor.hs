@@ -4,7 +4,7 @@ description: Real functions approximated by Taylor series.
 -}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE ViewPatterns #-}
-module Numeric.Lossless.Taylor
+module Numeric.Lossy.Taylor
   ( expon
   , ln
   , pow
@@ -37,7 +37,7 @@ lagrangeFormula :: (Real a) => a -> a -> a -> Int -> Double
 lagrangeFormula (conv -> b) (conv -> x) (conv -> c) n = (log b)^n * exp (c * (log b)) * (x ^ (n + 1)) / fromIntegral (product [1..(n+1)])
 
 -- | Given an error bound, calculate number of terms
-calculateTerms :: (Show a, Real a, Ord a) => a -> a -> a -> Int
+calculateTerms :: (Real a) => a -> a -> a -> Int
 calculateTerms bound b x = go 0
   where
     go n = if lagrangeFormula b x c n <= conv bound then n else go (n+1)
