@@ -14,7 +14,7 @@ module Numeric.Lossy.Taylor
 
 import Protolude
 
--- | Taylor series for the exponential function e^x at a = 0 is \sum_{n=0}^{\infty}x^n/n!
+-- | Taylor series for the exponential function e^x at a = 0 is \(\sum_{n=0}^{\infty}x^n/n!\)
 expon :: Fractional a => Int -> a -> a
 expon bound x = sum $ take k [x^n / fromIntegral (product [1..n]) | n <- [0..]]
   where
@@ -41,8 +41,8 @@ lagrangeFormula (realToFrac -> b) (realToFrac -> x) (realToFrac -> c) n
   = (log b)^n * exp (c * (log b)) * (x ^ (n + 1)) / fromIntegral (product [1..(n+1)])
 
 -- | Given an error bound, calculate number of terms
-calculateTermsExp :: (Real a) => a -> a -> a -> Int
-calculateTermsExp bound b x = go 0
+calculateTerms :: (Real a) => a -> a -> a -> Int
+calculateTerms bound b x = go 0
   where
     go n = if lagrangeFormula b x c n <= realToFrac bound then n else go (n+1)
     c = if b < 0
@@ -52,6 +52,9 @@ calculateTermsExp bound b x = go 0
              then if x < a then x else a
              else if x < a then a else x
     a = 0 -- a=0 in our implementation of Taylor series
+
+calculateTermsExp :: (Real a) => a -> a -> Int
+calculateTermsExp = undefined
 
 calculateTermsLog :: (Real a) => a -> a -> Int
 calculateTermsLog = undefined
