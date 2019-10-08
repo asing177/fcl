@@ -15,20 +15,20 @@ module Numeric.Lossy.Taylor
 import Protolude
 
 -- | Taylor series for the exponential function e^x at a = 0 is \(\sum_{n=0}^{\infty}x^n/n!\)
-expon :: Real b => Fractional a => b -> a -> a
+expon :: (Fractional a, Real a) => a -> a -> a
 expon bound x = sum $ take k [x^n / fromIntegral (product [1..n]) | n <- [0..]]
   where
     k = calculateTermsExp bound x
 
-ln :: Real b => Ord a => Fractional a => b -> a -> Maybe a
+ln :: (Fractional a, Real a) => a -> a -> Maybe a
 ln bound x
   | x > 0 = Just $ 2 * (sum $ take k $ [recip (fromIntegral n) * ((x-1)/(x+1))^n | n <- [1,3..]])
   | otherwise = Nothing
   where
     k = calculateTermsLog bound x
 
-pow :: (Real b, Fractional a, Ord a) => b -> a -> a -> Maybe a
-pow bound b x = expon bound <$> (liftA2 (*) (ln bound b) (Just x))
+pow :: (Fractional a, Real a) => a -> a -> a -> Maybe a
+pow bound b x = expon bound <$> liftA2 (*) (ln bound b) (Just x)
 
 -- | Lagrange formula for the particular case of \(b^x = e^{x \log b} at a = 0\).
 -- \[
