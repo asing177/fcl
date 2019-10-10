@@ -43,44 +43,39 @@ module Language.FCL.Eval (
 
 import Protolude hiding (DivideByZero, Overflow, Underflow, StateT, execStateT, runStateT, modify, get, gets)
 
-import Numeric.Lossless.Number
-import Numeric.Lossy.Taylor (pow)
-import Language.FCL.AST
-import Language.FCL.Time (Timestamp, posixMicroSecsToDatetime)
-import Language.FCL.Storage
-import Language.FCL.Error as Error
-import Language.FCL.Prim (PrimOp(..))
-import Language.FCL.Address as Addr
-import Language.FCL.Reachability.Utils (applyTransition)
-import Language.FCL.Utils (panicImpossible)
-import Language.FCL.Asset as Asset
-import qualified Language.FCL.Delta as Delta
-import qualified Language.FCL.Contract as Contract
-import qualified Language.FCL.Hash as Hash
-import qualified Language.FCL.Key as Key
-import Language.FCL.World as World
-import Language.FCL.Pretty as Pretty
-import qualified Language.FCL.Prim as Prim
-
-import Language.FCL.Utils (traverseWithKey')
-
-import qualified Datetime as DT
-import Datetime.Types (within, Interval(..), add, sub, subDeltas, scaleDelta)
-import qualified Datetime.Types as DT
-
-import qualified Data.List as List
-import Data.List.Index (modifyAt, setAt)
-import qualified Data.Map.Strict as Map
-import qualified Data.Set as Set
-import qualified Data.Serialize as S
-
 import qualified Control.Exception as E
 import qualified Control.Monad.Catch as Catch
 import Control.Monad.State.Strict
 import qualified Crypto.Random as Crypto (SystemDRG, getSystemDRG)
 import qualified Crypto.Random.Types as Crypto (MonadRandom(..), MonadPseudoRandom, withDRG)
+import qualified Data.List as List
+import Data.List.Index (modifyAt, setAt)
+import qualified Data.Map.Strict as Map
+import qualified Data.Set as Set
+import qualified Data.Serialize as S
+import qualified Datetime as DT
+import Datetime.Types (within, Interval(..), add, sub, subDeltas, scaleDelta)
+import qualified Datetime.Types as DT
 
+import Language.FCL.Address as Addr
+import Language.FCL.Asset as Asset
+import Language.FCL.AST
+import qualified Language.FCL.Contract as Contract
+import qualified Language.FCL.Delta as Delta
 import qualified Language.FCL.Encoding as Encoding
+import Language.FCL.Error as Error
+import qualified Language.FCL.Hash as Hash
+import qualified Language.FCL.Key as Key
+import Language.FCL.Pretty as Pretty
+import Language.FCL.Prim (PrimOp(..))
+import qualified Language.FCL.Prim as Prim
+import Language.FCL.Reachability.Utils (applyTransition)
+import Language.FCL.Storage
+import Language.FCL.Time (Timestamp, posixMicroSecsToDatetime)
+import Language.FCL.Utils (traverseWithKey', panicImpossible)
+import Language.FCL.World as World
+import Numeric.Lossless.Number
+import Numeric.Lossy.Taylor (pow)
 
 -------------------------------------------------------------------------------
 -- Evaluation Context / State
@@ -366,6 +361,9 @@ evalLExpr (Located loc e) = case e of
         | Pow <- op -> pure $ VNum (NumDecimal (Decimal 0 (a ^ b)))
       (VNum a, VNum (NumDecimal (Decimal 0 b)))
         | Pow <- op -> pure $ VNum (a ^^ b)
+      (VNum (NumRational a'), VNum (NumRational b'))
+        | Pow <- op -> pure . VNum $ NumRational $ pow 0.01 a' b'
+        -- TODO: Pass precision from type signature
       (VNum a', VNum b') ->
         case op of
           Add     -> pure $ VNum (a' + b')
@@ -374,7 +372,7 @@ evalLExpr (Located loc e) = case e of
           Div
             | b' == 0    -> throwError DivideByZero
             | otherwise  -> pure $ VNum (a' / b')
-          Pow     -> maybe (throwError LogOfNegative) (pure . VNum) (pow 42 a' b')
+          Pow     -> pure . VNum $ panic "TODO: Implement this pow" -- pow 0.01 a' b'
           Equal   -> pure $ VBool $ a' == b'
           NEqual  -> pure $ VBool $ a' /= b'
           LEqual  -> pure $ VBool $ a' <= b'

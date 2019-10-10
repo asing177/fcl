@@ -42,16 +42,7 @@ module Language.FCL.Typecheck (
 ) where
 
 import Protolude hiding (Type, TypeError, Constraint)
-import Unsafe (unsafeIndex)
-import Numeric.Lossless.Number
-import Language.FCL.AST
-import Language.FCL.Prim
-import Language.FCL.Pretty hiding ((<>))
-import qualified Language.FCL.Token as Token (case_)
-import Language.FCL.Utils ((?), zipWith3M_)
 
-import Test.QuickCheck
-import Generic.Random
 import Control.Monad.State.Strict (modify')
 import Data.Aeson as A hiding (Value)
 import qualified Data.List as List
@@ -60,6 +51,16 @@ import qualified Data.List.NonEmpty as NonEmpty
 import Data.Serialize (Serialize)
 import qualified Data.Set as Set
 import qualified Data.Map as Map
+import Generic.Random
+import Test.QuickCheck
+import Unsafe (unsafeIndex)
+
+import Language.FCL.AST
+import Language.FCL.Prim
+import Language.FCL.Pretty hiding ((<>))
+import qualified Language.FCL.Token as Token (case_)
+import Language.FCL.Utils ((?), zipWith3M_)
+import Numeric.Lossless.Number
 
 -------------------------------------------------------------------------------
 -- Types
@@ -1161,7 +1162,7 @@ tcUnOp (Located opLoc op) e = do
         Not -> tcNotOp
 
 tcBinOp :: LBinOp -> LExpr -> LExpr -> InferM TypeInfo
-tcBinOp (Located opLoc op) e1 e2 = do
+tcBinOp (Located opLoc op) e1 e2 =
     tcBinOp' opLoc (BinaryOperator op) e1 e2
   where
     tcBinOp' =

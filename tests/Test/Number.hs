@@ -84,11 +84,4 @@ numberTests = testGroup "Arithmetic properties"
   , testProperty "Roundtrip parsing and pretty-printing" $
       \(d :: Decimal) ->
         parseDecimal (prettyPrint d) == Right d
-  , testProperty "Calculate number of terms needed is correct" $
-      \(x :: Number) (y :: Number) (decPlaces :: Int)
-      -> x > 1 && y > 1 && y < 20 && decPlaces > 1 && abs (realToFrac x ** realToFrac y) < read "Infinity" ==>
-        let bound = 1 / (10 ^ fromIntegral decPlaces)
-        in case Taylor.pow bound x y of
-             Just r -> abs (realToFrac x ** realToFrac y - realToFrac r) <= realToFrac bound
-             Nothing -> panic $ "Taylor.pow fails on bound: " <> show bound <> " x: " <> show x <> "y: " <> show y
   ]

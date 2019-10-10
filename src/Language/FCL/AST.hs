@@ -9,7 +9,6 @@ Core AST for the FCL core language.
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE TypeFamilies #-}
 
@@ -107,36 +106,32 @@ module Language.FCL.AST (
 import Protolude hiding (put, get, (<>), show, Show, putByteString, Type)
 import Prelude (show, Show(..))
 
-import qualified GHC.Exts as GHC (IsList(..))
-
+import Control.Monad (fail)
 import Data.List (span, foldl1)
-
+import Data.Aeson as A hiding (Value)
+import qualified Data.Binary as B
+import Data.Char (isUpper)
+import qualified Data.Map as Map
+import Data.Serialize (Serialize(..), putInt8, getInt8)
+import Data.Serialize.Text()
+import qualified Data.Set as Set
+import Data.String (IsString(..))
+import qualified Data.Text as T
+import qualified Datetime.Types as DT
+import Generic.Random
+import qualified GHC.Exts as GHC (IsList(..))
 import Test.QuickCheck hiding (listOf)
 import qualified Test.QuickCheck as Q
 import Test.QuickCheck.Instances.Text ()
-import Generic.Random
-import Control.Monad (fail)
 
-import Numeric.Lossless.Number
 import Language.FCL.Pretty
 import Language.FCL.Prim (PrimOp)
 import qualified Language.FCL.Pretty as Pretty
 import qualified Language.FCL.Token as Token
 import qualified Language.FCL.Hash as Hash
-import qualified Data.Text as T
-import qualified Datetime.Types as DT
-
-import Data.Aeson as A hiding (Value)
-import qualified Data.Binary as B
-import Data.Char (isUpper)
-import qualified Data.Map as Map
-import qualified Data.Set as Set
-import Data.String (IsString(..))
-import Data.Serialize (Serialize(..), putInt8, getInt8)
-import Data.Serialize.Text()
-
 import Language.FCL.Address
 import Language.FCL.Orphans ()
+import Numeric.Lossless.Number
 
 -------------------------------------------------------------------------------
 -- Core Language
@@ -305,7 +300,7 @@ data BinOp
   | Sub     -- ^ Subtraction
   | Mul     -- ^ Multiplication
   | Div     -- ^ Division
-  | Pow     -- ^ Exponentiation
+  | Pow     -- ^ Exponentiation. Specify epsilon
   | And     -- ^ Logical conjunction
   | Or      -- ^ Logical disjunction
   | Equal   -- ^ Equality
