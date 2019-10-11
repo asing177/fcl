@@ -155,7 +155,11 @@ convDec :: (Fraction -> Fraction -> Fraction) -> Fraction -> Decimal -> Decimal
 convDec f eps (n@(Decimal p v)) = fracToDec (epsToPrec eps) (f eps (decToFrac n))
 
 epsToPrec :: Fraction -> Integer
-epsToPrec eps = decimalIntegerValue . fracToDec 0 $ recip eps
+epsToPrec eps = getPrec 0 $ recip eps
+  where
+    getPrec count v
+      = let v' = v / 10
+        in if v' < 1 then count else getPrec (count + 1) v'
 
 ---------------
 -- Arbitrary --

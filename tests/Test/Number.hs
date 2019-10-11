@@ -16,7 +16,6 @@ import Text.Read (read)
 import Language.FCL.Parser (parseDecimal)
 import Language.FCL.Pretty (prettyPrint)
 import Numeric.Lossless.Number
-import Numeric.Lossy.Taylor as Taylor
 
 -- Type aliases to allow running the tests on other types, e.g. Double
 type DecimalT = Decimal

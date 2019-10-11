@@ -1276,7 +1276,7 @@ tcPow opLoc torig e1 e2 = do
   case (ttype tinfo1, ttype tinfo2) of
     (TNum (NPDecimalPlaces 0), TNum (NPDecimalPlaces 0))
       -> pure $ TypeInfo (TNum (NPDecimalPlaces 0)) torig eLoc
-    (TNum _, TNum (NPDecimalPlaces 0))
+    (TNum _, TNum _)
       -> pure $ TypeInfo (TNum NPArbitrary) torig eLoc
     (TVar a, _)       -> addConstrAndRetInfo' tinfo1 (tinfo1, tinfo2)
     (_, TVar a)       -> addConstrAndRetInfo' tinfo1 (tinfo1, tinfo2)
