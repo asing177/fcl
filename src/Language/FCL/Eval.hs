@@ -361,9 +361,6 @@ evalLExpr (Located loc e) = case e of
         | Pow <- op -> pure $ VNum (NumDecimal (Decimal 0 (a ^ b)))
       (VNum a, VNum (NumDecimal (Decimal 0 b)))
         | Pow <- op -> pure $ VNum (a ^^ b)
-      (VNum (NumRational a'), VNum (NumRational b'))
-        | Pow <- op -> pure . VNum $ NumRational $ pow 0.01 a' b'
-        -- TODO: Pass precision from type signature
       (VNum a', VNum b') ->
         case op of
           Add     -> pure $ VNum (a' + b')
@@ -372,7 +369,8 @@ evalLExpr (Located loc e) = case e of
           Div
             | b' == 0    -> throwError DivideByZero
             | otherwise  -> pure $ VNum (a' / b')
-          Pow     -> pure . VNum $ panic "TODO: Implement this pow" -- pow 0.01 a' b'
+          Pow     -> pure . VNum $ pow defaultEps a' b'
+            -- TODO: Pass precision from type signature if possible
           Equal   -> pure $ VBool $ a' == b'
           NEqual  -> pure $ VBool $ a' /= b'
           LEqual  -> pure $ VBool $ a' <= b'
@@ -519,6 +517,8 @@ evalLExpr (Located loc e) = case e of
 
   EHole ->
     panicImpossible $ "Evaluating hole expression at " <> show loc
+  where
+    defaultEps = 1 / 10^9
 
 -- | Match a value to a pattern
 match :: Value -> Pattern -> Maybe [(Name, Value)]

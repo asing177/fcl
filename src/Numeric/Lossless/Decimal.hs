@@ -38,6 +38,8 @@ module Numeric.Lossless.Decimal (
   roundAwayFrom0,
   roundAwayFrom0Rem,
   rationalToDecimalAndRemainder,
+  fracToDec,
+  decToFrac
 ) where
 
 import Protolude hiding (Hashable, option, show, lift)
@@ -48,6 +50,7 @@ import Data.Binary (Binary(..))
 import Data.Char (isDigit)
 import Data.List (genericLength, genericReplicate, genericSplitAt)
 import Data.Serialize (Serialize(..))
+import Fraction (Fraction(..))
 import Text.ParserCombinators.ReadP
 import Text.Read
 import Text.Show
@@ -99,7 +102,6 @@ instance Real Decimal where
     | p < 0     = v * 10^(-p) % 1 -- (^) errors on negative exponent
     | otherwise = v % 10^p
 
-
 --------------------------------------------------------------------------------
 -- * 'Rational' to 'Decimal' conversions
 --------------------------------------------------------------------------------
@@ -113,6 +115,14 @@ rationalToDecimalAndRemainder p n = (Decimal p i, remainder)
     (i, remainder) -- case split because (^) errors on negative exponent
       | p < 0     = second (* 10^(-p)) (properFraction (n / 10^(-p)))
       | otherwise = second (/ 10^p)    (properFraction (10^p * n))
+
+-- | Convert Fraction to Decimal
+fracToDec :: Integer -> Fraction -> Decimal
+fracToDec p = fst . rationalToDecimalAndRemainder p . toRational
+
+-- | Convert Decimal to Fraction
+decToFrac :: Decimal -> Fraction
+decToFrac Decimal{..} = decimalIntegerValue :-: (10^decimalPlaces)
 
 roundDown :: Integer -> Rational -> Decimal
 roundDown i n = fst $ rationalToDecimalAndRemainder i n
