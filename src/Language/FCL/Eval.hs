@@ -56,6 +56,7 @@ import qualified Data.Serialize as S
 import qualified Datetime as DT
 import Datetime.Types (within, Interval(..), add, sub, subDeltas, scaleDelta)
 import qualified Datetime.Types as DT
+import Fraction (Transcendental(power'))
 
 import Language.FCL.Address as Addr
 import Language.FCL.Asset as Asset
@@ -75,7 +76,6 @@ import Language.FCL.Time (Timestamp, posixMicroSecsToDatetime)
 import Language.FCL.Utils (traverseWithKey', panicImpossible)
 import Language.FCL.World as World
 import Numeric.Lossless.Number
-import Numeric.Lossy.Taylor (pow)
 
 -------------------------------------------------------------------------------
 -- Evaluation Context / State
@@ -369,7 +369,7 @@ evalLExpr (Located loc e) = case e of
           Div
             | b' == 0    -> throwError DivideByZero
             | otherwise  -> pure $ VNum (a' / b')
-          Pow     -> pure . VNum $ pow defaultEps a' b'
+          Pow     -> pure . VNum $ power' defaultEps a' b'
             -- TODO: Pass precision from type signature if possible
           Equal   -> pure $ VBool $ a' == b'
           NEqual  -> pure $ VBool $ a' /= b'

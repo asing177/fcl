@@ -186,7 +186,6 @@ library:
 
     - Numeric.Lossless.Decimal
     - Numeric.Lossless.Number
-    - Numeric.Lossy.Taylor
 
     - HTTP.FCL.API
     - HTTP.FCL.SwaggerSchema
