@@ -16,8 +16,12 @@ synchronized business processes that scale across large vendor and consortium
 networks, enabling the next generation of international commerce.
 
 * [Adjoint Inc.](https://www.adjoint.io)
-* [FCL Documentation](https://www.adjoint.io/docs/workflows.html)
-* [Uplink Documentation](https://www.adjoint.io/docs/index.html)
+* [Workflow Engine](http://dev.adjoint.io/fcl_lang.html)
+* [Workflow Model](http://dev.adjoint.io/fcl.html)
+* [Uplink API](http://dev.adjoint.io/api.html)
+* [Uplink Usage](http://dev.adjoint.io/uplink_usage.html)
+* [Uplink Protocol](http://dev.adjoint.io/uplink_proto.html)
+* [Uplink Configuration](http://dev.adjoint.io/uplink_config.html)
 
 Quickstart
 ----------
@@ -27,17 +31,16 @@ To install FCL from source install the standard
 
 ```
 $ git clone git@github.com:adjoint-io/fcl.git
+$ cd fcl
 $ stack install
 ```
 
 Use the FCL executable to compile, format, lint, extract the graph of a script.
 
-```
+```bash
 $ fcl --help
-```
-
-```
-Usage: fcl (COMMAND | COMMAND | COMMAND | COMMAND | COMMAND)
+Usage: fcl (COMMAND | COMMAND | COMMAND | COMMAND | COMMAND | COMMAND | COMMAND
+           | COMMAND)
 
 Available options:
   -h,--help                Show this help text
@@ -48,6 +51,9 @@ Available commands:
   lint                     Lint a script.
   graph                    Extract graph from a script.
   transitions              Infer the transition declarations of a script.
+  reachability             Calculate the reachabality graph
+  undefinedness            Run the undefinedness analysis
+  fast-undefinedness       Run the fast undefinedness analysis
 ```
 
 ### Examples:
