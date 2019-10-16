@@ -176,7 +176,7 @@ instance ToSchema NotCallableMethod where
   declareNamedSchema _ = do
     t <- declareSchemaRef @Text Proxy
     typ <- declareSchemaRef @Type Proxy
-    reason <- declareSchemaRef @NotCallableReason Proxy
+    reason <- declareSchemaRef @[NotCallableReason] Proxy
     pure $ objectNamedSchema
       "NotCallableMethod"
       [ ("name", t)

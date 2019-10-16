@@ -109,7 +109,7 @@ data NotCallableReason
   | ErrPrecBefore -- ^ Method only callable before
     { expectedBefore :: DateTime, actualBefore :: DateTime }
   | ErrPrecCaller -- ^ Transaction issuer not authorised
-    { expectedCaller :: Set (Address AAccount), actualCaller :: Address AAccount }
+    { expectedCallers :: Set (Address AAccount), actualCaller :: Address AAccount }
   deriving (Eq, Show, Generic, Serialize)
 
 instance ToJSON NotCallableReason where
