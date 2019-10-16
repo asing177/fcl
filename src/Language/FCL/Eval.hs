@@ -1082,7 +1082,7 @@ getAsset assetExpr = do
 evalMethod :: (World world, Show (AccountError' world), Show (AssetError' world)) => Method -> [Value] -> EvalM world Value
 evalMethod meth@(Method _ _ nm argTyps body) args = do
     setCurrentMethod (Just meth)
-    mapM (throwError . NotCallable (locVal nm) argTyps) =<< checkPreconditions meth
+    mapM (throwError . NotCallable (locVal nm)) =<< checkPreconditions meth
     when (numArgs /= numArgsGiven)
          (throwError $ MethodArityError (locVal nm) numArgs numArgsGiven)
     forM_ (zip argNames args) . uncurry $ insertTempVar

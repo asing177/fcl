@@ -188,7 +188,11 @@ data CallableMethod = CallableMethod
   } deriving (Show, Generic)
 
 instance ToJSON CallableMethod where
-  toJSON = genericToJSON (defaultOptions { sumEncoding = ObjectWithSingleField })
+  toJSON (CallableMethod name args)
+    = A.object [ "name" .= name
+               , "args" .= ((\arg@(Arg t ln)
+                             -> A.object [ "name" .= locVal ln, "type" .= t]) <$> args)
+               ]
 
 instance Arbitrary CallableMethod where
   arbitrary = genericArbitraryU
@@ -200,7 +204,12 @@ data NotCallableMethod = NotCallableMethod
   } deriving (Show, Generic)
 
 instance ToJSON NotCallableMethod where
-  toJSON = genericToJSON (defaultOptions { sumEncoding = ObjectWithSingleField })
+  toJSON (NotCallableMethod name args reason)
+    = A.object [ "name" .= name
+               , "args" .= ((\arg@(Arg t ln)
+                             -> A.object [ "name" .= locVal ln, "type" .= t]) <$> args)
+               , "reason" .= reason
+               ]
 
 instance Arbitrary NotCallableMethod where
   arbitrary = genericArbitraryU

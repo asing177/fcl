@@ -157,8 +157,38 @@ instance ToSchema Metadata where
 
 
 instance ToSchema CallableMethods
-instance ToSchema CallableMethod
-instance ToSchema NotCallableMethod
+instance ToSchema CallableMethod where
+  declareNamedSchema _ = do
+    t <- declareSchemaRef @Text Proxy
+    typ <- declareSchemaRef @Type Proxy
+    pure $ objectNamedSchema
+      "CallableMethod"
+      [ ("name", t)
+      , ("args", Inline $ mempty
+          { _schemaParamSchema = mempty { _paramSchemaType = SwaggerArray }
+          , _schemaAllOf = Just [Inline $ objectSchema [("name", t), ("type", typ)] True]
+          }
+        )
+      ]
+      True
+
+instance ToSchema NotCallableMethod where
+  declareNamedSchema _ = do
+    t <- declareSchemaRef @Text Proxy
+    typ <- declareSchemaRef @Type Proxy
+    reason <- declareSchemaRef @NotCallableReason Proxy
+    pure $ objectNamedSchema
+      "NotCallableMethod"
+      [ ("name", t)
+      , ("args", Inline $ mempty
+          { _schemaParamSchema = mempty { _paramSchemaType = SwaggerArray }
+          , _schemaAllOf = Just [Inline $ objectSchema [("name", t), ("type", typ)] True]
+          }
+        )
+      , ("reason", reason)
+      ]
+      True
+
 instance ToSchema PermittedCallers where
   declareNamedSchema _ = do
     t <- declareSchemaRef @Text Proxy
