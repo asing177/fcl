@@ -44,7 +44,7 @@ data EvalFail
   | CallPrimOpFail Loc (Maybe Value) Text -- ^ Prim op call failed
   | NoTransactionContext Loc Text       -- ^ Asked for a bit of transaction context without a transaction context
   | PatternMatchFailure Value Loc       -- ^ No matching pattern
-  | NotCallable LName NotCallableReason
+  | NotCallable Name NotCallableReason
   deriving (Eq, Show, Generic, Serialize)
 
 instance Arbitrary EvalFail where
@@ -102,10 +102,14 @@ instance Pretty NotCallableReason where
 
 -- | Method Precondition errors, fields of the form  <expected> <actual>`.
 data NotCallableReason
-  = ErrWorkflowState WorkflowState WorkflowState
-  | ErrPrecAfter DateTime DateTime
-  | ErrPrecBefore DateTime DateTime
-  | ErrPrecCaller (Set (Address AAccount)) (Address AAccount)
+  = ErrWorkflowState -- ^ Workflow state precondition error
+    { expectedWS :: WorkflowState, actualWS :: WorkflowState }
+  | ErrPrecAfter -- ^ Method only callable after
+    { expectedAfter :: DateTime, actualAfter :: DateTime }
+  | ErrPrecBefore -- ^ Method only callable before
+    { expectedBefore :: DateTime, actualBefore :: DateTime }
+  | ErrPrecCaller -- ^ Transaction issuer not authorised
+    { expectedCaller :: Set (Address AAccount), actualCaller :: Address AAccount }
   deriving (Eq, Show, Generic, Serialize)
 
 instance ToJSON NotCallableReason where
