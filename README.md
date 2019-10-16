@@ -11,6 +11,20 @@ FCL is the Adjoint financial modeling language. Adjoint provides domain modeling
 tool for building safe, secure, and transparent workflows for financial products
 and digital process automation.
 
+FCL is designed around three core ideas:
+
+* Predictability
+* Analysability
+* Accuracy
+
+An FCL workflow is structured as a free-choice workflow net. Many interesting
+properties, such as deadlock-freedom, for these systems are decidable. This
+makes FCL workflows amenable to static analysis and easy to understand because
+they correspond closely to well-known concepts like flowcharts and business
+process model notation. Transitions in FCL can also be guarded by dynamic role
+and temporal preconditions to allow us to model-check the entire workflows
+lifecycle.
+
 Adjoint offers solutions to allow enterprises to build auditable and
 synchronized business processes that scale across large vendor and consortium
 networks, enabling the next generation of international commerce.
