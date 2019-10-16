@@ -1082,7 +1082,7 @@ getAsset assetExpr = do
 evalMethod :: (World world, Show (AccountError' world), Show (AssetError' world)) => Method -> [Value] -> EvalM world Value
 evalMethod meth@(Method _ _ nm argTyps body) args = do
     setCurrentMethod (Just meth)
-    mapM (throwError . NotCallable (locVal nm)) =<< checkPreconditions meth
+    mapM (throwError . NotCallable (locVal nm) argTyps) =<< checkPreconditions meth
     when (numArgs /= numArgsGiven)
          (throwError $ MethodArityError (locVal nm) numArgs numArgsGiven)
     forM_ (zip argNames args) . uncurry $ insertTempVar
@@ -1209,11 +1209,11 @@ evalCallableMethods contract = do
       . scriptMethods
       . Contract.script
       $ contract
-    pure Contract.MkCallableMethods{..}
+    pure Contract.CallableMethods{..}
   where
     checkPreconditions' m = checkPreconditions m >>= \case
-      []     -> pure . Right . methodName $ m
-      (e:es) -> pure . Left $ (methodName m, (e:|es))
+      []     -> pure . Right $ Contract.CallableMethod (locVal $ methodName m) (methodArgs m)
+      (e:es) -> pure . Left $ Contract.NotCallableMethod (locVal $ methodName m) (methodArgs m) (e:|es)
 
 
 -------------------------------------------------------------------------------

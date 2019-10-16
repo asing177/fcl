@@ -44,7 +44,7 @@ data EvalFail
   | CallPrimOpFail Loc (Maybe Value) Text -- ^ Prim op call failed
   | NoTransactionContext Loc Text       -- ^ Asked for a bit of transaction context without a transaction context
   | PatternMatchFailure Value Loc       -- ^ No matching pattern
-  | NotCallable Name NotCallableReason
+  | NotCallable { ncName :: Name, ncArgs :: [Arg], ncReason :: NotCallableReason }
   deriving (Eq, Show, Generic, Serialize)
 
 instance Arbitrary EvalFail where
@@ -78,7 +78,7 @@ instance Pretty EvalFail where
 
     PatternMatchFailure val loc ->
       "No matching pattern for value" <+> sqppr val <+> "at" <+> ppr loc
-    NotCallable methodName reason -> "Method" <+> ppr methodName <+> "is not callable:"
+    NotCallable methodName args reason -> "Method" <+> ppr methodName <+> "is not callable:"
       <$$+> ppr reason
 
 

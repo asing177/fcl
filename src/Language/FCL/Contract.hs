@@ -17,6 +17,8 @@ module Language.FCL.Contract (
   callableMethods,
   PermittedCallers(..),
   CallableMethods(..),
+  CallableMethod(..),
+  NotCallableMethod(..),
 
   -- ** Validation
   validateContract,
@@ -169,17 +171,38 @@ callersJSON callers =
 
 -- | Datatype used by Eval.hs to report callable methods after evaluating the
 -- access restriction expressions associated with contract methods.
-data CallableMethods
-  = MkCallableMethods
-    { cmCallableMethods    :: [LName]
-    , cmNotCallableMethods :: [(LName, NonEmpty NotCallableReason)]
-    }
-  deriving (Show, Generic)
+data CallableMethods = CallableMethods
+  { cmCallableMethods    :: [CallableMethod]
+  , cmNotCallableMethods :: [NotCallableMethod]
+  } deriving (Show, Generic)
 
 instance ToJSON CallableMethods where
   toJSON = genericToJSON (defaultOptions { sumEncoding = ObjectWithSingleField })
 
 instance Arbitrary CallableMethods where
+  arbitrary = genericArbitraryU
+
+data CallableMethod = CallableMethod
+  { cmName :: Name
+  , cmArgs :: [Arg]
+  } deriving (Show, Generic)
+
+instance ToJSON CallableMethod where
+  toJSON = genericToJSON (defaultOptions { sumEncoding = ObjectWithSingleField })
+
+instance Arbitrary CallableMethod where
+  arbitrary = genericArbitraryU
+
+data NotCallableMethod = NotCallableMethod
+  { ncmName :: Name
+  , ncmArgs :: [Arg]
+  , ncmReason :: NonEmpty NotCallableReason
+  } deriving (Show, Generic)
+
+instance ToJSON NotCallableMethod where
+  toJSON = genericToJSON (defaultOptions { sumEncoding = ObjectWithSingleField })
+
+instance Arbitrary NotCallableMethod where
   arbitrary = genericArbitraryU
 
 -------------------------------------------------------------------------------
