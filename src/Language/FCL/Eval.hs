@@ -1156,9 +1156,14 @@ evalPreconditions m = do
       e <- evalLExpr expr
       case e of
         VSet vAccounts -> do
+          let filteredAccts = Set.filter  (\case
+                                              VAccount _ -> True
+                                              _ -> False
+                                          ) vAccounts
           let accounts = Set.map (\(VAccount a) -> a) vAccounts
           pure accounts
         VAccount addr -> pure $ Set.singleton addr
+        VUndefined -> pure Set.empty
         _ -> panicImpossible $ "Could not evaluate role " <> show e
 
 checkPreconditions
@@ -1166,7 +1171,7 @@ checkPreconditions
   => Method -> EvalM world [NotCallableReason]
 checkPreconditions m = do
     PreconditionsV afterV beforeV roleV <- evalPreconditions m
-    (map catMaybes) . sequence $ catMaybes
+    map catMaybes . sequence $ catMaybes
       [ checkAfter <$> afterV
       , checkBefore <$> beforeV
       , checkRole <$> roleV
