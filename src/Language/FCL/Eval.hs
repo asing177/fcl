@@ -1160,8 +1160,7 @@ evalPreconditions m = do
                                               VAccount _ -> True
                                               _ -> False
                                           ) vAccounts
-          let accounts = Set.map (\(VAccount a) -> a) vAccounts
-          pure accounts
+          pure $ Set.map (\(VAccount a) -> a) filteredAccts
         VAccount addr -> pure $ Set.singleton addr
         VUndefined -> pure Set.empty
         _ -> panicImpossible $ "Could not evaluate role " <> show e
