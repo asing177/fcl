@@ -204,11 +204,11 @@ data NotCallableMethod = NotCallableMethod
   } deriving (Show, Generic)
 
 instance ToJSON NotCallableMethod where
-  toJSON (NotCallableMethod name args reason)
+  toJSON (NotCallableMethod name args reasons)
     = A.object [ "name" .= name
                , "args" .= ((\arg@(Arg t ln)
                              -> A.object [ "name" .= locVal ln, "type" .= t]) <$> args)
-               , "reason" .= reason
+               , "reasons" .= reasons
                ]
 
 instance Arbitrary NotCallableMethod where
