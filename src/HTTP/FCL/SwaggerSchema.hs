@@ -30,6 +30,7 @@ import Language.FCL.Compile as Compile
 import Language.FCL.Warning as Warning
 import Language.FCL.Effect as Effect
 import Language.FCL.Error as Error
+import qualified Language.FCL.LanguageServerProtocol as LSP
 import Language.FCL.Storage as Storage
 import Language.FCL.Metadata as Metadata
 import Language.FCL.Encoding as Encoding
@@ -39,7 +40,6 @@ import Language.FCL.Reachability.Definitions as Reachability
 import qualified Language.FCL.Duplicate as Dupl
 import Numeric.Lossless.Decimal
 import Numeric.Lossless.Number
-import qualified Language.FCL.LanguageServerProtocol as LSP
 
 -------------------------
 -- Helper functions
@@ -157,6 +157,38 @@ instance ToSchema Metadata where
 
 
 instance ToSchema CallableMethods
+instance ToSchema CallableMethod where
+  declareNamedSchema _ = do
+    t <- declareSchemaRef @Text Proxy
+    typ <- declareSchemaRef @Type Proxy
+    pure $ objectNamedSchema
+      "CallableMethod"
+      [ ("name", t)
+      , ("args", Inline $ mempty
+          { _schemaParamSchema = mempty { _paramSchemaType = SwaggerArray }
+          , _schemaAllOf = Just [Inline $ objectSchema [("name", t), ("type", typ)] True]
+          }
+        )
+      ]
+      True
+
+instance ToSchema NotCallableMethod where
+  declareNamedSchema _ = do
+    t <- declareSchemaRef @Text Proxy
+    typ <- declareSchemaRef @Type Proxy
+    reasons <- declareSchemaRef @[NotCallableReason] Proxy
+    pure $ objectNamedSchema
+      "NotCallableMethod"
+      [ ("name", t)
+      , ("args", Inline $ mempty
+          { _schemaParamSchema = mempty { _paramSchemaType = SwaggerArray }
+          , _schemaAllOf = Just [Inline $ objectSchema [("name", t), ("type", typ)] True]
+          }
+        )
+      , ("reasons", reasons)
+      ]
+      True
+
 instance ToSchema PermittedCallers where
   declareNamedSchema _ = do
     t <- declareSchemaRef @Text Proxy

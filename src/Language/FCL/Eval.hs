@@ -1082,7 +1082,7 @@ getAsset assetExpr = do
 evalMethod :: (World world, Show (AccountError' world), Show (AssetError' world)) => Method -> [Value] -> EvalM world Value
 evalMethod meth@(Method _ _ nm argTyps body) args = do
     setCurrentMethod (Just meth)
-    mapM (throwError . NotCallable nm) =<< checkPreconditions meth
+    mapM (throwError . NotCallable (locVal nm)) =<< checkPreconditions meth
     when (numArgs /= numArgsGiven)
          (throwError $ MethodArityError (locVal nm) numArgs numArgsGiven)
     forM_ (zip argNames args) . uncurry $ insertTempVar
@@ -1156,9 +1156,13 @@ evalPreconditions m = do
       e <- evalLExpr expr
       case e of
         VSet vAccounts -> do
-          let accounts = Set.map (\(VAccount a) -> a) vAccounts
-          pure accounts
+          let filteredAccts = Set.filter  (\case
+                                              VAccount _ -> True
+                                              _ -> False
+                                          ) vAccounts
+          pure $ Set.map (\(VAccount a) -> a) filteredAccts
         VAccount addr -> pure $ Set.singleton addr
+        VUndefined -> pure Set.empty
         _ -> panicImpossible $ "Could not evaluate role " <> show e
 
 checkPreconditions
@@ -1166,7 +1170,7 @@ checkPreconditions
   => Method -> EvalM world [NotCallableReason]
 checkPreconditions m = do
     PreconditionsV afterV beforeV roleV <- evalPreconditions m
-    (map catMaybes) . sequence $ catMaybes
+    map catMaybes . sequence $ catMaybes
       [ checkAfter <$> afterV
       , checkBefore <$> beforeV
       , checkRole <$> roleV
@@ -1209,11 +1213,11 @@ evalCallableMethods contract = do
       . scriptMethods
       . Contract.script
       $ contract
-    pure Contract.MkCallableMethods{..}
+    pure Contract.CallableMethods{..}
   where
     checkPreconditions' m = checkPreconditions m >>= \case
-      []     -> pure . Right . methodName $ m
-      (e:es) -> pure . Left $ (methodName m, (e:|es))
+      []     -> pure . Right $ Contract.CallableMethod (locVal $ methodName m) (methodArgs m)
+      (e:es) -> pure . Left $ Contract.NotCallableMethod (locVal $ methodName m) (methodArgs m) (e:|es)
 
 
 -------------------------------------------------------------------------------
